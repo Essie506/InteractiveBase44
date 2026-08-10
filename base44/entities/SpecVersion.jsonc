@@ -1,0 +1,36 @@
+{
+  "name": "SpecVersion",
+  "type": "object",
+  "properties": {
+    "specification_id": {
+      "type": "string",
+      "title": "Specification ID"
+    },
+    "version": {
+      "type": "string",
+      "title": "Version"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "In Review",
+        "Approved",
+        "Archived"
+      ],
+      "title": "Status"
+    },
+    "file_url": {
+      "type": "string",
+      "title": "File URL"
+    },
+    "change_note": {
+      "type": "string",
+      "title": "Change Note"
+    }
+  },
+  "required": [
+    "specification_id",
+    "version"
+  ]
+}

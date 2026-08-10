@@ -1,0 +1,57 @@
+{
+  "name": "Specification",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "spec_number": {
+      "type": "string",
+      "title": "Specification Number"
+    },
+    "project_id": {
+      "type": "string",
+      "title": "Project ID"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "In Review",
+        "Approved",
+        "Archived"
+      ],
+      "default": "Draft",
+      "title": "Status"
+    },
+    "system_type": {
+      "type": "string",
+      "title": "System Type"
+    },
+    "version": {
+      "type": "string",
+      "title": "Version",
+      "default": "1.0"
+    },
+    "file_url": {
+      "type": "string",
+      "title": "File URL"
+    },
+    "summary": {
+      "type": "string",
+      "title": "Summary"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags"
+    }
+  },
+  "required": [
+    "title",
+    "project_id"
+  ]
+}

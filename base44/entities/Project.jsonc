@@ -1,0 +1,22 @@
+{
+  "name": "Project",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "color": {
+      "type": "string",
+      "title": "Color",
+      "default": "#4F46E5"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
