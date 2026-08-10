@@ -1,39 +1,49 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
-import { User, Briefcase, Building2, ChevronDown, Check, Loader2 } from 'lucide-react';
-
-const contexts = [
-  { key: 'personal', label: 'Personal', icon: User },
-  { key: 'professional', label: 'Professional', icon: Briefcase },
-  { key: 'business', label: 'Business', icon: Building2 },
-];
+import { getUserBusinesses } from '@/lib/businessPermissions';
+import { User, Briefcase, Building2, ChevronDown, Check, Loader2, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function ContextSwitcher() {
   const { user, checkUserAuth } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [businesses, setBusinesses] = useState([]);
+
+  useEffect(() => {
+    if (!user) return;
+    getUserBusinesses(user.id).then(setBusinesses);
+  }, [user]);
 
   const activeContext = user?.active_context || 'personal';
-  const current = contexts.find(c => c.key === activeContext) || contexts[0];
-  const CurrentIcon = current.icon;
+  const activeBusinessId = user?.active_business_id;
+  const isProfessionalActive = user?.professional_activated || user?.professional_onboarding_status === 'active';
 
-  const isAvailable = (key) => {
-    if (key === 'personal') return true;
-    if (key === 'professional') return user?.professional_activated === true;
-    if (key === 'business') return !!user?.active_business_id;
-    return false;
-  };
+  // Determine current label
+  let currentLabel = 'Personal';
+  let CurrentIcon = User;
+  if (activeContext === 'professional') {
+    currentLabel = 'Professional';
+    CurrentIcon = Briefcase;
+  } else if (activeContext === 'business') {
+    const activeBiz = businesses.find(b => b.id === activeBusinessId);
+    currentLabel = activeBiz?.name || 'Business';
+    CurrentIcon = Building2;
+  }
 
-  const handleSwitch = async (key) => {
-    if (!isAvailable(key) || switching) return;
+  const switchTo = async (context, businessId = null) => {
+    if (switching) return;
     setSwitching(true);
     try {
-      await base44.auth.updateMe({ active_context: key });
+      const updates = { active_context: context };
+      if (context === 'business' && businessId) updates.active_business_id = businessId;
+      await base44.auth.updateMe(updates);
       await checkUserAuth();
+      setOpen(false);
     } finally {
       setSwitching(false);
-      setOpen(false);
     }
   };
 
@@ -49,7 +59,7 @@ export default function ContextSwitcher() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-slate-500">Operating as</div>
-          <div className="text-sm font-medium text-white truncate">{current.label}</div>
+          <div className="text-sm font-medium text-white truncate">{currentLabel}</div>
         </div>
         {switching ? <Loader2 className="w-3.5 h-3.5 text-slate-500 animate-spin" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
       </button>
@@ -57,25 +67,57 @@ export default function ContextSwitcher() {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 right-0 z-20 bg-slate-800 rounded-lg border border-slate-700 py-1 shadow-xl">
-            {contexts.map(ctx => {
-              const CtxIcon = ctx.icon;
-              const active = ctx.key === activeContext;
-              const available = isAvailable(ctx.key);
-              return (
-                <button
-                  key={ctx.key}
-                  onClick={() => handleSwitch(ctx.key)}
-                  disabled={!available || switching}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-left ${available ? 'hover:bg-slate-700' : 'opacity-40 cursor-not-allowed'}`}
-                >
-                  <CtxIcon className="w-4 h-4 text-slate-400" />
-                  <span className="flex-1 text-sm text-slate-200">{ctx.label}</span>
-                  {active && <Check className="w-3.5 h-3.5 text-indigo-400" />}
-                  {!available && <span className="text-[10px] text-slate-600">Not activated</span>}
-                </button>
-              );
-            })}
+          <div className="absolute top-full mt-1 left-0 right-0 z-20 bg-slate-800 rounded-lg border border-slate-700 py-1 shadow-xl max-h-96 overflow-auto">
+            {/* Personal */}
+            <button
+              onClick={() => switchTo('personal')}
+              disabled={switching}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-700 ${activeContext === 'personal' ? 'opacity-100' : ''}`}
+            >
+              <User className="w-4 h-4 text-slate-400" />
+              <span className="flex-1 text-sm text-slate-200">Personal</span>
+              {activeContext === 'personal' && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+            </button>
+
+            {/* Professional */}
+            <button
+              onClick={() => isProfessionalActive && switchTo('professional')}
+              disabled={!isProfessionalActive || switching}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-left ${isProfessionalActive ? 'hover:bg-slate-700' : 'opacity-40 cursor-not-allowed'}`}
+            >
+              <Briefcase className="w-4 h-4 text-slate-400" />
+              <span className="flex-1 text-sm text-slate-200">Professional</span>
+              {activeContext === 'professional' && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+              {!isProfessionalActive && <span className="text-[10px] text-slate-600">Not activated</span>}
+            </button>
+
+            {/* Divider */}
+            {businesses.length > 0 && <div className="border-t border-slate-700 my-1" />}
+
+            {/* Businesses */}
+            {businesses.map(biz => (
+              <button
+                key={biz.id}
+                onClick={() => switchTo('business', biz.id)}
+                disabled={switching}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-700"
+              >
+                <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="flex-1 text-sm text-slate-200 truncate">{biz.name}</span>
+                {activeContext === 'business' && activeBusinessId === biz.id && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+              </button>
+            ))}
+
+            {/* Create business */}
+            <div className="border-t border-slate-700 mt-1 pt-1">
+              <button
+                onClick={() => { setOpen(false); navigate('/create-business'); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-700"
+              >
+                <Plus className="w-4 h-4 text-indigo-400" />
+                <span className="text-sm text-indigo-400">Create Business</span>
+              </button>
+            </div>
           </div>
         </>
       )}

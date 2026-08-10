@@ -1,0 +1,74 @@
+{
+  "name": "BusinessInvitation",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Stable reference to the Business"
+    },
+    "business_name": {
+      "type": "string",
+      "title": "Business Name",
+      "description": "Denormalised for invitation display"
+    },
+    "email": {
+      "type": "string",
+      "title": "Invitee Email"
+    },
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "Set when the invitee is an existing Interactive identity"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "owner",
+        "admin",
+        "staff",
+        "member"
+      ],
+      "default": "staff",
+      "title": "Proposed Role"
+    },
+    "invited_by_id": {
+      "type": "string",
+      "title": "Invited By ID",
+      "description": "Identity that sent the invitation"
+    },
+    "invited_by_name": {
+      "type": "string",
+      "title": "Invited By Name"
+    },
+    "message": {
+      "type": "string",
+      "title": "Invitation Message"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "created",
+        "sent",
+        "delivered",
+        "accepted",
+        "declined",
+        "expired",
+        "cancelled"
+      ],
+      "default": "sent",
+      "title": "Invitation Status"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+    }
+  },
+  "required": [
+    "business_id",
+    "email",
+    "role",
+    "invited_by_id"
+  ]
+}

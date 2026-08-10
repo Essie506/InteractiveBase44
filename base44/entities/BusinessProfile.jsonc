@@ -23,6 +23,33 @@
       "type": "string",
       "title": "Location"
     },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Services"
+    },
+    "contact_email": {
+      "type": "string",
+      "title": "Contact Email"
+    },
+    "contact_phone": {
+      "type": "string",
+      "title": "Contact Phone"
+    },
+    "website": {
+      "type": "string",
+      "title": "Website"
+    },
+    "operating_hours": {
+      "type": "string",
+      "title": "Operating Hours"
+    },
     "visibility": {
       "type": "string",
       "enum": [

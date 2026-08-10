@@ -1,0 +1,46 @@
+{
+  "name": "BusinessSubscription",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Stable reference to the Business"
+    },
+    "plan_id": {
+      "type": "string",
+      "title": "Plan ID",
+      "description": "Stable reference to the SubscriptionPlan"
+    },
+    "plan_name": {
+      "type": "string",
+      "title": "Plan Name",
+      "description": "Denormalised for display"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "selected",
+        "active",
+        "suspended",
+        "cancelled"
+      ],
+      "default": "selected",
+      "title": "Subscription Status"
+    },
+    "selected_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Selected At"
+    },
+    "activated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Activated At"
+    }
+  },
+  "required": [
+    "business_id",
+    "plan_id"
+  ]
+}

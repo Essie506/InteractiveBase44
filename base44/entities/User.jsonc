@@ -65,6 +65,16 @@
       "default": false,
       "title": "Professional Activated"
     },
+    "professional_onboarding_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "in_progress",
+        "active"
+      ],
+      "default": "not_started",
+      "title": "Professional Onboarding Status"
+    },
     "terms_accepted": {
       "type": "boolean",
       "default": false,

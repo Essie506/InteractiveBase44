@@ -23,12 +23,27 @@
       "default": "member",
       "title": "Role"
     },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Additional Permissions",
+      "description": "Individual permission overrides beyond role defaults"
+    },
+    "invited_by_id": {
+      "type": "string",
+      "title": "Invited By ID",
+      "description": "Identity that invited this member"
+    },
     "lifecycle_state": {
       "type": "string",
       "enum": [
         "active",
         "invited",
-        "suspended"
+        "suspended",
+        "removed",
+        "historical"
       ],
       "default": "active",
       "title": "Lifecycle State"

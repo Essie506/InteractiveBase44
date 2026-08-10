@@ -18,6 +18,13 @@ import Onboarding from '@/pages/Onboarding';
 import Dashboard from '@/pages/Dashboard';
 import ProfilePage from '@/pages/ProfilePage';
 import SettingsPage from '@/pages/SettingsPage';
+import ProfessionalActivation from '@/pages/ProfessionalActivation';
+import BusinessCreation from '@/pages/BusinessCreation';
+import BusinessWorkspace from '@/pages/BusinessWorkspace';
+import BusinessStaff from '@/pages/BusinessStaff';
+import BusinessProfilePage from '@/pages/BusinessProfilePage';
+import ProfessionalProfilePage from '@/pages/ProfessionalProfilePage';
+import InvitationsPage from '@/pages/InvitationsPage';
 import Specifications from '@/pages/Specifications';
 import SpecificationDetail from '@/pages/SpecificationDetail';
 import UploadPage from '@/pages/Upload';
@@ -57,10 +64,17 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/activate-professional" element={<ProfessionalActivation />} />
+        <Route path="/create-business" element={<BusinessCreation />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/invitations" element={<InvitationsPage />} />
+          <Route path="/professional-profile" element={<ProfessionalProfilePage />} />
+          <Route path="/business/:id" element={<BusinessWorkspace />} />
+          <Route path="/business/:id/staff" element={<BusinessStaff />} />
+          <Route path="/business/:id/profile" element={<BusinessProfilePage />} />
           <Route path="/specifications" element={<Specifications />} />
           <Route path="/specifications/:id" element={<SpecificationDetail />} />
           <Route path="/upload" element={<UploadPage />} />

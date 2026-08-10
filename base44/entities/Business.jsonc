@@ -28,12 +28,58 @@
     "lifecycle_state": {
       "type": "string",
       "enum": [
+        "creating",
+        "pending_verification",
         "active",
-        "suspended",
-        "archived"
+        "restricted",
+        "protected",
+        "inactive",
+        "closing",
+        "archived",
+        "reactivating"
       ],
-      "default": "active",
+      "default": "creating",
       "title": "Lifecycle State"
+    },
+    "onboarding_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "in_progress",
+        "awaiting_verification",
+        "active"
+      ],
+      "default": "not_started",
+      "title": "Business Onboarding Status"
+    },
+    "onboarding_step": {
+      "type": "string",
+      "title": "Current Onboarding Step"
+    },
+    "verification_state": {
+      "type": "string",
+      "enum": [
+        "not_verified",
+        "pending_review",
+        "additional_info_required",
+        "verified",
+        "failed",
+        "expired"
+      ],
+      "default": "not_verified",
+      "title": "Verification State"
+    },
+    "website": {
+      "type": "string",
+      "title": "Website"
+    },
+    "contact_email": {
+      "type": "string",
+      "title": "Contact Email"
+    },
+    "contact_phone": {
+      "type": "string",
+      "title": "Contact Phone"
     }
   },
   "required": [
