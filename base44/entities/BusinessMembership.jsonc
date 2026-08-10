@@ -1,0 +1,42 @@
+{
+  "name": "BusinessMembership",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Stable reference to the Business"
+    },
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "Stable reference to the authenticated Interactive identity"
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "owner",
+        "admin",
+        "staff",
+        "member"
+      ],
+      "default": "member",
+      "title": "Role"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "invited",
+        "suspended"
+      ],
+      "default": "active",
+      "title": "Lifecycle State"
+    }
+  },
+  "required": [
+    "business_id",
+    "identity_id",
+    "role"
+  ]
+}

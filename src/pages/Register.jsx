@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2 } from "lucide-react";
+import { UserPlus, Mail, Lock, Loader2, User, Briefcase, Building2, ArrowRight } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -19,6 +19,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+  const [intent, setIntent] = useState("");
+  const [showIntent, setShowIntent] = useState(true);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,8 +47,9 @@ export default function Register() {
       const result = await base44.auth.verifyOtp({ email, otpCode });
       if (result?.access_token) {
         base44.auth.setToken(result.access_token);
+        await base44.auth.updateMe({ onboarding_intent: intent, onboarding_status: 'not_started' });
       }
-      window.location.href = safeReturnTo();
+      window.location.href = '/onboarding';
     } catch (err) {
       setError(err.message || "Invalid verification code");
     } finally {
@@ -68,8 +71,55 @@ export default function Register() {
   };
 
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", safeReturnTo());
+    base44.auth.loginWithProvider("google", '/onboarding?intent=' + (intent || 'personal'));
   };
+
+  if (showIntent) {
+    return (
+      <AuthLayout
+        icon={UserPlus}
+        title="Choose your journey"
+        subtitle="How will you use Interactive?"
+        footer={
+          <>
+            Already have an account?{" "}
+            <Link
+              to={"/login" + (safeReturnTo() !== "/" ? "?returnTo=" + encodeURIComponent(safeReturnTo()) : "")}
+              className="text-primary font-medium hover:underline"
+            >
+              Log in
+            </Link>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          {[
+            { key: 'personal', label: 'Personal', desc: 'Connect with the Interactive community', icon: User },
+            { key: 'professional', label: 'Professional', desc: 'Offer services and build your brand', icon: Briefcase },
+            { key: 'business', label: 'Business', desc: 'Create a business workspace', icon: Building2 },
+          ].map(opt => {
+            const OptIcon = opt.icon;
+            return (
+              <button
+                key={opt.key}
+                onClick={() => { setIntent(opt.key); setShowIntent(false); }}
+                className="w-full flex items-center gap-3 p-4 border border-border rounded-xl hover:border-primary hover:bg-accent transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
+                  <OptIcon className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{opt.label}</div>
+                  <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                </div>
+                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+            );
+          })}
+        </div>
+      </AuthLayout>
+    );
+  }
 
   if (showOtp) {
     return (

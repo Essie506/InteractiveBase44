@@ -1,4 +1,6 @@
 {
+  "name": "User",
+  "type": "object",
   "properties": {
     "role": {
       "type": "string",
@@ -7,11 +9,74 @@
         "admin",
         "user"
       ]
+    },
+    "display_name": {
+      "type": "string",
+      "title": "Display Name"
+    },
+    "avatar_url": {
+      "type": "string",
+      "title": "Avatar URL"
+    },
+    "onboarding_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "in_progress",
+        "completed"
+      ],
+      "default": "not_started",
+      "title": "Onboarding Status"
+    },
+    "onboarding_intent": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "title": "Onboarding Intent"
+    },
+    "active_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "personal",
+      "title": "Active Operating Context"
+    },
+    "active_business_id": {
+      "type": "string",
+      "title": "Active Business ID"
+    },
+    "phone_number": {
+      "type": "string",
+      "title": "Phone Number"
+    },
+    "phone_verified": {
+      "type": "boolean",
+      "default": false,
+      "title": "Phone Verified"
+    },
+    "professional_activated": {
+      "type": "boolean",
+      "default": false,
+      "title": "Professional Activated"
+    },
+    "terms_accepted": {
+      "type": "boolean",
+      "default": false,
+      "title": "Terms Accepted"
+    },
+    "terms_accepted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Terms Accepted At"
     }
   },
   "required": [
     "role"
-  ],
-  "name": "User",
-  "type": "object"
+  ]
 }

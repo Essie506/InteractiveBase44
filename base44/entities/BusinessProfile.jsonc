@@ -1,0 +1,50 @@
+{
+  "name": "BusinessProfile",
+  "type": "object",
+  "properties": {
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Stable reference to the Business"
+    },
+    "name": {
+      "type": "string",
+      "title": "Business Name"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "logo_url": {
+      "type": "string",
+      "title": "Logo URL"
+    },
+    "location": {
+      "type": "string",
+      "title": "Location"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "private"
+      ],
+      "default": "public",
+      "title": "Visibility"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "archived"
+      ],
+      "default": "draft",
+      "title": "Lifecycle State"
+    }
+  },
+  "required": [
+    "business_id",
+    "name"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "name": "OnboardingState",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "Stable reference to the authenticated Interactive identity"
+    },
+    "intent": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "title": "Onboarding Intent"
+    },
+    "current_step": {
+      "type": "string",
+      "title": "Current Step"
+    },
+    "completed_steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Completed Steps"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "completed",
+        "abandoned"
+      ],
+      "default": "in_progress",
+      "title": "Status"
+    },
+    "return_to": {
+      "type": "string",
+      "title": "Return To",
+      "description": "Return-to-origin URL for post-onboarding continuation"
+    }
+  },
+  "required": [
+    "identity_id",
+    "intent"
+  ]
+}

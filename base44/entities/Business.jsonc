@@ -1,0 +1,43 @@
+{
+  "name": "Business",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Business Name"
+    },
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "Stable reference to the authenticated identity that created this Business"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "gym",
+        "studio",
+        "clinic",
+        "freelancer",
+        "club",
+        "charity",
+        "other"
+      ],
+      "default": "other",
+      "title": "Business Type"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "suspended",
+        "archived"
+      ],
+      "default": "active",
+      "title": "Lifecycle State"
+    }
+  },
+  "required": [
+    "name",
+    "owner_id"
+  ]
+}

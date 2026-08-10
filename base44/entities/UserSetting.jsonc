@@ -1,0 +1,64 @@
+{
+  "name": "UserSetting",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "Stable reference to the authenticated Interactive identity"
+    },
+    "profile_visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private"
+      ],
+      "default": "public",
+      "title": "Profile Visibility"
+    },
+    "search_visibility": {
+      "type": "boolean",
+      "default": true,
+      "title": "Search Visibility"
+    },
+    "allow_direct_messages": {
+      "type": "boolean",
+      "default": true,
+      "title": "Allow Direct Messages"
+    },
+    "show_activity": {
+      "type": "boolean",
+      "default": false,
+      "title": "Show Activity"
+    },
+    "email_notifications": {
+      "type": "boolean",
+      "default": true,
+      "title": "Email Notifications"
+    },
+    "push_notifications": {
+      "type": "boolean",
+      "default": true,
+      "title": "Push Notifications"
+    },
+    "theme": {
+      "type": "string",
+      "enum": [
+        "light",
+        "dark",
+        "system"
+      ],
+      "default": "system",
+      "title": "Theme"
+    },
+    "language": {
+      "type": "string",
+      "default": "en",
+      "title": "Language"
+    }
+  },
+  "required": [
+    "identity_id"
+  ]
+}

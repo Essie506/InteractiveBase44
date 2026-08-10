@@ -1,0 +1,60 @@
+{
+  "name": "PersonalProfile",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "Stable reference to the authenticated Interactive identity (User)"
+    },
+    "display_name": {
+      "type": "string",
+      "title": "Display Name"
+    },
+    "screen_name": {
+      "type": "string",
+      "title": "Screen Name",
+      "description": "Unique public handle"
+    },
+    "avatar_url": {
+      "type": "string",
+      "title": "Avatar URL"
+    },
+    "bio": {
+      "type": "string",
+      "title": "Bio"
+    },
+    "headline": {
+      "type": "string",
+      "title": "Headline"
+    },
+    "location": {
+      "type": "string",
+      "title": "Location"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private"
+      ],
+      "default": "public",
+      "title": "Visibility"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "active",
+        "archived"
+      ],
+      "default": "draft",
+      "title": "Lifecycle State"
+    }
+  },
+  "required": [
+    "identity_id",
+    "display_name"
+  ]
+}
