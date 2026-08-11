@@ -10,7 +10,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
-    "test:rules": "firebase emulators:exec --only firestore \"node tests/firestore-rules.test.cjs\""
+    "test:rules": "firebase emulators:exec --only firestore \"node tests/firestore-rules.test.cjs\"",
+    "test:identity": "node tests/identity-resolution.test.cjs"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.41",
