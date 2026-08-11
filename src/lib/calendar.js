@@ -1,9 +1,10 @@
 import { base44 } from '@/api/base44Client';
+import { calendarRepository } from '@/data/firebase';
+import { useFirebase } from '@/lib/backendConfig';
 
-// Calendar System — authoritative owner of calendar records, availability and scheduling state.
-// Connected systems reference Calendar through stable IDs/contracts.
+// Calendar System — M3: routes to Firebase when configured.
+// Firestore queries use owner_id/business_id filters (security-rule compatible).
 
-// Get the user's local timezone (IANA identifier)
 export function getLocalTimezone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -12,29 +13,19 @@ export function getLocalTimezone() {
   }
 }
 
-// Format an ISO datetime in a specific timezone
 export function formatInTimezone(isoString, timezone, options = {}) {
   if (!isoString) return '';
-  const defaults = {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: timezone,
-  };
+  const defaults = { hour: '2-digit', minute: '2-digit', timeZone: timezone };
   return new Date(isoString).toLocaleString('en-GB', { ...defaults, ...options });
 }
 
-// Format a date for display
 export function formatDate(isoString, timezone) {
   if (!isoString) return '';
   return new Date(isoString).toLocaleDateString('en-GB', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    timeZone: timezone,
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: timezone,
   });
 }
 
-// Format a time range
 export function formatTimeRange(startIso, endIso, timezone) {
   if (!startIso) return '';
   const start = formatInTimezone(startIso, timezone, { hour: '2-digit', minute: '2-digit' });
@@ -42,7 +33,7 @@ export function formatTimeRange(startIso, endIso, timezone) {
   return end ? `${start} – ${end}` : start;
 }
 
-// Create a calendar event (authoritative Calendar record)
+// Create a calendar event
 export async function createEvent(data) {
   const {
     owner_id, owner_type, operating_context, title, description,
@@ -51,7 +42,7 @@ export async function createEvent(data) {
     created_by_id, recurrence_rule,
   } = data;
 
-  return base44.entities.CalendarEvent.create({
+  const eventData = {
     owner_id,
     owner_type: owner_type || 'identity',
     operating_context: operating_context || 'personal',
@@ -71,30 +62,37 @@ export async function createEvent(data) {
     business_id: business_id || null,
     created_by_id,
     recurrence_rule: recurrence_rule || null,
-  });
+  };
+
+  if (useFirebase) return calendarRepository.createEvent(eventData);
+  return base44.entities.CalendarEvent.create(eventData);
 }
 
-// Update a calendar event
 export async function updateEvent(eventId, data) {
+  if (useFirebase) return calendarRepository.updateEvent(eventId, data);
   return base44.entities.CalendarEvent.update(eventId, data);
 }
 
-// Cancel a calendar event (does not delete — lifecycle transition)
 export async function cancelEvent(eventId) {
-  return base44.entities.CalendarEvent.update(eventId, {
-    lifecycle_state: 'cancelled',
-  });
+  if (useFirebase) return calendarRepository.updateEvent(eventId, { lifecycle_state: 'cancelled' });
+  return base44.entities.CalendarEvent.update(eventId, { lifecycle_state: 'cancelled' });
 }
 
 // Get events for an owner within a date range
 export async function getEvents(ownerId, ownerType, startDate, endDate) {
-  const all = await base44.entities.CalendarEvent.filter({
-    owner_id: ownerId,
-    owner_type: ownerType,
-    lifecycle_state: { $ne: 'cancelled' },
-  }, 'start_time', 200);
+  let all;
+  if (useFirebase) {
+    // Firestore: query by owner_id (security-rule compatible)
+    all = await calendarRepository.listEventsForOwner(ownerId);
+    all = all.filter(e => e.lifecycle_state !== 'cancelled');
+  } else {
+    all = await base44.entities.CalendarEvent.filter({
+      owner_id: ownerId,
+      owner_type: ownerType,
+      lifecycle_state: { $ne: 'cancelled' },
+    }, 'start_time', 200);
+  }
 
-  // Filter by date range (client-side since we can't do range queries easily)
   const startMs = startDate ? new Date(startDate).getTime() : 0;
   const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;
 
@@ -104,7 +102,6 @@ export async function getEvents(ownerId, ownerType, startDate, endDate) {
   });
 }
 
-// Get events for a specific date
 export async function getEventsForDate(ownerId, ownerType, date) {
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
@@ -113,24 +110,29 @@ export async function getEventsForDate(ownerId, ownerType, date) {
   return getEvents(ownerId, ownerType, startOfDay, endOfDay);
 }
 
-// Get all events for an identity across their contexts
 export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate) {
   const events = [];
-
-  // Personal events always available
   const personalEvents = await getEvents(identityId, 'identity', startDate, endDate);
   events.push(...personalEvents);
 
-  // Professional events if professional is active
   if (activeContext === 'professional') {
     const profEvents = await getEvents(identityId, 'professional', startDate, endDate);
     events.push(...profEvents);
   }
 
-  // Business events if in business context
   if (activeContext === 'business' && businessId) {
-    const bizEvents = await getEvents(businessId, 'business', startDate, endDate);
-    events.push(...bizEvents);
+    if (useFirebase) {
+      const bizEvents = await calendarRepository.listEventsForBusiness(businessId);
+      const startMs = startDate ? new Date(startDate).getTime() : 0;
+      const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;
+      events.push(...bizEvents.filter(e => {
+        const eventStart = new Date(e.start_time).getTime();
+        return eventStart >= startMs && eventStart <= endMs && e.lifecycle_state !== 'cancelled';
+      }));
+    } else {
+      const bizEvents = await getEvents(businessId, 'business', startDate, endDate);
+      events.push(...bizEvents);
+    }
   }
 
   return events.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
@@ -138,86 +140,72 @@ export async function getAllEventsForIdentity(identityId, activeContext, busines
 
 // --- Availability ---
 
-// Create an availability rule
 export async function createAvailabilityRule(data) {
-  return base44.entities.AvailabilityRule.create({
-    ...data,
-    timezone: data.timezone || getLocalTimezone(),
-    lifecycle_state: 'active',
-  });
+  const ruleData = { ...data, timezone: data.timezone || getLocalTimezone(), lifecycle_state: 'active' };
+  if (useFirebase) return calendarRepository.createAvailability(ruleData);
+  return base44.entities.AvailabilityRule.create(ruleData);
 }
 
-// Get availability rules for an owner
 export async function getAvailabilityRules(ownerId, ownerType) {
+  if (useFirebase) {
+    const rules = await calendarRepository.listAvailabilityForOwner(ownerId);
+    return rules.filter(r => r.lifecycle_state === 'active').sort((a, b) => a.day_of_week - b.day_of_week);
+  }
   return base44.entities.AvailabilityRule.filter({
-    owner_id: ownerId,
-    owner_type: ownerType,
-    lifecycle_state: 'active',
+    owner_id: ownerId, owner_type: ownerType, lifecycle_state: 'active',
   }, 'day_of_week', 50);
 }
 
-// Delete an availability rule
 export async function deleteAvailabilityRule(ruleId) {
-  return base44.entities.AvailabilityRule.update(ruleId, {
-    lifecycle_state: 'archived',
-  });
+  if (useFirebase) return calendarRepository.updateAvailability(ruleId, { lifecycle_state: 'archived' });
+  return base44.entities.AvailabilityRule.update(ruleId, { lifecycle_state: 'archived' });
 }
 
-// Resolve availability for a specific date (combines recurring + exceptions)
 export async function getAvailabilityForDate(ownerId, ownerType, date) {
   const rules = await getAvailabilityRules(ownerId, ownerType);
   const dayOfWeek = new Date(date).getDay();
   const dateStr = date.toISOString().split('T')[0];
-
-  // One-off exceptions override recurring rules
   const exceptions = rules.filter(r => r.specific_date === dateStr);
   const recurring = rules.filter(r => !r.specific_date && r.day_of_week === dayOfWeek);
-
-  // Merge: exceptions take priority
   return [...exceptions, ...recurring].sort((a, b) => a.start_time.localeCompare(b.start_time));
 }
 
 // --- External Calendar ---
 
-// Create an external calendar connection (interface/stub for future OAuth)
 export async function createExternalConnection(data) {
-  return base44.entities.ExternalCalendarConnection.create({
-    ...data,
-    sync_status: 'pending',
-  });
+  const connData = { ...data, sync_status: 'pending' };
+  if (useFirebase) return calendarRepository.createConnection(connData);
+  return base44.entities.ExternalCalendarConnection.create(connData);
 }
 
-// Get external connections for an identity
 export async function getExternalConnections(identityId) {
+  if (useFirebase) {
+    const conns = await calendarRepository.listConnections(identityId);
+    return conns.filter(c => c.lifecycle_state === 'active');
+  }
   return base44.entities.ExternalCalendarConnection.filter({
-    identity_id: identityId,
-    lifecycle_state: 'active',
+    identity_id: identityId, lifecycle_state: 'active',
   });
 }
 
-// Update sync status
 export async function updateConnectionStatus(connectionId, status, error = null) {
-  return base44.entities.ExternalCalendarConnection.update(connectionId, {
+  const updateData = {
     sync_status: status,
     sync_error: error,
     last_synced_at: status === 'connected' ? new Date().toISOString() : undefined,
-  });
+  };
+  if (useFirebase) return calendarRepository.updateConnection(connectionId, updateData);
+  return base44.entities.ExternalCalendarConnection.update(connectionId, updateData);
 }
 
-// Check if a user can access a calendar event (permission gate)
 export function canAccessEvent(event, identityId, businessId, businessRole) {
   if (!event) return false;
-  // Owner always has access
   if (event.owner_id === identityId) return true;
-  // Created by has access
   if (event.created_by_id === identityId) return true;
-  // Business events — check business membership
   if (event.owner_type === 'business' && event.business_id === businessId) {
-    // Staff visibility: only owner/admin can see all staff events
     if (event.visibility === 'staff' && (businessRole === 'owner' || businessRole === 'admin')) return true;
     if (event.visibility === 'public') return true;
   }
-  // Public events
   if (event.visibility === 'public') return true;
   return false;
 }

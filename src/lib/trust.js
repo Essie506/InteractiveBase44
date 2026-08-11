@@ -1,13 +1,16 @@
 import { base44 } from '@/api/base44Client';
+import { trustRepository } from '@/data/firebase';
+import { useFirebase } from '@/lib/backendConfig';
 
-// Trust & Reputation — authoritative evidence-based trust layer
-// Trust owns verification lifecycle, trust evaluation, public indicators.
-// Authentication owns identity/credentials — no second identity system here.
+// Trust & Reputation — M3: routes to Firebase when configured.
+// Note: Verification approval/rejection and TrustSignal creation are
+// server-only operations. TrustSignals use a backend function.
+// Verification approval can be done by reviewers via client (security
+// rules allow reviewer update), but atomic approval should use a
+// backend function in production.
 
-// Submit verification with evidence (Media IDs)
 export async function submitVerification(targetType, targetId, submittedById, evidenceMediaIds, notes) {
-  // Create verification request
-  const request = await base44.entities.VerificationRequest.create({
+  const requestData = {
     target_type: targetType,
     target_id: targetId,
     verification_type: targetType,
@@ -18,32 +21,46 @@ export async function submitVerification(targetType, targetId, submittedById, ev
     evidence_media_ids: evidenceMediaIds || [],
     notes,
     submitted_at: new Date().toISOString(),
-  });
+  };
 
-  // Update target verification state
+  let request;
+  if (useFirebase) {
+    request = await trustRepository.createVerificationRequest(requestData);
+  } else {
+    request = await base44.entities.VerificationRequest.create(requestData);
+  }
+
   await updateTargetVerificationState(targetType, targetId, 'pending_review');
-
-  // Create or update trust record
   await ensureTrustRecord(targetType, targetId, 'pending');
 
   return request;
 }
 
-// Approve verification (admin/reviewer action)
 export async function approveVerification(requestId, reviewedById, explanation) {
-  const request = await base44.entities.VerificationRequest.get(requestId);
-
-  await base44.entities.VerificationRequest.update(requestId, {
-    status: 'verified',
-    decision: 'approved',
-    public_state: 'verified',
-    reviewed_by_id: reviewedById,
-    reviewed_at: new Date().toISOString(),
-    trust_explanation: explanation || 'Verified by Interactive',
-  });
+  let request;
+  if (useFirebase) {
+    request = await trustRepository.getVerificationRequest(requestId);
+    await trustRepository.updateVerificationRequest(requestId, {
+      status: 'verified',
+      decision: 'approved',
+      public_state: 'verified',
+      reviewed_by_id: reviewedById,
+      reviewed_at: new Date().toISOString(),
+      trust_explanation: explanation || 'Verified by Interactive',
+    });
+  } else {
+    request = await base44.entities.VerificationRequest.get(requestId);
+    await base44.entities.VerificationRequest.update(requestId, {
+      status: 'verified',
+      decision: 'approved',
+      public_state: 'verified',
+      reviewed_by_id: reviewedById,
+      reviewed_at: new Date().toISOString(),
+      trust_explanation: explanation || 'Verified by Interactive',
+    });
+  }
 
   await updateTargetVerificationState(request.target_type, request.target_id, 'verified');
-
   await updateTrustRecord(request.target_type, request.target_id, {
     trust_level: 'verified',
     verified_at: new Date().toISOString(),
@@ -56,21 +73,31 @@ export async function approveVerification(requestId, reviewedById, explanation) 
   return request;
 }
 
-// Reject verification
 export async function rejectVerification(requestId, reviewedById, reason) {
-  const request = await base44.entities.VerificationRequest.get(requestId);
-
-  await base44.entities.VerificationRequest.update(requestId, {
-    status: 'failed',
-    decision: 'rejected',
-    public_state: 'rejected',
-    reviewed_by_id: reviewedById,
-    reviewed_at: new Date().toISOString(),
-    trust_explanation: reason || 'Verification could not be confirmed',
-  });
+  let request;
+  if (useFirebase) {
+    request = await trustRepository.getVerificationRequest(requestId);
+    await trustRepository.updateVerificationRequest(requestId, {
+      status: 'failed',
+      decision: 'rejected',
+      public_state: 'rejected',
+      reviewed_by_id: reviewedById,
+      reviewed_at: new Date().toISOString(),
+      trust_explanation: reason || 'Verification could not be confirmed',
+    });
+  } else {
+    request = await base44.entities.VerificationRequest.get(requestId);
+    await base44.entities.VerificationRequest.update(requestId, {
+      status: 'failed',
+      decision: 'rejected',
+      public_state: 'rejected',
+      reviewed_by_id: reviewedById,
+      reviewed_at: new Date().toISOString(),
+      trust_explanation: reason || 'Verification could not be confirmed',
+    });
+  }
 
   await updateTargetVerificationState(request.target_type, request.target_id, 'failed');
-
   await updateTrustRecord(request.target_type, request.target_id, {
     trust_level: 'failed',
     public_indicators: [],
@@ -83,16 +110,47 @@ export async function rejectVerification(requestId, reviewedById, reason) {
 
 async function updateTargetVerificationState(targetType, targetId, state) {
   if (targetType === 'professional') {
-    const profiles = await base44.entities.ProfessionalProfile.filter({ identity_id: targetId });
-    if (profiles.length > 0) {
-      await base44.entities.ProfessionalProfile.update(profiles[0].id, { verification_state: state });
+    if (useFirebase) {
+      const { profileRepository } = await import('@/data/firebase');
+      const profiles = await profileRepository.getProfessionalProfile(targetId);
+      // getProfessionalProfile takes identityId, but targetId for professional is the identity_id
+      if (profiles) {
+        await profileRepository.updateProfessionalProfile(profiles.id, { verification_state: state });
+      }
+    } else {
+      const profiles = await base44.entities.ProfessionalProfile.filter({ identity_id: targetId });
+      if (profiles.length > 0) {
+        await base44.entities.ProfessionalProfile.update(profiles[0].id, { verification_state: state });
+      }
     }
   } else if (targetType === 'business') {
-    await base44.entities.Business.update(targetId, { verification_state: state });
+    if (useFirebase) {
+      const { businessRepository } = await import('@/data/firebase');
+      await businessRepository.updateBusiness(targetId, { verification_state: state });
+    } else {
+      await base44.entities.Business.update(targetId, { verification_state: state });
+    }
   }
 }
 
 async function ensureTrustRecord(targetType, targetId, trustLevel) {
+  if (useFirebase) {
+    const record = await trustRepository.getTrustRecord(targetId);
+    if (record) {
+      return trustRepository.updateTrustRecord(record.id, {
+        trust_level: trustLevel,
+        last_evaluated_at: new Date().toISOString(),
+      });
+    }
+    return trustRepository.createTrustRecord({
+      target_type: targetType,
+      target_id: targetId,
+      trust_level: trustLevel,
+      public_indicators: [],
+      lifecycle_state: 'active',
+      last_evaluated_at: new Date().toISOString(),
+    });
+  }
   const records = await base44.entities.TrustRecord.filter({
     target_type: targetType, target_id: targetId, lifecycle_state: 'active',
   });
@@ -113,6 +171,18 @@ async function ensureTrustRecord(targetType, targetId, trustLevel) {
 }
 
 async function updateTrustRecord(targetType, targetId, updates) {
+  if (useFirebase) {
+    const record = await trustRepository.getTrustRecord(targetId);
+    if (record) {
+      return trustRepository.updateTrustRecord(record.id, updates);
+    }
+    return trustRepository.createTrustRecord({
+      target_type: targetType,
+      target_id: targetId,
+      ...updates,
+      lifecycle_state: 'active',
+    });
+  }
   const records = await base44.entities.TrustRecord.filter({
     target_type: targetType, target_id: targetId, lifecycle_state: 'active',
   });
@@ -128,6 +198,7 @@ async function updateTrustRecord(targetType, targetId, updates) {
 }
 
 export async function getTrustRecord(targetType, targetId) {
+  if (useFirebase) return trustRepository.getTrustRecord(targetId);
   const records = await base44.entities.TrustRecord.filter({
     target_type: targetType, target_id: targetId, lifecycle_state: 'active',
   });
@@ -141,10 +212,15 @@ export async function getPublicIndicators(targetType, targetId) {
 }
 
 export async function getPendingVerifications() {
+  if (useFirebase) return trustRepository.listPendingVerificationRequests();
   return base44.entities.VerificationRequest.filter({ decision: 'pending' }, '-submitted_at', 50);
 }
 
 export async function getVerificationRequest(targetType, targetId) {
+  if (useFirebase) {
+    const requests = await trustRepository.listVerificationRequestsForTarget(targetId);
+    return requests.length > 0 ? requests[0] : null;
+  }
   const requests = await base44.entities.VerificationRequest.filter({
     target_type: targetType, target_id: targetId,
   }, '-submitted_at', 1);

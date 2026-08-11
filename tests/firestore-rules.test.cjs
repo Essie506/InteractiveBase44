@@ -583,6 +583,98 @@ async function runIdentityMappingTests() {
       visibility: 'private',
     }));
   });
+
+  // ── M3 Public/Private Projection Tests ──
+
+  // 34. Professional profile public projection is readable by authenticated users
+  await test('34. Professional profile public projection is readable', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await db.collection('professionalProfilesPublic').doc('profB').set({
+        identity_id: 'identityB',
+        display_name: 'User B',
+        profession: 'Trainer',
+        visibility: 'public',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('professionalProfilesPublic').doc('profB').get());
+  });
+
+  // 35. Client cannot write to professional profile public projection
+  await test('35. Client cannot write professional profile public projection', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('professionalProfilesPublic').doc('profA').set({
+      identity_id: 'identityA',
+      display_name: 'User A',
+    }));
+  });
+
+  // 36. Location public projection is readable by authenticated users
+  await test('36. Location public projection is readable', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await db.collection('locationsPublic').doc('locB').set({
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        location_context: 'manual',
+        public_label: 'London, UK',
+        city: 'London',
+        country: 'UK',
+        visibility: 'public',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('locationsPublic').doc('locB').get());
+  });
+
+  // 37. Client cannot write to location public projection
+  await test('37. Client cannot write location public projection', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('locationsPublic').doc('locA').set({
+      owner_id: 'identityA',
+      public_label: 'Test',
+    }));
+  });
+
+  // 38. Private professional profile is not readable by non-owner (even with public visibility)
+  await test('38. Private professional profile not readable by non-owner', async () => {
+    await clear();
+    let profB;
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      profB = await setupProfile(db, 'professionalProfiles', 'identityB', {
+        display_name: 'User B',
+        visibility: 'public',
+        contact_email: 'private@test.com',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('professionalProfiles').doc(profB).get());
+  });
+
+  // 39. Private location is not readable by non-owner (even with public visibility)
+  await test('39. Private location not readable by non-owner with public visibility', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupLocation(db, 'locB', 'identityB', 'public');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('locations').doc('locB').get());
+  });
 }
 
 // ── Main ──

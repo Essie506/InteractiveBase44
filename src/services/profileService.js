@@ -1,27 +1,31 @@
 import { base44 } from '@/api/base44Client';
+import { profileRepository } from '@/data/firebase';
+import { useFirebase } from '@/lib/backendConfig';
 
-// Interactive Profile Service
-// Owns PersonalProfile and ProfessionalProfile data operations.
-// Pages call this service instead of base44.entities.* directly.
+// Interactive Profile Service — M3: routes to Firebase when configured.
 
 // --- Personal Profile ---
 
 export async function getPersonalProfile(identityId) {
+  if (useFirebase) return profileRepository.getPersonalProfile(identityId);
   const profiles = await base44.entities.PersonalProfile.filter({ identity_id: identityId });
   return profiles.length > 0 ? profiles[0] : null;
 }
 
 export async function createPersonalProfile(data) {
+  if (useFirebase) return profileRepository.createPersonalProfile(data);
   return base44.entities.PersonalProfile.create(data);
 }
 
 export async function updatePersonalProfile(profileId, data) {
+  if (useFirebase) return profileRepository.updatePersonalProfile(profileId, data);
   return base44.entities.PersonalProfile.update(profileId, data);
 }
 
-// Create or update the personal profile for an identity.
-// Returns the resulting profile record.
 export async function savePersonalProfile(identityId, data) {
+  if (useFirebase) {
+    return profileRepository.savePersonalProfile({ ...data, identity_id: identityId });
+  }
   const existing = await getPersonalProfile(identityId);
   if (existing) {
     return base44.entities.PersonalProfile.update(existing.id, data);
@@ -36,20 +40,25 @@ export async function savePersonalProfile(identityId, data) {
 // --- Professional Profile ---
 
 export async function getProfessionalProfile(identityId) {
+  if (useFirebase) return profileRepository.getProfessionalProfile(identityId);
   const profiles = await base44.entities.ProfessionalProfile.filter({ identity_id: identityId });
   return profiles.length > 0 ? profiles[0] : null;
 }
 
 export async function createProfessionalProfile(data) {
+  if (useFirebase) return profileRepository.createProfessionalProfile(data);
   return base44.entities.ProfessionalProfile.create(data);
 }
 
 export async function updateProfessionalProfile(profileId, data) {
+  if (useFirebase) return profileRepository.updateProfessionalProfile(profileId, data);
   return base44.entities.ProfessionalProfile.update(profileId, data);
 }
 
-// Create or update the professional profile for an identity.
 export async function saveProfessionalProfile(identityId, data) {
+  if (useFirebase) {
+    return profileRepository.saveProfessionalProfile({ ...data, identity_id: identityId });
+  }
   const existing = await getProfessionalProfile(identityId);
   if (existing) {
     return base44.entities.ProfessionalProfile.update(existing.id, data);
@@ -60,7 +69,6 @@ export async function saveProfessionalProfile(identityId, data) {
   });
 }
 
-// Resolve the applicable profile for a given operating context.
 export async function resolveProfileForContext(identityId, context) {
   if (context === 'professional') return getProfessionalProfile(identityId);
   return getPersonalProfile(identityId);

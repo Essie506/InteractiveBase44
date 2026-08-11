@@ -1,4 +1,6 @@
 import { base44 } from '@/api/base44Client';
+import { businessRepository } from '@/data/firebase';
+import { useFirebase } from '@/lib/backendConfig';
 
 // Role-based default permissions per Business System spec section 8
 export const ROLE_PERMISSIONS = {
@@ -29,6 +31,7 @@ export function hasPermission(membership, requiredPermission) {
 
 // Load the active membership for a business + identity
 export async function getMembership(businessId, identityId) {
+  if (useFirebase) return businessRepository.getMembership(businessId, identityId);
   const memberships = await base44.entities.BusinessMembership.filter({
     business_id: businessId,
     identity_id: identityId,
@@ -44,8 +47,22 @@ export async function checkPermission(businessId, identityId, requiredPermission
   return { allowed: hasPermission(membership, requiredPermission), membership };
 }
 
-// Load all businesses the identity is a member of (scoped — only loads the user's businesses)
+// Load all businesses the identity is a member of
 export async function getUserBusinesses(identityId) {
+  if (useFirebase) {
+    const memberships = await businessRepository.getMembershipsForIdentity(identityId);
+    const activeMemberships = memberships.filter(m => m.lifecycle_state === 'active');
+    if (activeMemberships.length === 0) return [];
+    const results = await Promise.allSettled(
+      activeMemberships.map(m => businessRepository.getBusiness(m.business_id))
+    );
+    return results
+      .filter(r => r.status === 'fulfilled' && r.value)
+      .map(r => ({
+        ...r.value,
+        _membership: activeMemberships.find(m => m.business_id === r.value.id),
+      }));
+  }
   const memberships = await base44.entities.BusinessMembership.filter({
     identity_id: identityId,
     lifecycle_state: 'active',

@@ -1,10 +1,13 @@
 import { base44 } from '@/api/base44Client';
+import { notificationRepository, settingsRepository } from '@/data/firebase';
+import { useFirebase } from '@/lib/backendConfig';
 
-// Notification System — event-based, deterministic delivery policy
-// Source systems own the event; Notifications owns the record + delivery.
+// Notification System — M3: routes to Firebase when configured.
+// Notification CREATION is server-only (security rules: allow create: if false).
+// In Firebase mode, createNotification calls the CreateNotification backend function
+// which writes to Firestore with service-account auth.
+// Email delivery is deferred to a future notification-delivery migration phase.
 
-// Delivery Policy: Required | Conditional | Prohibited
-// Every event/channel relationship resolves deterministically.
 const DELIVERY_POLICY = {
   verification_submitted:    { in_app: 'conditional', email: 'conditional', push: 'prohibited',  sms: 'prohibited' },
   verification_approved:     { in_app: 'required',     email: 'required',    push: 'conditional', sms: 'prohibited' },
@@ -13,12 +16,10 @@ const DELIVERY_POLICY = {
   media_processing_failed:  { in_app: 'conditional',  email: 'conditional', push: 'prohibited',  sms: 'prohibited' },
   business_invitation:      { in_app: 'required',     email: 'required',    push: 'conditional', sms: 'prohibited' },
   security_event:            { in_app: 'required',     email: 'required',    push: 'required',   sms: 'prohibited' },
-  // Calendar events
   calendar_event_created:    { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   calendar_event_updated:    { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   calendar_event_cancelled:  { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   calendar_reminder:         { in_app: 'conditional',  email: 'conditional', push: 'required',   sms: 'prohibited' },
-  // Messaging events
   message_received:          { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   message_request_received:  { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   message_request_accepted:  { in_app: 'conditional',  email: 'conditional', push: 'prohibited',  sms: 'prohibited' },
@@ -31,7 +32,6 @@ export function resolveDeliveryPolicy(eventType, channel) {
   return policy[channel] || 'prohibited';
 }
 
-// Quiet Hours — defer interruptive delivery, never prevent the record from existing
 export function isQuietHours(prefs) {
   if (!prefs?.quiet_hours_enabled) return false;
   const now = new Date();
@@ -41,11 +41,10 @@ export function isQuietHours(prefs) {
   const start = startH * 60 + startM;
   const end = endH * 60 + endM;
   if (start < end) return currentMinutes >= start && currentMinutes < end;
-  return currentMinutes >= start || currentMinutes < end; // overnight
+  return currentMinutes >= start || currentMinutes < end;
 }
 
 // Create a notification record from an authoritative event.
-// Notification failure never undoes the source action.
 export async function createNotification(event) {
   const {
     recipient_id, source_system, event_type, title, body,
@@ -56,23 +55,19 @@ export async function createNotification(event) {
   let prefs = null;
   try {
     prefs = await getOrCreatePreferences(recipient_id);
-  } catch {
-    // Preferences unavailable — conditional channels default to delivered
-  }
+  } catch { /* Preferences unavailable — conditional channels default to delivered */ }
 
   // Resolve delivery channels from policy + user preferences
   const channels = ['in_app', 'email', 'push', 'sms'].filter(ch => {
     const policy = resolveDeliveryPolicy(event_type, ch);
     if (policy === 'required') return true;
     if (policy === 'prohibited') return false;
-    // Conditional — check user preference for this category+channel
     if (!prefs) return true;
     const prefKey = `${category || 'system'}_${ch}`;
     return prefs[prefKey] !== false;
   });
 
-  // Create the notification record (always — record exists regardless of delivery)
-  const record = await base44.entities.NotificationRecord.create({
+  const notificationData = {
     recipient_id,
     source_system,
     event_type,
@@ -86,32 +81,39 @@ export async function createNotification(event) {
     action_label,
     group_key,
     source_id,
-  });
+  };
 
-  // Attempt email delivery (best-effort, isolated from source action)
-  if (channels.includes('email')) {
-    try {
-      // SendEmail reaches registered app users only
-      const user = await base44.entities.User.filter({ id: recipient_id });
-      if (user.length > 0 && user[0].email) {
-        await base44.integrations.Core.SendEmail({
-          to: user[0].email,
-          subject: title,
-          body: body || title,
-        });
-      }
-    } catch {
-      // Email delivery failed — notification record still exists; source action unaffected
+  let record;
+  if (useFirebase) {
+    // Server-only: call the CreateNotification backend function
+    const response = await base44.functions.invoke('CreateNotification', notificationData);
+    record = response.data || response;
+  } else {
+    record = await base44.entities.NotificationRecord.create(notificationData);
+
+    // Attempt email delivery (best-effort, isolated from source action)
+    if (channels.includes('email')) {
+      try {
+        const user = await base44.entities.User.filter({ id: recipient_id });
+        if (user.length > 0 && user[0].email) {
+          await base44.integrations.Core.SendEmail({
+            to: user[0].email,
+            subject: title,
+            body: body || title,
+          });
+        }
+      } catch { /* Email delivery failed — notification record still exists */ }
     }
   }
-
-  // Push delivery — stub (device infrastructure not yet available)
-  // In-app delivery — the record IS the in-app notification
 
   return record;
 }
 
 export async function getUnreadCount(identityId) {
+  if (useFirebase) {
+    const all = await notificationRepository.listNotificationsForRecipient(identityId, 500);
+    return all.filter(n => !n.is_read).length;
+  }
   const records = await base44.entities.NotificationRecord.filter({
     recipient_id: identityId,
     is_read: false,
@@ -120,6 +122,7 @@ export async function getUnreadCount(identityId) {
 }
 
 export async function getNotifications(identityId, limit = 50) {
+  if (useFirebase) return notificationRepository.listNotificationsForRecipient(identityId, limit);
   return base44.entities.NotificationRecord.filter(
     { recipient_id: identityId },
     '-created_date',
@@ -128,6 +131,7 @@ export async function getNotifications(identityId, limit = 50) {
 }
 
 export async function markAsRead(notificationId) {
+  if (useFirebase) return notificationRepository.markRead(notificationId);
   return base44.entities.NotificationRecord.update(notificationId, {
     is_read: true,
     read_at: new Date().toISOString(),
@@ -135,6 +139,7 @@ export async function markAsRead(notificationId) {
 }
 
 export async function markAllAsRead(identityId) {
+  if (useFirebase) return notificationRepository.markAllRead(identityId);
   const records = await base44.entities.NotificationRecord.filter({
     recipient_id: identityId,
     is_read: false,
@@ -151,6 +156,7 @@ export async function markAllAsRead(identityId) {
 
 // Get or create default notification preferences
 export async function getOrCreatePreferences(identityId) {
+  if (useFirebase) return settingsRepository.getOrCreateNotificationPreferences(identityId);
   const existing = await base44.entities.NotificationPreference.filter({ identity_id: identityId });
   if (existing.length > 0) return existing[0];
   return base44.entities.NotificationPreference.create({ identity_id: identityId });

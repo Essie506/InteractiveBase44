@@ -1,7 +1,12 @@
 import { base44 } from '@/api/base44Client';
+import { locationRepository } from '@/data/firebase';
+import { useFirebase } from '@/lib/backendConfig';
 
-// Location System — authoritative reusable geographic information
-// Separates operational coordinates from public presentation.
+// Location System — M3: routes to Firebase when configured.
+// Private fields (latitude, longitude, address_line1, postal_code)
+// are protected by the public/private projection split:
+//   locations/{id} — owner-only read (all fields)
+//   locationsPublic/{id} — authenticated read (public fields only)
 
 // Get the public-facing label for a location (respects precision level)
 export function getPublicLocationLabel(location) {
@@ -26,7 +31,6 @@ export function hasCoordinates(location) {
   return location && location.latitude != null && location.longitude != null;
 }
 
-// Request device-derived location (requires browser permission)
 export function requestDeviceLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -47,13 +51,6 @@ export function requestDeviceLocation() {
 
 // Create or update a location record
 export async function saveLocation(ownerId, ownerType, context, data) {
-  const existing = await base44.entities.Location.filter({
-    owner_id: ownerId,
-    owner_type: ownerType,
-    location_context: context,
-    lifecycle_state: 'active',
-  });
-
   const payload = {
     owner_id: ownerId,
     owner_type: ownerType,
@@ -76,6 +73,22 @@ export async function saveLocation(ownerId, ownerType, context, data) {
     lifecycle_state: 'active',
   };
 
+  if (useFirebase) {
+    // Check for existing location
+    const existing = await locationRepository.listLocationsForOwner(ownerId);
+    const match = existing.find(l => l.location_context === context && l.lifecycle_state === 'active');
+    if (match) {
+      return locationRepository.updateLocation(match.id, payload);
+    }
+    return locationRepository.createLocation(payload);
+  }
+
+  const existing = await base44.entities.Location.filter({
+    owner_id: ownerId,
+    owner_type: ownerType,
+    location_context: context,
+    lifecycle_state: 'active',
+  });
   if (existing.length > 0) {
     return base44.entities.Location.update(existing[0].id, payload);
   }
@@ -85,6 +98,7 @@ export async function saveLocation(ownerId, ownerType, context, data) {
 export async function getLocation(locationId) {
   if (!locationId) return null;
   try {
+    if (useFirebase) return locationRepository.getLocation(locationId);
     return await base44.entities.Location.get(locationId);
   } catch {
     return null;

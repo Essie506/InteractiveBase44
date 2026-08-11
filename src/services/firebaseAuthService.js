@@ -128,3 +128,21 @@ export async function updateProfile(data) {
   if (!user) throw new Error('No authenticated user');
   await firebaseUpdateProfile(user, data);
 }
+
+// Named export for grouped access (used by AuthContext)
+export const firebaseAuthService = {
+  register,
+  loginViaEmailPassword,
+  loginWithGoogle,
+  logout,
+  onAuthStateChange,
+  getCurrentUser,
+  getIdToken,
+  isAuthenticated,
+  sendEmailVerification,
+  resendEmailVerification,
+  reloadUser,
+  resetPasswordRequest,
+  resetPassword,
+  updateProfile,
+};
