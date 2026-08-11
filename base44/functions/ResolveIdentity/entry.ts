@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { secrets } from 'base44:runtime';
+import {
+  getAccessToken,
+  getProjectId,
+  toFirestoreFields,
+  firestoreBatchWrite,
+  docPath,
+} from '../../shared/firebaseAdmin.ts';
 
 // ───────────────────────────────────────────────────────────
 // ResolveIdentity — Trusted server-side identity resolution
@@ -155,7 +162,7 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // Step 6: Create mapping
+    // Step 6: Create mapping in Base44 (for Base44-side queries)
     await base44.asServiceRole.entities.IdentityMapping.create({
       auth_uid: fbUser.uid,
       identity_id: identityId,
@@ -164,6 +171,46 @@ export default async function(req: Request): Promise<Response> {
       is_new_identity: isNew,
       linked_providers: fbUser.providers
     });
+
+    // Step 7: Write mapping to Firestore identityMappings/{authUid}
+    // The Firestore security rules check exists(identityMappings/{uid})
+    // to authorise client reads of users/{identityId}. Without this
+    // Firestore-side document, isOwner() fails and the client cannot
+    // load the user's application state — existing users are treated
+    // as new and routed to onboarding.
+    const token = await getAccessToken();
+    const projectId = getProjectId();
+
+    const mappingFields = toFirestoreFields({
+      auth_uid: fbUser.uid,
+      identity_id: identityId,
+      email: canonicalEmail,
+      email_verified: fbUser.emailVerified,
+      is_new_identity: isNew,
+      linked_providers: fbUser.providers,
+      auth_provider: 'firebase',
+    });
+
+    const writes: Array<{ name: string; fields: Record<string, any> }> = [
+      { name: docPath(projectId, 'identityMappings', fbUser.uid), fields: mappingFields },
+    ];
+
+    // For genuinely new identities, create the users/{identityId}
+    // document so the client can update it during onboarding. Existing
+    // users already have this document from the M3 migration.
+    if (isNew) {
+      const userFields = toFirestoreFields({
+        email: fbUser.email,
+        role: 'user',
+        onboarding_status: 'not_started',
+        active_context: 'personal',
+        professional_activated: false,
+        terms_accepted: false,
+      });
+      writes.push({ name: docPath(projectId, 'users', identityId), fields: userFields });
+    }
+
+    await firestoreBatchWrite(projectId, writes, token);
 
     return Response.json({
       identityId,
