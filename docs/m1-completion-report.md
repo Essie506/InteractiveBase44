@@ -41,7 +41,8 @@ VITE_FIREBASE_APP_ID
 
 | Collection | Doc ID Strategy | Key Fields | Domain Owner |
 |---|---|---|---|
-| `users/{uid}` | Firebase Auth UID | `role`, `onboarding_status`, `active_context`, `active_business_id`, `professional_activated`, `terms_accepted`, `email`, `full_name` | Application Identity |
+| `identityMappings/{authUid}` | Firebase Auth UID | `identity_id` → Interactive Identity ID, `auth_provider` | Authentication Mapping |
+| `users/{identityId}` | Interactive Identity ID | `role`, `onboarding_status`, `active_context`, `active_business_id`, `professional_activated`, `terms_accepted`, `email`, `full_name` | Application Identity |
 | `personalProfiles/{id}` | Auto | `identity_id` → uid | Personal Profile |
 | `professionalProfiles/{id}` | Auto | `identity_id` → uid | Professional Profile |
 | `businesses/{id}` | Auto | `owner_id` → uid | Business |
@@ -71,29 +72,39 @@ VITE_FIREBASE_APP_ID
 
 **Deterministic ID strategy** for `businessMemberships` and `blockRecords` enables O(1) security-rule lookups via `exists()`/`get()` — Firestore rules cannot run queries, so deterministic paths are essential for permission checks.
 
-## 5. Interactive Identity ↔ Firebase Auth UID Design
+## 5. Interactive Identity ↔ Firebase Auth UID Design (M1.1 — Decoupled)
 
 ```
 Firebase Auth UID
        │
        ▼
-users/{uid}  ← Interactive application identity record
+identityMappings/{authUid}        ← Authentication mapping (server-created)
+       │ .identity_id
+       ▼
+Interactive Identity ID
        │
-       ├── role
-       ├── onboarding_status
-       ├── active_context (personal | professional | business)
-       ├── active_business_id
-       ├── professional_activated
-       ├── terms_accepted
-       ├── email (mirrored from Auth)
-       └── full_name (mirrored from Auth)
+       ├──→ users/{identityId}     ← Application identity state
+       ├──→ personalProfiles.identity_id
+       ├──→ professionalProfiles.identity_id
+       ├──→ businesses.owner_id
+       ├──→ businessMemberships.identity_id
+       ├──→ locations.owner_id
+       ├──→ userSettings.identity_id
+       ├──→ notificationRecords.recipient_id
+       ├──→ conversations.participant_ids[]
+       ├──→ messages.sender_id
+       ├──→ blockRecords.blocker_id / blocked_id
+       └──→ all other domain identity references
 ```
 
-- Firebase Auth owns authentication state (credentials, sessions, password reset, OAuth tokens)
-- `users/{uid}` owns application-domain state (onboarding, context, business linkage)
-- `identity_id` fields in profile/location/settings entities reference the Firebase Auth UID
-- No application-domain state is placed in Firebase Auth custom claims — Firestore is the correct owner
-- The `users/{uid}` document is created on first sign-in (M2 will handle this via a Cloud Function trigger)
+**Architecture principle:** Firebase Auth UID identifies the authentication principal only. Interactive retains its own stable application identity identifier, decoupled from the authentication provider. This allows authentication providers/backend infrastructure to change in future without requiring all Interactive domain identity references to change.
+
+- **`identityMappings/{authUid}`** — Maps Firebase Auth UID → Interactive Identity ID. Created by Cloud Function on first sign-in. Read-only for the authenticated user; no client writes.
+- **`users/{identityId}`** — Application identity state keyed by the stable Interactive Identity ID (not the Auth UID). Created by Cloud Function alongside the mapping.
+- **Domain records** — All `identity_id`, `owner_id`, `participant_ids`, `sender_id`, `recipient_id`, `blocker_id`, `blocked_id`, and other domain identity references point to the Interactive Identity ID, never the Firebase Auth UID.
+- **Security rules** — `myIdentityId()` helper resolves the Auth UID → Interactive Identity ID via the mapping, then all ownership/participant checks compare against the Interactive Identity ID.
+- **No application-domain state in Firebase Auth custom claims** — Firestore is the correct owner.
+- **Provider independence** — If Firebase Auth is replaced or supplemented with another provider, only the `identityMappings` collection changes; all domain records retain their identity references.
 
 ## 6. Firestore Security Rules Created
 
@@ -278,16 +289,18 @@ All repositories implement the same application-facing behaviour as the existing
 
 ### Execution
 
-Tests can be run with:
-```bash
-# Start emulators
-firebase emulators:start
+**M1.1 status:** Tests implemented and executed against the Firebase Emulator Suite.
 
-# Run rules tests (requires @firebase/rules-unit-testing dev dependency)
-# npx mocha tests/firestore.rules.test.js
+**Test dependency:** `@firebase/rules-unit-testing@^3.0.0` (compatible with `firebase@^10.x`) + `firebase-tools@^13.0.0`
+
+**Test file:** `tests/firestore-rules.test.js` — 27 documented cases + 6 identity-mapping-specific cases (33 total)
+
+Run with:
+```bash
+firebase emulators:exec --only firestore "node tests/firestore-rules.test.js"
 ```
 
-**M1 status:** Test cases documented. The `@firebase/rules-unit-testing` package is not installed (not in the approved package list). Tests should be implemented and run before M2 cutover.
+See §28 for execution results.
 
 ## 20. Firestore Query Patterns Requiring Change
 
@@ -349,7 +362,7 @@ Confirmed. All Interactive services (`authService`, `userService`, `profileServi
 ## 27. Conflicts with Approved Firebase & Data Architecture Specification
 
 **No conflicts identified.** The M1 implementation follows the approved specification:
-- Identity separation: Firebase Auth UID → `users/{uid}` application record ✓
+- Identity separation: Firebase Auth UID → `identityMappings/{authUid}` → Interactive Identity ID → `users/{identityId}` (M1.1 decoupled) ✓
 - Security-first: deny-by-default, no broad rules ✓
 - Domain ownership preserved ✓
 - No data migration ✓

@@ -11,6 +11,7 @@
  *   Page/Component → Interactive Service → Repository → Firebase
  */
 
+export * as identityRepository from './firebaseIdentityRepository';
 export * as userRepository from './firebaseUserRepository';
 export * as profileRepository from './firebaseProfileRepository';
 export * as businessRepository from './firebaseBusinessRepository';
