@@ -374,6 +374,125 @@ Confirmed. All Interactive services (`authService`, `userService`, `profileServi
 
 ---
 
+## 28. M1.1 Security Rule Test Execution Results
+
+**Date executed:** 2026-08-11
+**Environment:** Firebase Emulator Suite (Firestore emulator, port 8080)
+**Test framework:** `@firebase/rules-unit-testing@^3.0.0` + `firebase-tools@^13.0.0`
+**Java runtime:** OpenJDK 17 (installed in test environment)
+**Test file:** `tests/firestore-rules.test.cjs`
+
+### Tests Executed: 33
+### Tests Passed: 33
+### Tests Failed: 0
+
+All 27 documented test cases passed. 6 additional identity-mapping-specific tests were added for M1.1 and also passed.
+
+| # | Test | Result |
+|---|---|---|
+| 1 | Unauthenticated user denied private records | PASS |
+| 2 | User A cannot read User B private profile | PASS |
+| 3 | User A cannot read User B private Profile | PASS |
+| 4 | Public Profile data can be read where visibility permits | PASS |
+| 5 | User A cannot read User B Notifications | PASS |
+| 6 | User A cannot read User B Settings | PASS |
+| 7 | User A cannot read User B private Location | PASS |
+| 8 | Business A member can read Business B business record | PASS |
+| 9 | Business A member cannot write Business B protected data | PASS |
+| 10 | Ordinary Business member cannot promote their role | PASS |
+| 11 | Ordinary member cannot create owner membership | PASS |
+| 12 | Non-participant cannot read Conversation | PASS |
+| 13 | Non-participant cannot read Messages | PASS |
+| 14 | Client cannot create Conversation directly | PASS |
+| 15 | Participant can create message in accepted conversation | PASS |
+| 16 | Cannot create message with wrong sender_id | PASS |
+| 17 | Client cannot create Notifications | PASS |
+| 18 | Ordinary user cannot approve verification | PASS |
+| 19 | Non-reviewer cannot read others verification requests | PASS |
+| 20 | Private verification evidence cannot be read publicly | PASS |
+| 21 | Client cannot create Trust Signals | PASS |
+| 22 | User cannot remove another users block | PASS |
+| 23 | User cannot create block pretending to be another user | PASS |
+| 24 | Blocked sender cannot bypass Messaging restrictions | PASS |
+| 25 | Unauthenticated denied SpecVault access | PASS |
+| 26 | Authenticated can read SpecVault | PASS |
+| 27 | Spec Versions are immutable | PASS |
+| 28 | Authenticated user can read own identity mapping | PASS |
+| 29 | User cannot read another users identity mapping | PASS |
+| 30 | Client cannot create identity mapping | PASS |
+| 31 | User without identity mapping denied domain access | PASS |
+| 32 | User can create profile with correct identity_id | PASS |
+| 33 | User cannot create profile with wrong identity_id | PASS |
+
+### Security Rules Changed (M1.1)
+
+| Rule Change | Reason |
+|---|---|
+| Split `myIdentityId()` into `hasIdentityMapping()` (boolean) + `getIdentityId()` (string) | Original `myIdentityId()` returned a string (identity_id) via `&&` chain, causing "Type error: Received [string] Expected [bool]" in rule evaluation. Splitting into a boolean guard and a string accessor ensures all rule expressions evaluate to booleans. |
+| All create rules changed from `isAuthenticated() && ... == uid()` to `isOwner(request.resource.data.field)` | `isOwner()` returns a guaranteed boolean (`hasIdentityMapping() && getIdentityId() == identityId`), preventing type errors and ensuring the identity mapping is checked before any domain write. |
+| `users/{userId}` → `users/{identityId}` with `allow create: if false` | Doc ID is now the Interactive Identity ID (not Auth UID). Creation is server-only (Cloud Function) to prevent clients from creating user docs without an identity mapping. |
+| Added `identityMappings/{authUid}` collection | New indirection layer mapping Firebase Auth UID → Interactive Identity ID. Read-only for the authenticated user; no client writes. |
+| `!= uid()` → `!= getIdentityId()` in businessMemberships | Membership identity references now compare against the Interactive Identity ID, not the Auth UID. |
+| `isAdmin()` / `isReviewer()` use `hasIdentityMapping() + getIdentityId()` | Admin/reviewer checks now resolve through the identity mapping, ensuring the user has a valid Interactive identity before checking role. |
+| `isBusinessMember()` uses `hasIdentityMapping() + getIdentityId()` | Business membership checks now resolve through the identity mapping. |
+| `isConversationParticipant()` uses `hasIdentityMapping() + getIdentityId()` | Conversation participant checks now resolve through the identity mapping. |
+
+**No rules were weakened.** All changes preserve the deny-by-default posture and the approved security architecture. The split into `hasIdentityMapping()` / `getIdentityId()` is a correctness fix — the original `myIdentityId()` would have caused type errors in production, not just tests.
+
+---
+
+## 29. Base44 Identity ID Preservation Strategy (M2/M3)
+
+### Problem
+
+Existing Base44 production data uses Base44 User IDs (`created_by_id`, `identity_id`, `owner_id`, etc.) as domain identity references. M2/M3 must migrate this data to Firebase without changing domain identity keys, while mapping Firebase Auth UIDs to the preserved Interactive Identity IDs.
+
+### Strategy: Base44 ID → Interactive Identity ID
+
+1. **Preserve Base44 User IDs as Interactive Identity IDs.** The Base44 User ID for each user becomes their stable Interactive Identity ID in Firebase. This means:
+   - `users/{identityId}` — doc ID == existing Base44 User ID
+   - All `identity_id`, `owner_id`, `participant_ids`, `sender_id`, `recipient_id`, `blocker_id`, `blocked_id` fields retain their existing Base44 User ID values
+   - No domain record needs its identity references changed
+
+2. **Create identity mappings during M2 auth migration.** When each user signs in to Firebase Auth for the first time (M2):
+   - Firebase Auth creates a new Auth UID for the user
+   - A Cloud Function looks up the user by email in the migrated `users` collection
+   - The Cloud Function creates `identityMappings/{authUid}` with `identity_id = <existing Base44 User ID>`
+   - From that point, all domain access resolves through the mapping
+
+3. **Data migration (M3) copies records with identity references intact.** When Base44 entity records are copied to Firestore:
+   - `identity_id` fields keep their Base44 User ID values
+   - `owner_id` fields keep their Base44 User ID values
+   - `participant_ids` arrays keep their Base44 User ID values
+   - No ID transformation is needed — the values are already the correct Interactive Identity IDs
+
+4. **Email is the join key.** During M2, users authenticate with Firebase Auth using the same email they used in Base44. The Cloud Function matches by email to create the identity mapping. Users who have not yet signed in to Firebase simply don't have a mapping — they can't access the app until they do, but their data is already in place.
+
+### Migration Sequence
+
+```
+M2 (Auth Migration):
+  1. Enable Firebase Auth
+  2. User signs in with Firebase Auth (same email as Base44)
+  3. Cloud Function: auth.user().onCreate → lookup by email → create identityMappings/{authUid}
+  4. User now has: Firebase Auth UID → identityMappings → Interactive Identity ID (== Base44 User ID)
+
+M3 (Data Migration):
+  1. For each Base44 entity, copy records to Firestore
+  2. identity_id, owner_id, etc. keep their Base44 User ID values
+  3. No transformation needed — values are already correct Interactive Identity IDs
+  4. Security rules resolve identity via identityMappings lookup
+```
+
+### Why This Works
+
+- **Domain identity references never change.** Base44 User IDs ARE the Interactive Identity IDs. The `identityMappings` collection is the only new artifact.
+- **Authentication provider independence.** If Firebase Auth is later replaced, only `identityMappings` changes — all domain records keep their identity references.
+- **No data backfill needed.** Existing records don't need their identity fields updated. Only the mapping collection is new.
+- **Gradual migration supported.** Users can migrate at their own pace. Data is in place; the mapping is created on first sign-in.
+
+---
+
 ## Acceptance State Verification
 
 ```
@@ -397,7 +516,9 @@ Active Backend         Auth + Firestore
 - ✅ Firebase adapters created behind same service contracts
 - ✅ Firebase Auth + Firestore initialised (not yet active)
 - ✅ Security rules written (deny-by-default, per-collection)
+- ✅ Identity decoupled: Auth UID → identityMappings → Interactive Identity ID (M1.1)
+- ✅ Security rule tests executed: 33 passed, 0 failed (M1.1)
 - ✅ No data migrated, no auth switched, no Base44 removed
 - ✅ No Booking or Payments work begun
 
-**M1 is complete. Stop for architecture review before M2.**
+**M1.1 is complete. Stop for architecture review before M2.**

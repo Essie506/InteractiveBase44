@@ -1,17 +1,12 @@
 /**
  * Firestore Security Rules Tests — M1.1
  * ───────────────────────────────────────────────────────────
- * Tests the 27 documented security rule test cases against the
- * Firebase Emulator Suite using @firebase/rules-unit-testing.
+ * Tests the 27 documented security rule test cases plus 6
+ * identity-mapping-specific cases (33 total) against the Firebase
+ * Emulator Suite using @firebase/rules-unit-testing v3.
  *
  * Usage:
- *   firebase emulators:exec --only firestore "node tests/firestore-rules.test.js"
- *
- * Or start the emulator separately:
- *   firebase emulators:start --only firestore
- *   node tests/firestore-rules.test.js
- *
- * Requires Java runtime for the Firestore emulator.
+ *   firebase emulators:exec --only firestore "node tests/firestore-rules.test.cjs"
  */
 
 const {
@@ -47,37 +42,38 @@ async function clear() {
   await testEnv.clearFirestore();
 }
 
-// ── Setup helpers (use security-rules-disabled admin client) ──
+// ── Admin setup helper (uses withSecurityRulesDisabled callback) ──
 
-function adminDb() {
-  return testEnv.withSecurityRulesDisabled().firestore();
+async function withAdmin(fn) {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await fn(context.firestore());
+  });
 }
 
-async function setupIdentity(authUid, identityId) {
-  await adminDb().collection('identityMappings').doc(authUid).set({
+// ── Setup functions (each takes admin db) ──
+
+async function setupIdentity(db, authUid, identityId) {
+  await db.collection('identityMappings').doc(authUid).set({
     identity_id: identityId,
     auth_provider: 'firebase',
   });
 }
 
-async function setupUser(identityId, data) {
-  await adminDb().collection('users').doc(identityId).set(data);
+async function setupUser(db, identityId, data) {
+  await db.collection('users').doc(identityId).set(data);
 }
 
-async function setupProfile(collectionName, identityId, data) {
-  const ref = await adminDb().collection(collectionName).add({
-    identity_id: identityId,
-    ...data,
-  });
+async function setupProfile(db, collectionName, identityId, data) {
+  const ref = await db.collection(collectionName).add({ identity_id: identityId, ...data });
   return ref.id;
 }
 
-async function setupBusiness(businessId, ownerId) {
-  await adminDb().collection('businesses').doc(businessId).set({ owner_id: ownerId });
+async function setupBusiness(db, businessId, ownerId) {
+  await db.collection('businesses').doc(businessId).set({ owner_id: ownerId });
 }
 
-async function setupMembership(businessId, identityId, role) {
-  await adminDb().collection('businessMemberships').doc(`${businessId}_${identityId}`).set({
+async function setupMembership(db, businessId, identityId, role) {
+  await db.collection('businessMemberships').doc(`${businessId}_${identityId}`).set({
     business_id: businessId,
     identity_id: identityId,
     role,
@@ -85,15 +81,15 @@ async function setupMembership(businessId, identityId, role) {
   });
 }
 
-async function setupConversation(conversationId, participantIds, status) {
-  await adminDb().collection('conversations').doc(conversationId).set({
+async function setupConversation(db, conversationId, participantIds, status) {
+  await db.collection('conversations').doc(conversationId).set({
     participant_ids: participantIds,
     request_status: status || 'accepted',
   });
 }
 
-async function setupNotification(notificationId, recipientId) {
-  await adminDb().collection('notificationRecords').doc(notificationId).set({
+async function setupNotification(db, notificationId, recipientId) {
+  await db.collection('notificationRecords').doc(notificationId).set({
     recipient_id: recipientId,
     source_system: 'system',
     event_type: 'test',
@@ -101,8 +97,8 @@ async function setupNotification(notificationId, recipientId) {
   });
 }
 
-async function setupVerification(requestId, submitterId, status, decision) {
-  await adminDb().collection('verificationRequests').doc(requestId).set({
+async function setupVerification(db, requestId, submitterId, status, decision) {
+  await db.collection('verificationRequests').doc(requestId).set({
     target_type: 'professional',
     target_id: submitterId,
     verification_type: 'identity',
@@ -112,8 +108,8 @@ async function setupVerification(requestId, submitterId, status, decision) {
   });
 }
 
-async function setupTrustRecord(trustId, targetId) {
-  await adminDb().collection('trustRecords').doc(trustId).set({
+async function setupTrustRecord(db, trustId, targetId) {
+  await db.collection('trustRecords').doc(trustId).set({
     target_type: 'professional',
     target_id: targetId,
     trust_level: 'verified',
@@ -121,16 +117,16 @@ async function setupTrustRecord(trustId, targetId) {
   });
 }
 
-async function setupBlock(blockerId, blockedId) {
-  await adminDb().collection('blockRecords').doc(`${blockerId}__${blockedId}`).set({
+async function setupBlock(db, blockerId, blockedId) {
+  await db.collection('blockRecords').doc(`${blockerId}__${blockedId}`).set({
     blocker_id: blockerId,
     blocked_id: blockedId,
     status: 'active',
   });
 }
 
-async function setupLocation(locationId, ownerId, visibility) {
-  await adminDb().collection('locations').doc(locationId).set({
+async function setupLocation(db, locationId, ownerId, visibility) {
+  await db.collection('locations').doc(locationId).set({
     owner_id: ownerId,
     owner_type: 'identity',
     location_context: 'manual',
@@ -141,16 +137,16 @@ async function setupLocation(locationId, ownerId, visibility) {
   });
 }
 
-async function setupSettings(settingsId, identityId) {
-  await adminDb().collection('userSettings').doc(settingsId).set({ identity_id: identityId });
+async function setupSettings(db, settingsId, identityId) {
+  await db.collection('userSettings').doc(settingsId).set({ identity_id: identityId });
 }
 
-async function setupSpec(specId, data) {
-  await adminDb().collection('specifications').doc(specId).set(data);
+async function setupSpec(db, specId, data) {
+  await db.collection('specifications').doc(specId).set(data);
 }
 
-async function setupSpecVersion(versionId, data) {
-  await adminDb().collection('specVersions').doc(versionId).set(data);
+async function setupSpecVersion(db, versionId, data) {
+  await db.collection('specVersions').doc(versionId).set(data);
 }
 
 // ── Test cases ──
@@ -166,9 +162,11 @@ async function runTests() {
   // 2. User A cannot read User B private profile
   await test('2. User A cannot read User B private profile', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupUser('identityA', { role: 'user', email: 'a@test.com' });
-    await setupUser('identityB', { role: 'user', email: 'b@test.com' });
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'identityA', { role: 'user', email: 'a@test.com' });
+      await setupUser(db, 'identityB', { role: 'user', email: 'b@test.com' });
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('users').doc('identityB').get());
   });
@@ -176,11 +174,14 @@ async function runTests() {
   // 3. User A cannot read User B private personalProfile
   await test('3. User A cannot read User B private Profile', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    const profileB = await setupProfile('personalProfiles', 'identityB', {
-      display_name: 'User B',
-      visibility: 'private',
+    let profileB;
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      profileB = await setupProfile(db, 'personalProfiles', 'identityB', {
+        display_name: 'User B',
+        visibility: 'private',
+      });
     });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('personalProfiles').doc(profileB).get());
@@ -189,11 +190,14 @@ async function runTests() {
   // 4. Public Profile data can be read where visibility permits
   await test('4. Public Profile data can be read where visibility permits', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    const profileB = await setupProfile('personalProfiles', 'identityB', {
-      display_name: 'User B',
-      visibility: 'public',
+    let profileB;
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      profileB = await setupProfile(db, 'personalProfiles', 'identityB', {
+        display_name: 'User B',
+        visibility: 'public',
+      });
     });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertSucceeds(db.collection('personalProfiles').doc(profileB).get());
@@ -202,9 +206,11 @@ async function runTests() {
   // 5. User A cannot read User B Notifications
   await test('5. User A cannot read User B Notifications', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupNotification('notifB', 'identityB');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupNotification(db, 'notifB', 'identityB');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('notificationRecords').doc('notifB').get());
   });
@@ -212,9 +218,11 @@ async function runTests() {
   // 6. User A cannot read User B Settings
   await test('6. User A cannot read User B Settings', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupSettings('settingsB', 'identityB');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupSettings(db, 'settingsB', 'identityB');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('userSettings').doc('settingsB').get());
   });
@@ -222,9 +230,11 @@ async function runTests() {
   // 7. User A cannot read User B private Location
   await test('7. User A cannot read User B private Location', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupLocation('locB', 'identityB', 'private');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupLocation(db, 'locB', 'identityB', 'private');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('locations').doc('locB').get());
   });
@@ -232,10 +242,12 @@ async function runTests() {
   // 8. Business A member can read Business B business record
   await test('8. Business A member can read Business B business record', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupBusiness('bizA', 'identityA');
-    await setupMembership('bizA', 'identityA', 'member');
-    await setupBusiness('bizB', 'identityB');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupBusiness(db, 'bizA', 'identityA');
+      await setupMembership(db, 'bizA', 'identityA', 'member');
+      await setupBusiness(db, 'bizB', 'identityB');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertSucceeds(db.collection('businesses').doc('bizB').get());
   });
@@ -243,10 +255,12 @@ async function runTests() {
   // 9. Business A member cannot write Business B protected data
   await test('9. Business A member cannot write Business B protected data', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupBusiness('bizA', 'identityA');
-    await setupMembership('bizA', 'identityA', 'admin');
-    await setupBusiness('bizB', 'identityB');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupBusiness(db, 'bizA', 'identityA');
+      await setupMembership(db, 'bizA', 'identityA', 'admin');
+      await setupBusiness(db, 'bizB', 'identityB');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('businessProfiles').add({
       business_id: 'bizB',
@@ -257,9 +271,11 @@ async function runTests() {
   // 10. Ordinary Business member cannot promote their role
   await test('10. Ordinary Business member cannot promote their role', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupBusiness('bizA', 'identityB');
-    await setupMembership('bizA', 'identityA', 'member');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupBusiness(db, 'bizA', 'identityB');
+      await setupMembership(db, 'bizA', 'identityA', 'member');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('businessMemberships').doc('bizA_identityA').update({
       role: 'admin',
@@ -269,9 +285,11 @@ async function runTests() {
   // 11. Ordinary member cannot create owner membership
   await test('11. Ordinary member cannot create owner membership', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupBusiness('bizA', 'identityB');
-    await setupMembership('bizA', 'identityA', 'member');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupBusiness(db, 'bizA', 'identityB');
+      await setupMembership(db, 'bizA', 'identityA', 'member');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('businessMemberships').add({
       business_id: 'bizA',
@@ -283,10 +301,12 @@ async function runTests() {
   // 12. Non-participant cannot read Conversation
   await test('12. Non-participant cannot read Conversation', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupIdentity('authC', 'identityC');
-    await setupConversation('conv1', ['identityA', 'identityB'], 'accepted');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupIdentity(db, 'authC', 'identityC');
+      await setupConversation(db, 'conv1', ['identityA', 'identityB'], 'accepted');
+    });
     const db = testEnv.authenticatedContext('authC').firestore();
     await assertFails(db.collection('conversations').doc('conv1').get());
   });
@@ -294,10 +314,12 @@ async function runTests() {
   // 13. Non-participant cannot read Messages
   await test('13. Non-participant cannot read Messages', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupIdentity('authC', 'identityC');
-    await setupConversation('conv1', ['identityA', 'identityB'], 'accepted');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupIdentity(db, 'authC', 'identityC');
+      await setupConversation(db, 'conv1', ['identityA', 'identityB'], 'accepted');
+    });
     const db = testEnv.authenticatedContext('authC').firestore();
     await assertFails(db.collection('conversations').doc('conv1').collection('messages').get());
   });
@@ -305,7 +327,9 @@ async function runTests() {
   // 14. Client cannot create Conversation directly
   await test('14. Client cannot create Conversation directly', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('conversations').add({
       participant_ids: ['identityA', 'identityB'],
@@ -318,8 +342,10 @@ async function runTests() {
   // 15. Participant can create message in accepted conversation
   await test('15. Participant can create message in accepted conversation', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupConversation('conv1', ['identityA', 'identityB'], 'accepted');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupConversation(db, 'conv1', ['identityA', 'identityB'], 'accepted');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertSucceeds(db.collection('conversations').doc('conv1').collection('messages').add({
       sender_id: 'identityA',
@@ -331,8 +357,10 @@ async function runTests() {
   // 16. Cannot create message with wrong sender_id
   await test('16. Cannot create message with wrong sender_id', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupConversation('conv1', ['identityA', 'identityB'], 'accepted');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupConversation(db, 'conv1', ['identityA', 'identityB'], 'accepted');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('conversations').doc('conv1').collection('messages').add({
       sender_id: 'identityB',
@@ -344,7 +372,9 @@ async function runTests() {
   // 17. Client cannot create Notifications
   await test('17. Client cannot create Notifications', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('notificationRecords').add({
       recipient_id: 'identityB',
@@ -357,9 +387,11 @@ async function runTests() {
   // 18. Ordinary user cannot approve verification
   await test('18. Ordinary user cannot approve verification', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupVerification('verif1', 'identityB', 'pending_review', 'pending');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupVerification(db, 'verif1', 'identityB', 'pending_review', 'pending');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('verificationRequests').doc('verif1').update({
       status: 'verified',
@@ -370,9 +402,11 @@ async function runTests() {
   // 19. Non-reviewer cannot read others verification requests
   await test('19. Non-reviewer cannot read others verification requests', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupVerification('verif1', 'identityB', 'pending_review', 'pending');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupVerification(db, 'verif1', 'identityB', 'pending_review', 'pending');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('verificationRequests').doc('verif1').get());
   });
@@ -380,9 +414,11 @@ async function runTests() {
   // 20. Private verification evidence cannot be read publicly
   await test('20. Private verification evidence cannot be read publicly', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupTrustRecord('trust1', 'identityB');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupTrustRecord(db, 'trust1', 'identityB');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('trustRecords').doc('trust1').get());
   });
@@ -390,7 +426,9 @@ async function runTests() {
   // 21. Client cannot create Trust Signals
   await test('21. Client cannot create Trust Signals', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('trustSignals').add({
       source_system: 'booking',
@@ -403,9 +441,11 @@ async function runTests() {
   // 22. User cannot remove another users block
   await test('22. User cannot remove another users block', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
-    await setupBlock('identityB', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupBlock(db, 'identityB', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('blockRecords').doc('identityB__identityA').delete());
   });
@@ -413,7 +453,9 @@ async function runTests() {
   // 23. User cannot create block pretending to be another user
   await test('23. User cannot create block pretending to be another user', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('blockRecords').doc('identityB__identityA').set({
       blocker_id: 'identityB',
@@ -425,7 +467,9 @@ async function runTests() {
   // 24. Blocked sender cannot bypass Messaging restrictions
   await test('24. Blocked sender cannot bypass Messaging restrictions', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('conversations').add({
       participant_ids: ['identityA', 'identityB'],
@@ -445,8 +489,10 @@ async function runTests() {
   // 26. Authenticated can read SpecVault
   await test('26. Authenticated can read SpecVault', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupSpec('spec1', { title: 'Test Spec', project_id: 'proj1' });
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupSpec(db, 'spec1', { title: 'Test Spec', project_id: 'proj1' });
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertSucceeds(db.collection('specifications').doc('spec1').get());
   });
@@ -454,8 +500,10 @@ async function runTests() {
   // 27. Spec Versions are immutable
   await test('27. Spec Versions are immutable', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupSpecVersion('ver1', { specification_id: 'spec1', version: '1.0' });
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupSpecVersion(db, 'ver1', { specification_id: 'spec1', version: '1.0' });
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('specVersions').doc('ver1').update({
       version: '2.0',
@@ -469,7 +517,9 @@ async function runIdentityMappingTests() {
   // 28. Authenticated user can read own identity mapping
   await test('28. Authenticated user can read own identity mapping', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertSucceeds(db.collection('identityMappings').doc('authA').get());
   });
@@ -477,8 +527,10 @@ async function runIdentityMappingTests() {
   // 29. User cannot read another user's identity mapping
   await test('29. User cannot read another users identity mapping', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
-    await setupIdentity('authB', 'identityB');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('identityMappings').doc('authB').get());
   });
@@ -486,7 +538,9 @@ async function runIdentityMappingTests() {
   // 30. Client cannot create identity mapping
   await test('30. Client cannot create identity mapping', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('identityMappings').doc('authC').set({
       identity_id: 'identityC',
@@ -505,7 +559,9 @@ async function runIdentityMappingTests() {
   // 32. User can create profile with correct identity_id
   await test('32. User can create profile with correct identity_id', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertSucceeds(db.collection('personalProfiles').add({
       identity_id: 'identityA',
@@ -517,7 +573,9 @@ async function runIdentityMappingTests() {
   // 33. User cannot create profile with wrong identity_id
   await test('33. User cannot create profile with wrong identity_id', async () => {
     await clear();
-    await setupIdentity('authA', 'identityA');
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('personalProfiles').add({
       identity_id: 'identityB',

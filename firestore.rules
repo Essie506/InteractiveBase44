@@ -22,16 +22,23 @@ service cloud.firestore {
     // Auth UID, so authentication providers can change without
     // altering domain identity keys throughout Interactive.
     //
-    // myIdentityId() returns the Interactive Identity ID string for
-    // the authenticated caller, or false if no mapping exists.
-    function myIdentityId() {
+    // hasIdentityMapping() returns a boolean — whether the caller
+    // has an identity mapping. getIdentityId() returns the identity
+    // ID string — only safe to call after hasIdentityMapping() is
+    // true. This split ensures rule expressions always evaluate to
+    // booleans, not strings.
+
+    function hasIdentityMapping() {
       return isAuthenticated()
-        && exists(/databases/$(database)/documents/identityMappings/$(uid()))
-        && get(/databases/$(database)/documents/identityMappings/$(uid())).data.identity_id;
+        && exists(/databases/$(database)/documents/identityMappings/$(uid()));
+    }
+
+    function getIdentityId() {
+      return get(/databases/$(database)/documents/identityMappings/$(uid())).data.identity_id;
     }
 
     function isOwner(identityId) {
-      return myIdentityId() == identityId;
+      return hasIdentityMapping() && getIdentityId() == identityId;
     }
 
     function userExists(identityId) {
@@ -43,15 +50,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return myIdentityId()
-        && userExists(myIdentityId())
-        && userDoc(myIdentityId()).role == 'admin';
+      return hasIdentityMapping()
+        && userExists(getIdentityId())
+        && userDoc(getIdentityId()).role == 'admin';
     }
 
     function isReviewer() {
-      return myIdentityId()
-        && userExists(myIdentityId())
-        && userDoc(myIdentityId()).role in ['admin', 'reviewer'];
+      return hasIdentityMapping()
+        && userExists(getIdentityId())
+        && userDoc(getIdentityId()).role in ['admin', 'reviewer'];
     }
 
     // Business membership — deterministic doc ID: {businessId}_{identityId}
@@ -60,12 +67,12 @@ service cloud.firestore {
     }
 
     function isBusinessMember(businessId) {
-      return myIdentityId()
-        && exists(/databases/$(database)/documents/businessMemberships/$(membershipId(businessId, myIdentityId())));
+      return hasIdentityMapping()
+        && exists(/databases/$(database)/documents/businessMemberships/$(membershipId(businessId, getIdentityId())));
     }
 
     function membershipData(businessId) {
-      return get(/databases/$(database)/documents/businessMemberships/$(membershipId(businessId, myIdentityId()))).data;
+      return get(/databases/$(database)/documents/businessMemberships/$(membershipId(businessId, getIdentityId()))).data;
     }
 
     function hasBusinessRole(businessId, role) {
@@ -89,9 +96,9 @@ service cloud.firestore {
     }
 
     function isConversationParticipant(conversationId) {
-      return myIdentityId()
+      return hasIdentityMapping()
         && conversationExists(conversationId)
-        && myIdentityId() in conversationData(conversationId).participant_ids;
+        && getIdentityId() in conversationData(conversationId).participant_ids;
     }
 
     function isConversationAccepted(conversationId) {
@@ -151,26 +158,20 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.identity_id)
         || isPubliclyVisible(resource)
         || isAdmin();
-      allow create: if isAuthenticated()
-        && request.resource.data.identity_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.identity_id);
       allow update: if isOwner(resource.data.identity_id);
       allow delete: if isOwner(resource.data.identity_id) || isAdmin();
     }
 
     // ═══════════════════════════════════════════════════════════
     // PROFESSIONAL PROFILES
-    // Public presentation readable based on visibility.
-    // Private fields (contact info, verification evidence) are
-    // protected at document level. Field-level separation will use
-    // public/private projection collections in production hardening.
     // ═══════════════════════════════════════════════════════════
 
     match /professionalProfiles/{profileId} {
       allow read: if isOwner(resource.data.identity_id)
         || isPubliclyVisible(resource)
         || isAdmin();
-      allow create: if isAuthenticated()
-        && request.resource.data.identity_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.identity_id);
       allow update: if isOwner(resource.data.identity_id) || isAdmin();
       allow delete: if isOwner(resource.data.identity_id) || isAdmin();
     }
@@ -181,8 +182,7 @@ service cloud.firestore {
 
     match /businesses/{businessId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated()
-        && request.resource.data.owner_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.owner_id);
       allow update: if isBusinessAdmin(businessId) || isAdmin();
       allow delete: if isBusinessOwner(businessId) || isAdmin();
     }
@@ -201,23 +201,18 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════
     // BUSINESS MEMBERSHIPS
     // Deterministic doc ID: {businessId}_{identityId}
-    // Prevents self-promotion, self-join, and unauthorized role changes.
     // ═══════════════════════════════════════════════════════════
 
     match /businessMemberships/{membershipId} {
       allow read: if isOwner(resource.data.identity_id)
         || isBusinessAdmin(resource.data.business_id)
         || isAdmin();
-      // Only business admins can create memberships for others.
-      // Self-join is denied. Owner role cannot be created via client.
       allow create: if isAuthenticated()
         && isBusinessAdmin(request.resource.data.business_id)
-        && request.resource.data.identity_id != myIdentityId()
+        && request.resource.data.identity_id != getIdentityId()
         && request.resource.data.role != 'owner';
-      // Admins can update other members' roles (never to owner).
-      // Members can update only their own non-role fields.
       allow update: if (isBusinessAdmin(resource.data.business_id)
-          && resource.data.identity_id != myIdentityId()
+          && resource.data.identity_id != getIdentityId()
           && request.resource.data.role != 'owner'
           && request.resource.data.role in ['admin', 'staff', 'member'])
         || (isOwner(resource.data.identity_id)
@@ -230,10 +225,6 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════
     // BUSINESS INVITATIONS
-    // Invitation acceptance should use a trusted Cloud Function to
-    // atomically create the membership. Client status updates are
-    // allowed for admin or invitee, but membership creation is
-    // classified as a server-required operation.
     // ═══════════════════════════════════════════════════════════
 
     match /businessInvitations/{invitationId} {
@@ -274,7 +265,7 @@ service cloud.firestore {
 
     match /onboardingStates/{stateId} {
       allow read: if isOwner(resource.data.identity_id) || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.identity_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.identity_id);
       allow update: if isOwner(resource.data.identity_id);
       allow delete: if isOwner(resource.data.identity_id) || isAdmin();
     }
@@ -285,7 +276,7 @@ service cloud.firestore {
 
     match /userSettings/{settingsId} {
       allow read: if isOwner(resource.data.identity_id) || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.identity_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.identity_id);
       allow update: if isOwner(resource.data.identity_id);
       allow delete: if isOwner(resource.data.identity_id) || isAdmin();
     }
@@ -296,15 +287,13 @@ service cloud.firestore {
 
     match /notificationPreferences/{prefId} {
       allow read: if isOwner(resource.data.identity_id) || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.identity_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.identity_id);
       allow update: if isOwner(resource.data.identity_id);
       allow delete: if isOwner(resource.data.identity_id) || isAdmin();
     }
 
     // ═══════════════════════════════════════════════════════════
     // NOTIFICATION RECORDS
-    // Clients can only read their own. Creation is server-only
-    // to prevent spoofed notifications from arbitrary systems.
     // ═══════════════════════════════════════════════════════════
 
     match /notificationRecords/{notificationId} {
@@ -317,34 +306,26 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════
     // MEDIA ASSETS
-    // Protected metadata — file URLs not publicly exposed.
-    // Storage Security Rules deferred to Media migration phase.
     // ═══════════════════════════════════════════════════════════
 
     match /mediaAssets/{mediaId} {
       allow read: if isOwner(resource.data.owner_id)
         || isPubliclyVisible(resource)
         || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.owner_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.owner_id);
       allow update: if isOwner(resource.data.owner_id) || isAdmin();
       allow delete: if isOwner(resource.data.owner_id) || isAdmin();
     }
 
     // ═══════════════════════════════════════════════════════════
     // VERIFICATION REQUESTS
-    // Submitters can read their own and add evidence.
-    // Reviewers can read all and approve/reject.
-    // Approval/rejection should use a Cloud Function to atomically
-    // update TrustRecord + VerificationRequest + notifications.
     // ═══════════════════════════════════════════════════════════
 
     match /verificationRequests/{requestId} {
       allow read: if isOwner(resource.data.submitted_by_id) || isReviewer();
-      allow create: if isAuthenticated()
-        && request.resource.data.submitted_by_id == myIdentityId()
+      allow create: if isOwner(request.resource.data.submitted_by_id)
         && request.resource.data.status == 'pending_review'
         && request.resource.data.decision == 'pending';
-      // Submitter can update non-status fields only; reviewers can update all.
       allow update: if (isOwner(resource.data.submitted_by_id)
           && request.resource.data.status == resource.data.status
           && request.resource.data.decision == resource.data.decision)
@@ -354,8 +335,6 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════
     // TRUST RECORDS
-    // Public indicators readable by target owner + admins.
-    // Creation/updates are reviewer-only.
     // ═══════════════════════════════════════════════════════════
 
     match /trustRecords/{trustId} {
@@ -367,7 +346,6 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════
     // TRUST SIGNALS
-    // System-generated only — no client writes.
     // ═══════════════════════════════════════════════════════════
 
     match /trustSignals/{signalId} {
@@ -377,25 +355,19 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════
     // LOCATIONS
-    // Private fields (lat/lng/address/postal) protected at document
-    // level. Public label exposed only when visibility == 'public'.
-    // Production hardening should split public/private projections
-    // into separate collections for field-level safety.
     // ═══════════════════════════════════════════════════════════
 
     match /locations/{locationId} {
       allow read: if isOwner(resource.data.owner_id)
         || isPubliclyVisible(resource)
         || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.owner_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.owner_id);
       allow update: if isOwner(resource.data.owner_id) || isAdmin();
       allow delete: if isOwner(resource.data.owner_id) || isAdmin();
     }
 
     // ═══════════════════════════════════════════════════════════
     // CALENDAR EVENTS
-    // Queries must constrain by owner_id or business_id to comply
-    // with rules — Firestore rules are not post-query filters.
     // ═══════════════════════════════════════════════════════════
 
     match /calendarEvents/{eventId} {
@@ -408,9 +380,8 @@ service cloud.firestore {
         || (resource.data.business_id != null
           && isBusinessMember(resource.data.business_id))
         || isAdmin();
-      allow create: if isAuthenticated()
-        && request.resource.data.created_by_id == myIdentityId()
-        && (request.resource.data.owner_id == myIdentityId()
+      allow create: if isOwner(request.resource.data.created_by_id)
+        && (isOwner(request.resource.data.owner_id)
           || (request.resource.data.business_id != null
             && isBusinessAdmin(request.resource.data.business_id)));
       allow update: if isOwner(resource.data.owner_id)
@@ -423,15 +394,13 @@ service cloud.firestore {
 
     // ═══════════════════════════════════════════════════════════
     // AVAILABILITY RULES
-    // Private scheduling detail — owner or business members only.
     // ═══════════════════════════════════════════════════════════
 
     match /availabilityRules/{ruleId} {
       allow read: if isOwner(resource.data.owner_id)
         || (resource.data.business_id != null && isBusinessMember(resource.data.business_id))
         || isAdmin();
-      allow create: if isAuthenticated()
-        && request.resource.data.owner_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.owner_id);
       allow update: if isOwner(resource.data.owner_id)
         || (resource.data.business_id != null && isBusinessAdmin(resource.data.business_id))
         || isAdmin();
@@ -446,16 +415,13 @@ service cloud.firestore {
 
     match /externalCalendarConnections/{connectionId} {
       allow read: if isOwner(resource.data.identity_id) || isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.identity_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.identity_id);
       allow update: if isOwner(resource.data.identity_id);
       allow delete: if isOwner(resource.data.identity_id) || isAdmin();
     }
 
     // ═══════════════════════════════════════════════════════════
     // CONVERSATIONS & MESSAGES
-    // Conversation creation is server-only to enforce message-request
-    // and block-state rules safely. Message writes require an accepted
-    // conversation and sender == authenticated identity.
     // ═══════════════════════════════════════════════════════════
 
     match /conversations/{conversationId} {
@@ -466,8 +432,7 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         allow read: if isConversationParticipant(conversationId) || isAdmin();
-        allow create: if isAuthenticated()
-          && request.resource.data.sender_id == myIdentityId()
+        allow create: if isOwner(request.resource.data.sender_id)
           && isConversationParticipant(conversationId)
           && isConversationAccepted(conversationId);
         allow update: if isOwner(resource.data.sender_id) || isAdmin();
@@ -478,21 +443,17 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════
     // BLOCK RECORDS
     // Deterministic doc ID: {blockerId}__{blockedId}
-    // Only the blocker can create/update/delete their own blocks.
     // ═══════════════════════════════════════════════════════════
 
     match /blockRecords/{blockId} {
       allow read: if isOwner(resource.data.blocker_id) || isAdmin();
-      allow create: if isAuthenticated()
-        && request.resource.data.blocker_id == myIdentityId();
+      allow create: if isOwner(request.resource.data.blocker_id);
       allow update: if isOwner(resource.data.blocker_id);
       allow delete: if isOwner(resource.data.blocker_id) || isAdmin();
     }
 
     // ═══════════════════════════════════════════════════════════
     // SPECVAULT — PROJECTS, SPECIFICATIONS, VERSIONS
-    // Authenticated access. Per-project permissions can be added
-    // in a later hardening phase if needed.
     // ═══════════════════════════════════════════════════════════
 
     match /projects/{projectId} {
