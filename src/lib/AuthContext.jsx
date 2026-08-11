@@ -32,12 +32,16 @@ export const AuthProvider = ({ children }) => {
     setIsLoadingPublicSettings(false);
     setIsLoadingAuth(true);
 
+    let nullFireDebounce = null;
+
     const unsubscribe = fbAuth.onAuthStateChange(async (fbUser) => {
       if (fbUser) {
+        // Cancel any pending null-fire debounce — the real user fired.
+        if (nullFireDebounce) {
+          clearTimeout(nullFireDebounce);
+          nullFireDebounce = null;
+        }
         // Ensure loading state is active during identity resolution.
-        // A previous null fire (e.g. before session restore) may have
-        // set isLoadingAuth=false; this prevents the app from rendering
-        // routes and redirecting before the user state is loaded.
         setIsLoadingAuth(true);
         try {
           // Get Firebase ID token
@@ -98,13 +102,22 @@ export const AuthProvider = ({ children }) => {
           setAuthChecked(true);
         }
       } else {
-        // No Firebase user — signed out
-        setCurrentIdentityId(null);
-        clearStoredIdentityId();
-        setUser(null);
-        setIsAuthenticated(false);
-        setIsLoadingAuth(false);
-        setAuthChecked(true);
+        // Debounce the null fire. Firebase's onAuthStateChanged can fire
+        // null first (before session restore) and then fire the real
+        // user. Setting authChecked=true immediately on the null fire
+        // causes ProtectedRoute to redirect to /login before the real
+        // user is loaded — producing a redirect loop. The debounce keeps
+        // isLoadingAuth=true during the wait; if a user fires within the
+        // window, the timeout is cancelled above.
+        if (nullFireDebounce) clearTimeout(nullFireDebounce);
+        nullFireDebounce = setTimeout(() => {
+          setCurrentIdentityId(null);
+          clearStoredIdentityId();
+          setUser(null);
+          setIsAuthenticated(false);
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+        }, 300);
       }
     });
 
