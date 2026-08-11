@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { getMembership, hasPermission } from '@/lib/businessPermissions';
+import {
+  getBusiness, getMemberships, getInvitationsForBusiness,
+  createInvitation, updateInvitation, updateMembership,
+  getMembership, hasPermission,
+} from '@/services/businessService';
 import { Users, Plus, X, Mail, Check, AlertCircle, ArrowLeft, Loader2, Shield } from 'lucide-react';
 
 export default function BusinessStaff() {
@@ -23,7 +26,7 @@ export default function BusinessStaff() {
   useEffect(() => {
     if (!user || !id) return;
     (async () => {
-      const biz = await base44.entities.Business.get(id);
+      const biz = await getBusiness(id);
       setBusiness(biz);
       const m = await getMembership(id, user.id);
       if (!m || !hasPermission(m, 'manage_staff')) { setAccessDenied(true); setLoading(false); return; }
@@ -35,8 +38,8 @@ export default function BusinessStaff() {
 
   const loadData = async () => {
     const [mbrs, invs] = await Promise.all([
-      base44.entities.BusinessMembership.filter({ business_id: id }),
-      base44.entities.BusinessInvitation.filter({ business_id: id }),
+      getMemberships(id),
+      getInvitationsForBusiness(id),
     ]);
     setMembers(mbrs);
     setInvitations(invs);
@@ -46,7 +49,7 @@ export default function BusinessStaff() {
     if (!inviteEmail.trim()) return;
     setSending(true);
     try {
-      await base44.entities.BusinessInvitation.create({
+      await createInvitation({
         business_id: id,
         business_name: business.name,
         email: inviteEmail.trim(),
@@ -68,12 +71,12 @@ export default function BusinessStaff() {
   };
 
   const cancelInvite = async (inviteId) => {
-    await base44.entities.BusinessInvitation.update(inviteId, { status: 'cancelled' });
+    await updateInvitation(inviteId, { status: 'cancelled' });
     await loadData();
   };
 
   const updateMemberRole = async (memberId, newRole) => {
-    await base44.entities.BusinessMembership.update(memberId, { role: newRole });
+    await updateMembership(memberId, { role: newRole });
     await loadData();
   };
 

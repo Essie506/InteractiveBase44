@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
+import { getPersonalProfile, savePersonalProfile } from '@/services/profileService';
+import { updateProfile } from '@/services/authService';
 import { Loader2, Camera, Save, Check } from 'lucide-react';
 import MediaUploadButton from '@/components/MediaUploadButton';
 import LocationPicker from '@/components/LocationPicker';
@@ -24,9 +25,8 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    base44.entities.PersonalProfile.filter({ identity_id: user.id }).then(profiles => {
-      if (profiles.length > 0) {
-        const p = profiles[0];
+    getPersonalProfile(user.id).then(p => {
+      if (p) {
         setProfile(p);
         setDisplayName(p.display_name || '');
         setScreenName(p.screen_name || '');
@@ -60,17 +60,13 @@ export default function ProfilePage() {
         visibility,
       };
       if (profile) {
-        const updated = await base44.entities.PersonalProfile.update(profile.id, data);
+        const updated = await savePersonalProfile(user.id, data);
         setProfile(updated);
       } else {
-        const created = await base44.entities.PersonalProfile.create({
-          identity_id: user.id,
-          ...data,
-          lifecycle_state: 'active',
-        });
+        const created = await savePersonalProfile(user.id, data);
         setProfile(created);
       }
-      await base44.auth.updateMe({ display_name: displayName, avatar_url: avatarUrl });
+      await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
       await checkUserAuth();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);

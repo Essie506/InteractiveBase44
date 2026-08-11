@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
+import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
+import * as userService from '@/services/userService';
 import { submitVerification } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
@@ -42,9 +43,8 @@ export default function ProfessionalActivation() {
     }
     setDisplayName(user.display_name || '');
     setContactEmail(user.email || '');
-    base44.entities.ProfessionalProfile.filter({ identity_id: user.id }).then(profiles => {
-      if (profiles.length > 0) {
-        const p = profiles[0];
+    getProfessionalProfile(user.id).then(p => {
+      if (p) {
         setProfile(p);
         setDisplayName(p.display_name || user.display_name || '');
         setHeadline(p.headline || '');
@@ -116,9 +116,9 @@ export default function ProfessionalActivation() {
 
       let savedProfile;
       if (profile) {
-        savedProfile = await base44.entities.ProfessionalProfile.update(profile.id, profileData);
+        savedProfile = await saveProfessionalProfile(user.id, profileData);
       } else {
-        savedProfile = await base44.entities.ProfessionalProfile.create(profileData);
+        savedProfile = await saveProfessionalProfile(user.id, profileData);
       }
 
       // Submit verification through Trust & Reputation (connects Phase 2 stub to real implementation)
@@ -138,7 +138,7 @@ export default function ProfessionalActivation() {
       });
 
       // Update User identity
-      await base44.auth.updateMe({
+      await userService.updateUserState({
         professional_activated: true,
         professional_onboarding_status: 'active',
         display_name: displayName,

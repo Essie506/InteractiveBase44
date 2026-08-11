@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
 import { uploadMedia } from '@/lib/media';
 import { submitVerification, getVerificationRequest } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';

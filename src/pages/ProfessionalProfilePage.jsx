@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
+import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
+import { updateProfile } from '@/services/authService';
 import { Loader2, Camera, Save, Check, ShieldCheck, Plus, X } from 'lucide-react';
 import MediaUploadButton from '@/components/MediaUploadButton';
 import LocationPicker from '@/components/LocationPicker';
@@ -34,11 +35,10 @@ export default function ProfessionalProfilePage() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      base44.entities.ProfessionalProfile.filter({ identity_id: user.id }),
+      getProfessionalProfile(user.id),
       getVerificationRequest('professional', user.id),
-    ]).then(([profiles, req]) => {
-      if (profiles.length > 0) {
-        const p = profiles[0];
+    ]).then(([p, req]) => {
+      if (p) {
         setProfile(p);
         setDisplayName(p.display_name || '');
         setHeadline(p.headline || '');
@@ -93,18 +93,13 @@ export default function ProfessionalProfilePage() {
         visibility,
       };
       if (profile) {
-        const updated = await base44.entities.ProfessionalProfile.update(profile.id, data);
+        const updated = await saveProfessionalProfile(user.id, data);
         setProfile(updated);
       } else {
-        const created = await base44.entities.ProfessionalProfile.create({
-          identity_id: user.id,
-          ...data,
-          lifecycle_state: 'active',
-          onboarding_status: 'active',
-        });
+        const created = await saveProfessionalProfile(user.id, { ...data, lifecycle_state: 'active', onboarding_status: 'active' });
         setProfile(created);
       }
-      await base44.auth.updateMe({ display_name: displayName, avatar_url: avatarUrl });
+      await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
       await checkUserAuth();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);

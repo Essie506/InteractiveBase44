@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { base44 } from '@/api/base44Client';
+import { listProjects, searchSpecs } from '@/services/specService';
 import { Search, Loader2, Sparkles, FileText, ArrowRight } from 'lucide-react';
 
 const EXAMPLES = [
@@ -19,7 +19,7 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
 
   useEffect(() => {
-    base44.entities.Project.list().then(setProjects);
+    listProjects().then(setProjects);
   }, []);
 
   const handleSearch = async (e) => {
@@ -32,10 +32,7 @@ export default function SearchPage() {
     setSearched(true);
 
     try {
-      const response = await base44.functions.invoke('SearchSpecs', {
-        query: query.trim(),
-        project_id: projectId !== 'all' ? projectId : undefined,
-      });
+      const response = await searchSpecs(query.trim(), projectId !== 'all' ? projectId : undefined);
       if (response.data?.error) {
         setError(response.data.error);
       } else {

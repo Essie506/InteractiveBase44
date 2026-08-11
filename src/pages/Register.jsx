@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import * as authService from "@/services/authService";
+import * as userService from "@/services/userService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +33,7 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      await base44.auth.register({ email, password });
+      await authService.register({ email, password });
       setShowOtp(true);
     } catch (err) {
       setError(err.message || "Registration failed");
@@ -45,10 +46,10 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
+      const result = await authService.verifyOtp({ email, otpCode });
       if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
-        await base44.auth.updateMe({ onboarding_intent: intent, onboarding_status: 'not_started' });
+        authService.setToken(result.access_token);
+        await userService.updateUserState({ onboarding_intent: intent, onboarding_status: 'not_started' });
       }
       window.location.href = '/onboarding';
     } catch (err) {
@@ -61,7 +62,7 @@ export default function Register() {
   const handleResend = async () => {
     setError("");
     try {
-      await base44.auth.resendOtp(email);
+      await authService.resendOtp(email);
       toast({
         title: "Code sent",
         description: "Check your email for the new code.",
@@ -72,7 +73,7 @@ export default function Register() {
   };
 
   const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", '/onboarding?intent=' + (intent || 'personal'));
+    authService.loginWithProvider("google", '/onboarding?intent=' + (intent || 'personal'));
   };
 
   if (showIntent) {

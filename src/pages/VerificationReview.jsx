@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
 import { approveVerification, rejectVerification, getPendingVerifications } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
 import { getMedia } from '@/lib/media';

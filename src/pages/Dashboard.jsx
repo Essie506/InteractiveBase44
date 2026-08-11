@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { getUserBusinesses } from '@/lib/businessPermissions';
+import { getPersonalProfile } from '@/services/profileService';
+import { getUserSettings } from '@/services/settingsService';
+import { getInvitationsForEmail, getUserBusinesses } from '@/services/businessService';
 import { User as UserIcon, Settings, FileText, Search, Check, Briefcase, Building2, Plus, ArrowRight, Mail, ShieldCheck } from 'lucide-react';
 
 export default function Dashboard() {
@@ -16,13 +17,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      base44.entities.PersonalProfile.filter({ identity_id: user.id }),
-      base44.entities.UserSetting.filter({ identity_id: user.id }),
+      getPersonalProfile(user.id),
+      getUserSettings(user.id),
       getUserBusinesses(user.id),
-      base44.entities.BusinessInvitation.filter({ email: user.email }),
-    ]).then(([profiles, userSettings, userBusinesses, invites]) => {
-      if (profiles.length > 0) setProfile(profiles[0]);
-      if (userSettings.length > 0) setSettings(userSettings[0]);
+      getInvitationsForEmail(user.email),
+    ]).then(([profile, userSettings, userBusinesses, invites]) => {
+      if (profile) setProfile(profile);
+      if (userSettings) setSettings(userSettings);
       setBusinesses(userBusinesses);
       setPendingInvites(invites.filter(i => i.status === 'sent' || i.status === 'delivered').length);
     }).finally(() => setLoading(false));

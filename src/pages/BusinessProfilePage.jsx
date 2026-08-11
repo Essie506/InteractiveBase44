@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { getMembership, hasPermission } from '@/lib/businessPermissions';
+import {
+  getBusiness, updateBusiness, getBusinessProfile, saveBusinessProfile,
+  getMembership, hasPermission,
+} from '@/services/businessService';
 import { getVerificationRequest } from '@/lib/trust';
 import { Loader2, Save, Check, Camera, ArrowLeft, AlertCircle, Plus, X, ShieldCheck } from 'lucide-react';
 import MediaUploadButton from '@/components/MediaUploadButton';
@@ -39,17 +41,17 @@ export default function BusinessProfilePage() {
   useEffect(() => {
     if (!user || !id) return;
     (async () => {
-      const biz = await base44.entities.Business.get(id);
+      const biz = await getBusiness(id);
       setBusiness(biz);
       const m = await getMembership(id, user.id);
       if (!m || !hasPermission(m, 'manage_profile')) { setAccessDenied(true); setLoading(false); return; }
       setMembership(m);
-      const [profiles, req] = await Promise.all([
-        base44.entities.BusinessProfile.filter({ business_id: id }),
+      const [profile, req] = await Promise.all([
+        getBusinessProfile(id),
         getVerificationRequest('business', id),
       ]);
-      if (profiles.length > 0) {
-        const p = profiles[0];
+      if (profile) {
+        const p = profile;
         setProfile(p);
         setName(p.name || '');
         setDescription(p.description || '');
@@ -104,14 +106,14 @@ export default function BusinessProfilePage() {
         visibility,
       };
       if (profile) {
-        const updated = await base44.entities.BusinessProfile.update(profile.id, data);
+        const updated = await saveBusinessProfile(id, data);
         setProfile(updated);
       } else {
-        const created = await base44.entities.BusinessProfile.create({ ...data, lifecycle_state: 'active' });
+        const created = await saveBusinessProfile(id, { ...data, lifecycle_state: 'active' });
         setProfile(created);
       }
       if (name !== business.name) {
-        await base44.entities.Business.update(id, { name, contact_email: contactEmail, contact_phone: contactPhone, website });
+        await updateBusiness(id, { name, contact_email: contactEmail, contact_phone: contactPhone, website });
         setBusiness({ ...business, name, contact_email: contactEmail, contact_phone: contactPhone, website });
       }
       setSaved(true);

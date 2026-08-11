@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
+import { getInvitationsForEmail, createMembership, updateInvitation } from '@/services/businessService';
 import { Loader2, Mail, Check, X, Building2, ArrowRight } from 'lucide-react';
 
 export default function InvitationsPage() {
@@ -13,7 +13,7 @@ export default function InvitationsPage() {
 
   useEffect(() => {
     if (!user) return;
-    base44.entities.BusinessInvitation.filter({ email: user.email }).then(async (invs) => {
+    getInvitationsForEmail(user.email).then(async (invs) => {
       const pending = invs.filter(i => i.status === 'sent' || i.status === 'delivered');
       setInvitations(pending);
       setLoading(false);
@@ -24,7 +24,7 @@ export default function InvitationsPage() {
     setProcessing(invite.id);
     try {
       // Create business membership
-      await base44.entities.BusinessMembership.create({
+      await createMembership({
         business_id: invite.business_id,
         identity_id: user.id,
         role: invite.role,
@@ -32,7 +32,7 @@ export default function InvitationsPage() {
         lifecycle_state: 'active',
       });
       // Update invitation status
-      await base44.entities.BusinessInvitation.update(invite.id, { status: 'accepted', identity_id: user.id });
+      await updateInvitation(invite.id, { status: 'accepted', identity_id: user.id });
       // Refresh
       const updated = invitations.filter(i => i.id !== invite.id);
       setInvitations(updated);
@@ -46,7 +46,7 @@ export default function InvitationsPage() {
   const declineInvite = async (invite) => {
     setProcessing(invite.id);
     try {
-      await base44.entities.BusinessInvitation.update(invite.id, { status: 'declined' });
+      await updateInvitation(invite.id, { status: 'declined' });
       setInvitations(invitations.filter(i => i.id !== invite.id));
     } finally {
       setProcessing(null);

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
 import { getAllEventsForIdentity, formatTimeRange, getLocalTimezone, cancelEvent } from '@/lib/calendar';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2 } from 'lucide-react';
 import EventModal from '@/components/calendar/EventModal';

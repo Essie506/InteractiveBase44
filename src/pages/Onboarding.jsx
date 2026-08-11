@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
+import * as userService from '@/services/userService';
+import {
+  getOnboardingState, createOnboardingState, updateOnboardingState,
+  createPersonalProfile, createUserSetting, createProfessionalProfile,
+  createBusiness, createBusinessProfile, createMembership,
+} from '@/services/onboardingService';
 import { Loader2, ArrowLeft, Check } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
@@ -52,16 +57,16 @@ export default function Onboarding() {
 
     // Set onboarding intent from URL if not already set (e.g. Google sign-up)
     if (urlIntent && !user.onboarding_intent) {
-      base44.auth.updateMe({ onboarding_intent: urlIntent }).then(() => checkUserAuth());
+      userService.updateUserState({ onboarding_intent: urlIntent }).then(() => checkUserAuth());
     }
 
-    base44.entities.OnboardingState.filter({ identity_id: user.id }).then(async (existing) => {
-      if (existing.length > 0) {
-        setOnboardingState(existing[0]);
-        const savedIdx = stepKeys.indexOf(existing[0].current_step);
+    getOnboardingState(user.id).then(async (existing) => {
+      if (existing) {
+        setOnboardingState(existing);
+        const savedIdx = stepKeys.indexOf(existing.current_step);
         if (savedIdx > 0) setStepIndex(savedIdx);
       } else {
-        const state = await base44.entities.OnboardingState.create({
+        const state = await createOnboardingState({
           identity_id: user.id,
           intent,
           current_step: stepKeys[0],
@@ -79,7 +84,7 @@ export default function Onboarding() {
     if (!onboardingState) return;
     const completed = [...new Set([...(onboardingState.completed_steps || []), completedStep])];
     const nextStep = stepKeys[stepIndex + 1] || 'complete';
-    const updated = await base44.entities.OnboardingState.update(onboardingState.id, {
+    const updated = await updateOnboardingState(onboardingState.id, {
       current_step: nextStep,
       completed_steps: completed,
     });
@@ -118,7 +123,7 @@ export default function Onboarding() {
     setLoading(true);
     try {
       // 1. Create PersonalProfile
-      await base44.entities.PersonalProfile.create({
+      await createPersonalProfile({
         identity_id: user.id,
         display_name: displayName,
         screen_name: screenName || null,
@@ -130,7 +135,7 @@ export default function Onboarding() {
       });
 
       // 2. Create UserSetting
-      await base44.entities.UserSetting.create({
+      await createUserSetting({
         identity_id: user.id,
         profile_visibility: profileVisibility,
         search_visibility: searchVisibility,
@@ -139,7 +144,7 @@ export default function Onboarding() {
 
       // 3. Intent-specific records
       if (intent === 'professional') {
-        await base44.entities.ProfessionalProfile.create({
+        await createProfessionalProfile({
           identity_id: user.id,
           display_name: displayName,
           profession,
@@ -150,24 +155,24 @@ export default function Onboarding() {
       }
 
       if (intent === 'business') {
-        const business = await base44.entities.Business.create({
+        const business = await createBusiness({
           name: businessName,
           owner_id: user.id,
           type: businessType,
           lifecycle_state: 'active',
         });
-        await base44.entities.BusinessMembership.create({
+        await createMembership({
           business_id: business.id,
           identity_id: user.id,
           role: 'owner',
           lifecycle_state: 'active',
         });
-        await base44.entities.BusinessProfile.create({
+        await createBusinessProfile({
           business_id: business.id,
           name: businessName,
           lifecycle_state: 'draft',
         });
-        await base44.auth.updateMe({ active_business_id: business.id });
+        await userService.updateUserState({ active_business_id: business.id });
       }
 
       // 4. Update User identity
@@ -178,11 +183,11 @@ export default function Onboarding() {
         terms_accepted_at: new Date().toISOString(),
       };
       if (intent === 'professional') updates.professional_activated = true;
-      await base44.auth.updateMe(updates);
+      await userService.updateUserState(updates);
 
       // 5. Complete onboarding state
       if (onboardingState) {
-        await base44.entities.OnboardingState.update(onboardingState.id, {
+        await updateOnboardingState(onboardingState.id, {
           status: 'completed',
           current_step: 'complete',
           completed_steps: [...stepKeys, 'complete'],

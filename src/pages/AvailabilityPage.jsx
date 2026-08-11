@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getAvailabilityRules, createAvailabilityRule, deleteAvailabilityRule, getLocalTimezone } from '@/lib/calendar';
-import { base44 } from '@/api/base44Client';
+import { getProfessionalProfile, updateProfessionalProfile } from '@/services/profileService';
 import { Clock, Plus, Trash2, Loader2, MessageSquare, Check } from 'lucide-react';
 
 const DAYS = [
@@ -38,10 +38,10 @@ export default function AvailabilityPage() {
   useEffect(() => {
     if (!user) return;
     loadRules();
-    base44.entities.ProfessionalProfile.filter({ identity_id: user.id }).then(profiles => {
-      if (profiles.length > 0) {
-        setAwayEnabled(profiles[0].away_message_enabled || false);
-        setAwayMessage(profiles[0].away_message || '');
+    getProfessionalProfile(user.id).then(p => {
+      if (p) {
+        setAwayEnabled(p.away_message_enabled || false);
+        setAwayMessage(p.away_message || '');
       }
     });
   }, [user]);
@@ -50,9 +50,9 @@ export default function AvailabilityPage() {
     setAwaySaving(true);
     setAwaySaved(false);
     try {
-      const profiles = await base44.entities.ProfessionalProfile.filter({ identity_id: user.id });
-      if (profiles.length > 0) {
-        await base44.entities.ProfessionalProfile.update(profiles[0].id, {
+      const profile = await getProfessionalProfile(user.id);
+      if (profile) {
+        await updateProfessionalProfile(profile.id, {
           away_message_enabled: awayEnabled,
           away_message: awayMessage,
         });

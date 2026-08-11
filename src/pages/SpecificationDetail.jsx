@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import {
+  getSpecification, updateSpecification, deleteSpecification,
+  getProject, getSpecVersions, createSpecVersion, deleteSpecVersions,
+  uploadSpecFile, fetchSpecContent,
+} from '@/services/specService';
 import ReactMarkdown from 'react-markdown';
 import {
   ArrowLeft, Download, FileText, Tag, History, ChevronDown,
@@ -27,14 +31,14 @@ export default function SpecificationDetail() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    base44.entities.Specification.get(id)
+    getSpecification(id)
       .then(async specData => {
         setSpec(specData);
         if (specData.project_id) {
-          const proj = await base44.entities.Project.get(specData.project_id);
+          const proj = await getProject(specData.project_id);
           setProject(proj);
         }
-        const vers = await base44.entities.SpecVersion.filter({ specification_id: id });
+        const vers = await getSpecVersions(id);
         setVersions(vers.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
       })
       .finally(() => setLoading(false));
@@ -44,7 +48,7 @@ export default function SpecificationDetail() {
     if (spec?.file_url) {
       setLoadingContent(true);
       setContentError(null);
-      base44.functions.invoke('FetchSpecContent', { file_url: spec.file_url })
+      fetchSpecContent(spec.file_url)
         .then(res => setContent(res.data.content))
         .catch(err => setContentError(err.message || 'Failed to load content'))
         .finally(() => setLoadingContent(false));
@@ -52,7 +56,7 @@ export default function SpecificationDetail() {
   }, [spec?.file_url]);
 
   const changeStatus = async (newStatus) => {
-    const updated = await base44.entities.Specification.update(id, { status: newStatus });
+    const updated = await updateSpecification(id, { status: newStatus });
     setSpec(updated);
     setStatusOpen(false);
   };
@@ -72,7 +76,7 @@ export default function SpecificationDetail() {
     setUploading(true);
     try {
       // Save current version to history
-      await base44.entities.SpecVersion.create({
+      await createSpecVersion({
         specification_id: id,
         version: spec.version,
         status: spec.status,
@@ -81,10 +85,10 @@ export default function SpecificationDetail() {
       });
 
       // Upload new file
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: newVersionFile });
+      const file_url = await uploadSpecFile(newVersionFile);
 
       // Update spec
-      const updated = await base44.entities.Specification.update(id, {
+      const updated = await updateSpecification(id, {
         file_url,
         version: newVersionNumber,
         status: 'Draft',
@@ -92,7 +96,7 @@ export default function SpecificationDetail() {
       setSpec(updated);
 
       // Add new version record
-      const newVer = await base44.entities.SpecVersion.create({
+      const newVer = await createSpecVersion({
         specification_id: id,
         version: newVersionNumber,
         status: 'Draft',
@@ -104,7 +108,7 @@ export default function SpecificationDetail() {
       // Refresh content
       setContent(null);
       setLoadingContent(true);
-      base44.functions.invoke('FetchSpecContent', { file_url })
+      fetchSpecContent(file_url)
         .then(res => setContent(res.data.content))
         .finally(() => setLoadingContent(false));
 
@@ -119,8 +123,8 @@ export default function SpecificationDetail() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this specification and all its versions?')) return;
-    await base44.entities.SpecVersion.deleteMany({ specification_id: id });
-    await base44.entities.Specification.delete(id);
+    await deleteSpecVersions(id);
+    await deleteSpecification(id);
     window.location.href = '/specifications';
   };
 

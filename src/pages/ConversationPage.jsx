@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
 import {
   getConversation, getMessages, sendMessage, markConversationAsRead,
   acceptMessageRequest, declineMessageRequest, blockUser, isBlocked, reportUser,

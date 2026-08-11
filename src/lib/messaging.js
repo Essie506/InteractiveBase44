@@ -193,6 +193,11 @@ export async function getConversation(conversationId) {
   return base44.entities.Conversation.get(conversationId);
 }
 
+// Update a conversation (e.g. set request message)
+export async function updateConversation(conversationId, data) {
+  return base44.entities.Conversation.update(conversationId, data);
+}
+
 // Get messages in a conversation
 export async function getMessages(conversationId) {
   return base44.entities.Message.filter({ conversation_id: conversationId }, 'created_date', 200);
@@ -264,6 +269,13 @@ export async function archiveConversation(conversationId) {
   return base44.entities.Conversation.update(conversationId, {
     status: 'archived',
   });
+}
+
+// Find a registered user by email for messaging purposes.
+// Routes the FindUserByEmail backend function through the messaging service boundary.
+export async function findUserByEmail(email) {
+  const response = await base44.functions.invoke('FindUserByEmail', { email: email.trim() });
+  return response.data || response;
 }
 
 // Resolve participant display info from authoritative sources (profiles)

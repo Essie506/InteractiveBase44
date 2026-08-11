@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { listProjects, createProject, uploadSpecFile, createSpecification, createSpecVersion } from '@/services/specService';
 import { Upload, Loader2, FileText, Plus, Check } from 'lucide-react';
 
 export default function UploadPage() {
@@ -26,7 +26,7 @@ export default function UploadPage() {
   const [newProjectColor, setNewProjectColor] = useState('#4F46E5');
 
   useEffect(() => {
-    base44.entities.Project.list()
+    listProjects()
       .then(data => {
         setProjects(data);
         if (data.length > 0) setProjectId(data[0].id);
@@ -73,7 +73,7 @@ export default function UploadPage() {
 
   const createProject = async () => {
     if (!newProjectName) return;
-    const proj = await base44.entities.Project.create({
+    const proj = await createProject({
       name: newProjectName,
       description: newProjectDesc,
       color: newProjectColor,
@@ -94,11 +94,11 @@ export default function UploadPage() {
     setUploading(true);
     setError(null);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      const file_url = await uploadSpecFile(file);
 
       const tagArray = tags.split(',').map(t => t.trim()).filter(Boolean);
 
-      const spec = await base44.entities.Specification.create({
+      const spec = await createSpecification({
         title,
         spec_number: specNumber,
         project_id: projectId,
@@ -110,7 +110,7 @@ export default function UploadPage() {
         tags: tagArray,
       });
 
-      await base44.entities.SpecVersion.create({
+      await createSpecVersion({
         specification_id: spec.id,
         version,
         status,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { listSpecifications, listProjects } from '@/services/specService';
 import { Search, SlidersHorizontal, FileText } from 'lucide-react';
 import SpecCard from '@/components/specs/SpecCard';
 
@@ -16,8 +16,8 @@ export default function Specifications() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Specification.list('-updated_date', 100),
-      base44.entities.Project.list(),
+      listSpecifications('-updated_date', 100),
+      listProjects(),
     ])
       .then(([specData, projData]) => {
         setSpecs(specData);

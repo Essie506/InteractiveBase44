@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { getUserBusinesses } from '@/lib/businessPermissions';
+import * as userService from '@/services/userService';
+import { getUserBusinesses } from '@/services/businessService';
 import { User, Briefcase, Building2, ChevronDown, Check, Loader2, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -39,7 +39,7 @@ export default function ContextSwitcher() {
     try {
       const updates = { active_context: context };
       if (context === 'business' && businessId) updates.active_business_id = businessId;
-      await base44.auth.updateMe(updates);
+      await userService.updateUserState(updates);
       await checkUserAuth();
       setOpen(false);
     } finally {

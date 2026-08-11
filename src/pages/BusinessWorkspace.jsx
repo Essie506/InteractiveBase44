@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { getMembership, hasPermission } from '@/lib/businessPermissions';
+import {
+  getBusiness, getBusinessProfile, getBusinessSubscription,
+  getActiveMemberships, getInvitationsForBusiness,
+  getMembership, hasPermission,
+} from '@/services/businessService';
 import { Users, ShieldCheck, CreditCard, Settings, FileText, ArrowLeft, Building2, Check, AlertCircle } from 'lucide-react';
 
 export default function BusinessWorkspace() {
@@ -22,21 +25,21 @@ export default function BusinessWorkspace() {
     if (!user || !id) return;
     (async () => {
       try {
-        const biz = await base44.entities.Business.get(id);
+        const biz = await getBusiness(id);
         setBusiness(biz);
         const m = await getMembership(id, user.id);
         if (!m) { setAccessDenied(true); setLoading(false); return; }
         setMembership(m);
-        const [profiles, subs, members, invites] = await Promise.all([
-          base44.entities.BusinessProfile.filter({ business_id: id }),
-          base44.entities.BusinessSubscription.filter({ business_id: id }),
-          base44.entities.BusinessMembership.filter({ business_id: id, lifecycle_state: 'active' }),
-          base44.entities.BusinessInvitation.filter({ business_id: id, status: 'sent' }),
+        const [profile, sub, members, invites] = await Promise.all([
+          getBusinessProfile(id),
+          getBusinessSubscription(id),
+          getActiveMemberships(id),
+          getInvitationsForBusiness(id),
         ]);
-        if (profiles.length > 0) setProfile(profiles[0]);
-        if (subs.length > 0) setSubscription(subs[0]);
+        if (profile) setProfile(profile);
+        if (sub) setSubscription(sub);
         setStaffCount(members.length);
-        setPendingInvites(invites.length);
+        setPendingInvites(invites.filter(i => i.status === 'sent').length);
       } finally {
         setLoading(false);
       }

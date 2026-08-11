@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
-import { getConversations, resolveParticipants, acceptMessageRequest, declineMessageRequest } from '@/lib/messaging';
+import { getConversations, resolveParticipants, acceptMessageRequest, declineMessageRequest, findUserByEmail, updateConversation, sendMessage, notifyRecipients, createOrGetConversation } from '@/lib/messaging';
 import { MessageSquare, Search, Loader2, Plus, Check, X, Mail } from 'lucide-react';
 
 export default function Messages() {
@@ -199,8 +198,7 @@ function NewMessageModal({ user, onClose, onSent }) {
     setFoundUser(null);
     setSearching(true);
     try {
-      const response = await base44.functions.invoke('FindUserByEmail', { email: email.trim() });
-      const data = response.data || response;
+      const data = await findUserByEmail(email);
       if (data.error) throw new Error(data.error);
       if (!data.found) {
         setError('No Interactive user found with that email, or they are not discoverable.');
@@ -221,7 +219,6 @@ function NewMessageModal({ user, onClose, onSent }) {
     setSending(true);
     setError('');
     try {
-      const { createOrGetConversation, sendMessage, notifyRecipients } = await import('@/lib/messaging');
       const { conversation, requiresAcceptance } = await createOrGetConversation(
         [user.id, foundUser.id],
         user.id,
@@ -234,7 +231,7 @@ function NewMessageModal({ user, onClose, onSent }) {
 
       if (requiresAcceptance) {
         // Update the conversation with the request message
-        await base44.entities.Conversation.update(conversation.id, { request_message: message.trim() });
+        await updateConversation(conversation.id, { request_message: message.trim() });
         await notifyRecipients(conversation, user.id, message.trim());
       } else {
         const msg = await sendMessage({

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { listSpecifications, listProjects } from '@/services/specService';
 import { FileText, CheckCircle, Eye, FileEdit, Upload, ArrowRight, FolderOpen } from 'lucide-react';
 import StatusBadge from '@/components/specs/StatusBadge';
 
@@ -11,8 +11,8 @@ export default function Home() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Specification.list('-updated_date', 50),
-      base44.entities.Project.list(),
+      listSpecifications('-updated_date', 50),
+      listProjects(),
     ])
       .then(([specData, projData]) => {
         setSpecs(specData);

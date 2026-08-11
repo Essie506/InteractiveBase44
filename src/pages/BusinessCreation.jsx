@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
+import {
+  createBusiness, createBusinessProfile, createMembership,
+  createBusinessSubscription, createInvitation, getActivePlans,
+} from '@/services/businessService';
+import * as userService from '@/services/userService';
 import { submitVerification } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, Check, ShieldCheck, Users } from 'lucide-react';
@@ -32,7 +36,7 @@ export default function BusinessCreation() {
   const stepKeys = ['identity', 'profile', 'verification', 'plan', 'staff', 'complete'];
 
   useEffect(() => {
-    base44.entities.SubscriptionPlan.filter({ status: 'active' }, 'sort_order', 10).then(setPlans);
+    getActivePlans().then(setPlans);
   }, []);
 
   const addStaffField = () => setStaffEmails([...staffEmails, '']);
@@ -63,7 +67,7 @@ export default function BusinessCreation() {
     setLoading(true);
     try {
       // 1. Create Business (lifecycle: creating → pending_verification)
-      const business = await base44.entities.Business.create({
+      const business = await createBusiness({
         name: businessName,
         owner_id: user.id,
         type: businessType,
@@ -77,7 +81,7 @@ export default function BusinessCreation() {
       });
 
       // 2. Create owner membership
-      await base44.entities.BusinessMembership.create({
+      await createMembership({
         business_id: business.id,
         identity_id: user.id,
         role: 'owner',
@@ -85,7 +89,7 @@ export default function BusinessCreation() {
       });
 
       // 3. Create Business Profile
-      await base44.entities.BusinessProfile.create({
+      await createBusinessProfile({
         business_id: business.id,
         name: businessName,
         description,
@@ -116,7 +120,7 @@ export default function BusinessCreation() {
       // 5. Create subscription (plan selection — interface to Plans & Monetisation)
       if (selectedPlan) {
         const plan = plans.find(p => p.id === selectedPlan);
-        await base44.entities.BusinessSubscription.create({
+        await createBusinessSubscription({
           business_id: business.id,
           plan_id: selectedPlan,
           plan_name: plan?.name || '',
@@ -128,7 +132,7 @@ export default function BusinessCreation() {
       // 6. Create staff invitations
       const validEmails = staffEmails.filter(e => e.trim() && e !== user.email);
       for (const email of validEmails) {
-        await base44.entities.BusinessInvitation.create({
+        await createInvitation({
           business_id: business.id,
           business_name: businessName,
           email: email.trim(),
@@ -141,7 +145,7 @@ export default function BusinessCreation() {
       }
 
       // 7. Update User active business
-      await base44.auth.updateMe({
+      await userService.updateUserState({
         active_business_id: business.id,
         active_context: 'business',
       });

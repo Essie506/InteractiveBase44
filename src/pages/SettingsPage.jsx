@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { base44 } from '@/api/base44Client';
+import { getUserSettings, createUserSettings, updateUserSettings, updateNotificationPreferences, getOrCreatePreferences } from '@/services/settingsService';
 import { Loader2, Save, Check } from 'lucide-react';
-import { getOrCreatePreferences } from '@/lib/notifications';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -32,9 +31,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!user) return;
-    base44.entities.UserSetting.filter({ identity_id: user.id }).then(async (existing) => {
-      if (existing.length > 0) {
-        const s = existing[0];
+    getUserSettings(user.id).then(async (s) => {
+      if (s) {
         setSettings(s);
         setProfileVisibility(s.profile_visibility || 'public');
         setSearchVisibility(s.search_visibility ?? true);
@@ -46,7 +44,7 @@ export default function SettingsPage() {
         setLanguage(s.language || 'en');
       } else {
         // Create default settings
-        const created = await base44.entities.UserSetting.create({
+        const created = await createUserSettings({
           identity_id: user.id,
           profile_visibility: 'public',
           search_visibility: true,
@@ -80,7 +78,7 @@ export default function SettingsPage() {
     setSaving(true);
     setSaved(false);
     try {
-      const updated = await base44.entities.UserSetting.update(settings.id, {
+      const updated = await updateUserSettings(settings.id, {
         profile_visibility: profileVisibility,
         search_visibility: searchVisibility,
         allow_direct_messages: allowDMs,
@@ -93,7 +91,7 @@ export default function SettingsPage() {
       setSettings(updated);
       // Save notification preferences (quiet hours)
       if (notifPrefs) {
-        await base44.entities.NotificationPreference.update(notifPrefs.id, {
+        await updateNotificationPreferences(notifPrefs.id, {
           quiet_hours_enabled: quietHoursEnabled,
           quiet_hours_start: quietHoursStart,
           quiet_hours_end: quietHoursEnd,
