@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
+import { submitVerification } from '@/lib/trust';
+import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
 
 export default function ProfessionalActivation() {
@@ -105,15 +107,20 @@ export default function ProfessionalActivation() {
         savedProfile = await base44.entities.ProfessionalProfile.create(profileData);
       }
 
-      // Create verification request (Trust & Reputation stub)
-      await base44.entities.VerificationRequest.create({
-        target_type: 'professional',
-        target_id: user.id,
-        verification_type: 'professional',
-        status: 'pending_review',
-        submitted_by_id: user.id,
-        submitted_at: new Date().toISOString(),
-        notes: `Professional verification for ${category}`,
+      // Submit verification through Trust & Reputation (connects Phase 2 stub to real implementation)
+      await submitVerification('professional', user.id, user.id, [], `Professional verification for ${category}`);
+
+      // Create notification (failure isolated — doesn't undo activation)
+      await createNotification({
+        recipient_id: user.id,
+        source_system: 'trust',
+        event_type: 'verification_submitted',
+        title: 'Verification Submitted',
+        body: 'Your professional verification request has been submitted for review.',
+        category: 'verification',
+        action_url: '/professional-profile',
+        action_label: 'View Profile',
+        source_id: user.id,
       });
 
       // Update User identity

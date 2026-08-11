@@ -25,6 +25,9 @@ import BusinessStaff from '@/pages/BusinessStaff';
 import BusinessProfilePage from '@/pages/BusinessProfilePage';
 import ProfessionalProfilePage from '@/pages/ProfessionalProfilePage';
 import InvitationsPage from '@/pages/InvitationsPage';
+import VerificationPage from '@/pages/VerificationPage';
+import VerificationReview from '@/pages/VerificationReview';
+import Notifications from '@/pages/Notifications';
 import Specifications from '@/pages/Specifications';
 import SpecificationDetail from '@/pages/SpecificationDetail';
 import UploadPage from '@/pages/Upload';
@@ -66,13 +69,17 @@ const AuthenticatedApp = () => {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/activate-professional" element={<ProfessionalActivation />} />
         <Route path="/create-business" element={<BusinessCreation />} />
+        <Route path="/verify-professional" element={<VerificationPage />} />
+        <Route path="/admin/verify" element={<VerificationReview />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/invitations" element={<InvitationsPage />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/professional-profile" element={<ProfessionalProfilePage />} />
           <Route path="/business/:id" element={<BusinessWorkspace />} />
+          <Route path="/business/:id/verify" element={<VerificationPage />} />
           <Route path="/business/:id/staff" element={<BusinessStaff />} />
           <Route path="/business/:id/profile" element={<BusinessProfilePage />} />
           <Route path="/specifications" element={<Specifications />} />

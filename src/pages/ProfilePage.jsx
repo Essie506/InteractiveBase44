@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { Loader2, Camera, Save, Check } from 'lucide-react';
+import MediaUploadButton from '@/components/MediaUploadButton';
+import LocationPicker from '@/components/LocationPicker';
 
 export default function ProfilePage() {
   const { user, checkUserAuth } = useAuth();
@@ -9,14 +11,15 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [screenName, setScreenName] = useState('');
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
   const [locationVal, setLocationVal] = useState('');
+  const [locationId, setLocationId] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarMediaId, setAvatarMediaId] = useState('');
   const [visibility, setVisibility] = useState('public');
 
   useEffect(() => {
@@ -30,7 +33,9 @@ export default function ProfilePage() {
         setHeadline(p.headline || '');
         setBio(p.bio || '');
         setLocationVal(p.location || '');
+        setLocationId(p.location_id || '');
         setAvatarUrl(p.avatar_url || '');
+        setAvatarMediaId(p.avatar_media_id || '');
         setVisibility(p.visibility || 'public');
       } else {
         setDisplayName(user.display_name || '');
@@ -39,43 +44,28 @@ export default function ProfilePage() {
     });
   }, [user]);
 
-  const handleAvatarUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadingAvatar(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setAvatarUrl(file_url);
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
     try {
+      const data = {
+        display_name: displayName,
+        screen_name: screenName,
+        headline,
+        bio,
+        location: locationVal,
+        location_id: locationId,
+        avatar_url: avatarUrl,
+        avatar_media_id: avatarMediaId,
+        visibility,
+      };
       if (profile) {
-        const updated = await base44.entities.PersonalProfile.update(profile.id, {
-          display_name: displayName,
-          screen_name: screenName,
-          headline,
-          bio,
-          location: locationVal,
-          avatar_url: avatarUrl,
-          visibility,
-        });
+        const updated = await base44.entities.PersonalProfile.update(profile.id, data);
         setProfile(updated);
       } else {
         const created = await base44.entities.PersonalProfile.create({
           identity_id: user.id,
-          display_name: displayName,
-          screen_name: screenName,
-          headline,
-          bio,
-          location: locationVal,
-          avatar_url: avatarUrl,
-          visibility,
+          ...data,
           lifecycle_state: 'active',
         });
         setProfile(created);
@@ -107,7 +97,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8">
-        {/* Avatar */}
+        {/* Avatar — uses Media system */}
         <div className="flex items-center gap-4 mb-6">
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-stone-200 overflow-hidden flex items-center justify-center">
@@ -119,10 +109,15 @@ export default function ProfilePage() {
                 </span>
               )}
             </div>
-            <label className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition-colors border-2 border-white">
-              {uploadingAvatar ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Camera className="w-3.5 h-3.5 text-white" />}
-              <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-            </label>
+            <MediaUploadButton
+              ownerId={user.id}
+              sourceDomain="personal"
+              visibility="public"
+              onUploaded={(asset) => { setAvatarUrl(asset.file_url); setAvatarMediaId(asset.id); }}
+              className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white"
+            >
+              <Camera className="w-3.5 h-3.5 text-white" />
+            </MediaUploadButton>
           </div>
           <div>
             <h2 className="font-semibold text-stone-800">{displayName || 'Your name'}</h2>
@@ -149,7 +144,14 @@ export default function ProfilePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
-            <input type="text" value={locationVal} onChange={e => setLocationVal(e.target.value)} placeholder="City, Country" className={inputClass} />
+            <LocationPicker
+              ownerId={user.id}
+              ownerType="identity"
+              context="profile"
+              initialLocationId={locationId}
+              initialLabel={locationVal}
+              onLocationSaved={(id, label) => { setLocationId(id); setLocationVal(label); }}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Profile Visibility</label>

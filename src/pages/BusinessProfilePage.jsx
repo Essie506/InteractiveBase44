@@ -3,7 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { getMembership, hasPermission } from '@/lib/businessPermissions';
-import { Loader2, Save, Check, Camera, ArrowLeft, AlertCircle, Plus, X } from 'lucide-react';
+import { getVerificationRequest } from '@/lib/trust';
+import { Loader2, Save, Check, Camera, ArrowLeft, AlertCircle, Plus, X, ShieldCheck } from 'lucide-react';
+import MediaUploadButton from '@/components/MediaUploadButton';
+import LocationPicker from '@/components/LocationPicker';
+import TrustBadge from '@/components/TrustBadge';
 
 export default function BusinessProfilePage() {
   const { id } = useParams();
@@ -15,12 +19,14 @@ export default function BusinessProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [accessDenied, setAccessDenied] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [verificationRequest, setVerificationRequest] = useState(null);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [logoMediaId, setLogoMediaId] = useState('');
   const [locationVal, setLocationVal] = useState('');
+  const [locationId, setLocationId] = useState('');
   const [category, setCategory] = useState('');
   const [services, setServices] = useState([]);
   const [serviceInput, setServiceInput] = useState('');
@@ -38,14 +44,19 @@ export default function BusinessProfilePage() {
       const m = await getMembership(id, user.id);
       if (!m || !hasPermission(m, 'manage_profile')) { setAccessDenied(true); setLoading(false); return; }
       setMembership(m);
-      const profiles = await base44.entities.BusinessProfile.filter({ business_id: id });
+      const [profiles, req] = await Promise.all([
+        base44.entities.BusinessProfile.filter({ business_id: id }),
+        getVerificationRequest('business', id),
+      ]);
       if (profiles.length > 0) {
         const p = profiles[0];
         setProfile(p);
         setName(p.name || '');
         setDescription(p.description || '');
         setLogoUrl(p.logo_url || '');
+        setLogoMediaId(p.logo_media_id || '');
         setLocationVal(p.location || '');
+        setLocationId(p.location_id || '');
         setCategory(p.category || '');
         setServices(p.services || []);
         setContactEmail(p.contact_email || '');
@@ -59,6 +70,7 @@ export default function BusinessProfilePage() {
         setContactPhone(biz.contact_phone || '');
         setWebsite(biz.website || '');
       }
+      setVerificationRequest(req);
       setLoading(false);
     })();
   }, [user, id]);
@@ -71,18 +83,6 @@ export default function BusinessProfilePage() {
     }
   };
 
-  const handleLogoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadingLogo(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setLogoUrl(file_url);
-    } finally {
-      setUploadingLogo(false);
-    }
-  };
-
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
@@ -92,7 +92,9 @@ export default function BusinessProfilePage() {
         name,
         description,
         logo_url: logoUrl,
+        logo_media_id: logoMediaId,
         location: locationVal,
+        location_id: locationId,
         category,
         services,
         contact_email: contactEmail,
@@ -108,7 +110,6 @@ export default function BusinessProfilePage() {
         const created = await base44.entities.BusinessProfile.create({ ...data, lifecycle_state: 'active' });
         setProfile(created);
       }
-      // Also update business name if changed
       if (name !== business.name) {
         await base44.entities.Business.update(id, { name, contact_email: contactEmail, contact_phone: contactPhone, website });
         setBusiness({ ...business, name, contact_email: contactEmail, contact_phone: contactPhone, website });
@@ -152,16 +153,42 @@ export default function BusinessProfilePage() {
         <p className="text-stone-500">Public information for {business.name}</p>
       </div>
 
+      {/* Trust & Reputation — verification status */}
+      <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="w-5 h-5 text-stone-500" />
+            <div>
+              <div className="text-sm font-medium text-stone-700">Verification Status</div>
+              <div className="mt-1"><TrustBadge targetType="business" targetId={id} /></div>
+            </div>
+          </div>
+          {verificationRequest?.decision !== 'pending' && verificationRequest?.decision !== 'approved' && (
+            <Link to={`/business/${id}/verify`} className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
+              Get Verified
+            </Link>
+          )}
+          {verificationRequest?.decision === 'pending' && (
+            <span className="text-xs text-amber-600 font-medium">Under review</span>
+          )}
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8">
         <div className="flex items-center gap-4 mb-6">
           <div className="relative">
             <div className="w-20 h-20 rounded-xl bg-stone-200 overflow-hidden flex items-center justify-center">
               {logoUrl ? <img src={logoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-2xl font-semibold text-stone-400">{(name || '?')[0].toUpperCase()}</span>}
             </div>
-            <label className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition-colors border-2 border-white">
-              {uploadingLogo ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Camera className="w-3.5 h-3.5 text-white" />}
-              <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
-            </label>
+            <MediaUploadButton
+              ownerId={user.id}
+              sourceDomain="business"
+              visibility="public"
+              onUploaded={(asset) => { setLogoUrl(asset.file_url); setLogoMediaId(asset.id); }}
+              className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white"
+            >
+              <Camera className="w-3.5 h-3.5 text-white" />
+            </MediaUploadButton>
           </div>
           <div>
             <h2 className="font-semibold text-stone-800">{name || 'Business name'}</h2>
@@ -185,8 +212,19 @@ export default function BusinessProfilePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
-              <input type="text" value={locationVal} onChange={e => setLocationVal(e.target.value)} className={inputClass} />
+              <input type="text" value={locationVal} onChange={e => setLocationVal(e.target.value)} placeholder="City, Country" className={inputClass} />
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Business Location</label>
+            <LocationPicker
+              ownerId={id}
+              ownerType="business"
+              context="business"
+              initialLocationId={locationId}
+              initialLabel={locationVal}
+              onLocationSaved={(locId, label) => { setLocationId(locId); setLocationVal(label); }}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Services</label>

@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { Loader2, Camera, Save, Check, ShieldCheck, Plus, X } from 'lucide-react';
+import MediaUploadButton from '@/components/MediaUploadButton';
+import LocationPicker from '@/components/LocationPicker';
+import TrustBadge from '@/components/TrustBadge';
+import { getVerificationRequest } from '@/lib/trust';
 
 export default function ProfessionalProfilePage() {
   const { user, checkUserAuth } = useAuth();
@@ -9,7 +13,6 @@ export default function ProfessionalProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [headline, setHeadline] = useState('');
@@ -18,15 +21,22 @@ export default function ProfessionalProfilePage() {
   const [services, setServices] = useState([]);
   const [serviceInput, setServiceInput] = useState('');
   const [location, setLocation] = useState('');
+  const [locationId, setLocationId] = useState('');
   const [serviceArea, setServiceArea] = useState('');
+  const [serviceAreaLocationId, setServiceAreaLocationId] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarMediaId, setAvatarMediaId] = useState('');
   const [visibility, setVisibility] = useState('public');
+  const [verificationRequest, setVerificationRequest] = useState(null);
 
   useEffect(() => {
     if (!user) return;
-    base44.entities.ProfessionalProfile.filter({ identity_id: user.id }).then(profiles => {
+    Promise.all([
+      base44.entities.ProfessionalProfile.filter({ identity_id: user.id }),
+      getVerificationRequest('professional', user.id),
+    ]).then(([profiles, req]) => {
       if (profiles.length > 0) {
         const p = profiles[0];
         setProfile(p);
@@ -36,15 +46,19 @@ export default function ProfessionalProfilePage() {
         setCategory(p.professional_category || p.profession || '');
         setServices(p.services || []);
         setLocation(p.location || '');
+        setLocationId(p.location_id || '');
         setServiceArea(p.service_area || '');
+        setServiceAreaLocationId(p.service_area_location_id || '');
         setContactEmail(p.contact_email || '');
         setContactPhone(p.contact_phone || '');
         setAvatarUrl(p.avatar_url || '');
+        setAvatarMediaId(p.avatar_media_id || '');
         setVisibility(p.visibility || 'public');
       } else {
         setDisplayName(user.display_name || '');
         setContactEmail(user.email || '');
       }
+      setVerificationRequest(req);
       setLoading(false);
     });
   }, [user]);
@@ -54,18 +68,6 @@ export default function ProfessionalProfilePage() {
     if (s && !services.includes(s)) {
       setServices([...services, s]);
       setServiceInput('');
-    }
-  };
-
-  const handleAvatarUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadingAvatar(true);
-    try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      setAvatarUrl(file_url);
-    } finally {
-      setUploadingAvatar(false);
     }
   };
 
@@ -81,10 +83,13 @@ export default function ProfessionalProfilePage() {
         professional_category: category,
         services,
         service_area: serviceArea,
+        service_area_location_id: serviceAreaLocationId,
         location,
+        location_id: locationId,
         contact_email: contactEmail,
         contact_phone: contactPhone,
         avatar_url: avatarUrl,
+        avatar_media_id: avatarMediaId,
         visibility,
       };
       if (profile) {
@@ -125,15 +130,26 @@ export default function ProfessionalProfilePage() {
         <p className="text-stone-500">Your professional identity across Interactive</p>
       </div>
 
-      {profile?.verification_state && profile.verification_state !== 'verified' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
-          <div>
-            <div className="text-sm font-medium text-amber-800">Verification: {profile.verification_state.replace(/_/g, ' ')}</div>
-            <div className="text-xs text-amber-700">Some capabilities may require verified status</div>
+      {/* Trust & Reputation — verification status */}
+      <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="w-5 h-5 text-stone-500" />
+            <div>
+              <div className="text-sm font-medium text-stone-700">Verification Status</div>
+              <div className="mt-1"><TrustBadge targetType="professional" targetId={user?.id} /></div>
+            </div>
           </div>
+          {(!verificationRequest || verificationRequest.decision !== 'pending') && verificationRequest?.decision !== 'approved' && (
+            <a href="/verify-professional" className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
+              {verificationRequest?.decision === 'approved' ? 'Verified' : 'Get Verified'}
+            </a>
+          )}
+          {verificationRequest?.decision === 'pending' && (
+            <span className="text-xs text-amber-600 font-medium">Under review</span>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8">
         <div className="flex items-center gap-4 mb-6">
@@ -141,10 +157,15 @@ export default function ProfessionalProfilePage() {
             <div className="w-20 h-20 rounded-full bg-stone-200 overflow-hidden flex items-center justify-center">
               {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-2xl font-semibold text-stone-400">{(displayName || '?')[0].toUpperCase()}</span>}
             </div>
-            <label className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-indigo-700 transition-colors border-2 border-white">
-              {uploadingAvatar ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Camera className="w-3.5 h-3.5 text-white" />}
-              <input type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
-            </label>
+            <MediaUploadButton
+              ownerId={user.id}
+              sourceDomain="professional"
+              visibility="public"
+              onUploaded={(asset) => { setAvatarUrl(asset.file_url); setAvatarMediaId(asset.id); }}
+              className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white"
+            >
+              <Camera className="w-3.5 h-3.5 text-white" />
+            </MediaUploadButton>
           </div>
           <div>
             <h2 className="font-semibold text-stone-800">{displayName || 'Your name'}</h2>
@@ -194,15 +215,16 @@ export default function ProfessionalProfilePage() {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
-              <input type="text" value={location} onChange={e => setLocation(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">Service Area</label>
-              <input type="text" value={serviceArea} onChange={e => setServiceArea(e.target.value)} className={inputClass} />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
+            <LocationPicker
+              ownerId={user.id}
+              ownerType="professional"
+              context="professional_service"
+              initialLocationId={locationId}
+              initialLabel={location}
+              onLocationSaved={(id, label) => { setLocationId(id); setLocation(label); }}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

@@ -13,12 +13,16 @@
     },
     "screen_name": {
       "type": "string",
-      "title": "Screen Name",
-      "description": "Unique public handle"
+      "title": "Screen Name"
     },
     "avatar_url": {
       "type": "string",
       "title": "Avatar URL"
+    },
+    "avatar_media_id": {
+      "type": "string",
+      "title": "Avatar Media ID",
+      "description": "Stable reference to the MediaAsset used as the profile image"
     },
     "bio": {
       "type": "string",
@@ -30,7 +34,12 @@
     },
     "location": {
       "type": "string",
-      "title": "Location"
+      "title": "Location (display)"
+    },
+    "location_id": {
+      "type": "string",
+      "title": "Location ID",
+      "description": "Stable reference to the authoritative Location record"
     },
     "visibility": {
       "type": "string",

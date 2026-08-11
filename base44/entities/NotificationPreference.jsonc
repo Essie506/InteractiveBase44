@@ -1,0 +1,83 @@
+{
+  "name": "NotificationPreference",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID"
+    },
+    "verification_in_app": {
+      "type": "boolean",
+      "default": true,
+      "title": "Verification \u2014 In App"
+    },
+    "verification_email": {
+      "type": "boolean",
+      "default": true,
+      "title": "Verification \u2014 Email"
+    },
+    "verification_push": {
+      "type": "boolean",
+      "default": true,
+      "title": "Verification \u2014 Push"
+    },
+    "media_in_app": {
+      "type": "boolean",
+      "default": true,
+      "title": "Media \u2014 In App"
+    },
+    "media_email": {
+      "type": "boolean",
+      "default": false,
+      "title": "Media \u2014 Email"
+    },
+    "business_in_app": {
+      "type": "boolean",
+      "default": true,
+      "title": "Business \u2014 In App"
+    },
+    "business_email": {
+      "type": "boolean",
+      "default": true,
+      "title": "Business \u2014 Email"
+    },
+    "business_push": {
+      "type": "boolean",
+      "default": true,
+      "title": "Business \u2014 Push"
+    },
+    "security_in_app": {
+      "type": "boolean",
+      "default": true,
+      "title": "Security \u2014 In App"
+    },
+    "security_email": {
+      "type": "boolean",
+      "default": true,
+      "title": "Security \u2014 Email"
+    },
+    "security_push": {
+      "type": "boolean",
+      "default": true,
+      "title": "Security \u2014 Push"
+    },
+    "quiet_hours_enabled": {
+      "type": "boolean",
+      "default": false,
+      "title": "Quiet Hours Enabled"
+    },
+    "quiet_hours_start": {
+      "type": "string",
+      "default": "22:00",
+      "title": "Quiet Hours Start"
+    },
+    "quiet_hours_end": {
+      "type": "string",
+      "default": "07:00",
+      "title": "Quiet Hours End"
+    }
+  },
+  "required": [
+    "identity_id"
+  ]
+}

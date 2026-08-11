@@ -1,0 +1,56 @@
+{
+  "name": "TrustSignal",
+  "type": "object",
+  "properties": {
+    "source_system": {
+      "type": "string",
+      "enum": [
+        "booking",
+        "payments",
+        "messaging",
+        "community",
+        "trust_safety"
+      ],
+      "title": "Source System",
+      "description": "Future system that produced this trust signal"
+    },
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "professional",
+        "business"
+      ],
+      "title": "Target Type"
+    },
+    "target_id": {
+      "type": "string",
+      "title": "Target ID"
+    },
+    "signal_type": {
+      "type": "string",
+      "title": "Signal Type",
+      "description": "e.g. completed_booking, payment_received, reported, flagged"
+    },
+    "signal_data": {
+      "type": "string",
+      "title": "Signal Data",
+      "description": "JSON-encoded signal payload"
+    },
+    "signal_weight": {
+      "type": "number",
+      "default": 1,
+      "title": "Signal Weight"
+    },
+    "operation_id": {
+      "type": "string",
+      "title": "Operation ID",
+      "description": "Stable idempotency key from the source system"
+    }
+  },
+  "required": [
+    "source_system",
+    "target_type",
+    "target_id",
+    "signal_type"
+  ]
+}

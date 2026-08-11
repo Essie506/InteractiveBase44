@@ -1,0 +1,77 @@
+{
+  "name": "TrustRecord",
+  "type": "object",
+  "properties": {
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "professional",
+        "business"
+      ],
+      "title": "Target Type"
+    },
+    "target_id": {
+      "type": "string",
+      "title": "Target ID"
+    },
+    "trust_level": {
+      "type": "string",
+      "enum": [
+        "unverified",
+        "pending",
+        "verified",
+        "failed"
+      ],
+      "default": "unverified",
+      "title": "Trust Level"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Verified At"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+    },
+    "public_indicators": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Public Indicators",
+      "description": "e.g. ['verified', 'new']"
+    },
+    "trust_explanation": {
+      "type": "string",
+      "title": "Trust Explanation",
+      "description": "Public-facing explanation of trust state"
+    },
+    "evidence_summary": {
+      "type": "string",
+      "title": "Evidence Summary",
+      "description": "Internal summary of evidence \u2014 not publicly exposed"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "expired",
+        "revoked",
+        "archived"
+      ],
+      "default": "active",
+      "title": "Lifecycle State"
+    },
+    "last_evaluated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Evaluated At"
+    }
+  },
+  "required": [
+    "target_type",
+    "target_id"
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "name": "MediaAsset",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "Stable reference to the identity that uploaded this asset"
+    },
+    "file_url": {
+      "type": "string",
+      "title": "File URL",
+      "description": "Storage path \u2014 knowing this alone does not grant access"
+    },
+    "file_name": {
+      "type": "string",
+      "title": "File Name"
+    },
+    "mime_type": {
+      "type": "string",
+      "title": "MIME Type"
+    },
+    "size_bytes": {
+      "type": "number",
+      "title": "Size (bytes)"
+    },
+    "media_type": {
+      "type": "string",
+      "enum": [
+        "image",
+        "video",
+        "audio",
+        "document"
+      ],
+      "title": "Media Type"
+    },
+    "width": {
+      "type": "number",
+      "title": "Width"
+    },
+    "height": {
+      "type": "number",
+      "title": "Height"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "pending_upload",
+        "uploading",
+        "validating",
+        "processing",
+        "active",
+        "processing_failed",
+        "archived",
+        "scheduled_for_deletion",
+        "deleted"
+      ],
+      "default": "pending_upload",
+      "title": "Lifecycle State"
+    },
+    "derivatives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          }
+        }
+      },
+      "title": "Derivatives"
+    },
+    "alt_text": {
+      "type": "string",
+      "title": "Alt Text"
+    },
+    "source_domain": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business",
+        "verification",
+        "post",
+        "workout",
+        "promotion"
+      ],
+      "title": "Source Domain",
+      "description": "Which connected system owns the usage context"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private",
+        "protected"
+      ],
+      "default": "private",
+      "title": "Visibility"
+    },
+    "processing_error": {
+      "type": "string",
+      "title": "Processing Error"
+    },
+    "checksum": {
+      "type": "string",
+      "title": "Checksum",
+      "description": "For deduplication/idempotency"
+    }
+  },
+  "required": [
+    "owner_id",
+    "media_type"
+  ]
+}

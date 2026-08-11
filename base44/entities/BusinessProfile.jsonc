@@ -4,8 +4,7 @@
   "properties": {
     "business_id": {
       "type": "string",
-      "title": "Business ID",
-      "description": "Stable reference to the Business"
+      "title": "Business ID"
     },
     "name": {
       "type": "string",
@@ -19,9 +18,32 @@
       "type": "string",
       "title": "Logo URL"
     },
+    "logo_media_id": {
+      "type": "string",
+      "title": "Logo Media ID",
+      "description": "Stable reference to the MediaAsset used as the business logo"
+    },
+    "cover_media_id": {
+      "type": "string",
+      "title": "Cover Media ID",
+      "description": "Stable reference to the MediaAsset used as the cover image"
+    },
+    "gallery_media_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Gallery Media IDs",
+      "description": "Stable references to MediaAssets in the business gallery"
+    },
     "location": {
       "type": "string",
-      "title": "Location"
+      "title": "Location (display)"
+    },
+    "location_id": {
+      "type": "string",
+      "title": "Location ID",
+      "description": "Stable reference to the authoritative Location record"
     },
     "category": {
       "type": "string",

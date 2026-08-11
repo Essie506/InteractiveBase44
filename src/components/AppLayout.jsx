@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { LayoutDashboard, User as UserIcon, Settings, FileText, Search, LogOut, Menu, X, Briefcase, Building2, Users } from 'lucide-react';
 import ContextSwitcher from '@/components/ContextSwitcher';
+import NotificationBell from '@/components/NotificationBell';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -60,12 +61,15 @@ export default function AppLayout() {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 flex-col bg-slate-900 text-white shrink-0">
         <div className="px-6 py-7">
-          <Link to="/dashboard" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">I</span>
-            </div>
-            <span className="text-lg font-semibold tracking-tight">Interactive</span>
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link to="/dashboard" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">I</span>
+              </div>
+              <span className="text-lg font-semibold tracking-tight">Interactive</span>
+            </Link>
+            <NotificationBell />
+          </div>
         </div>
 
         <div className="px-3 mb-2">
@@ -115,9 +119,12 @@ export default function AppLayout() {
             </div>
             <span className="font-semibold">Interactive</span>
           </Link>
-          <button onClick={() => setMobileNavOpen(!mobileNavOpen)}>
-            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button onClick={() => setMobileNavOpen(!mobileNavOpen)}>
+              {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile nav drawer */}

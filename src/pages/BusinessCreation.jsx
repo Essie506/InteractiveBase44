@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
+import { submitVerification } from '@/lib/trust';
+import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, Check, ShieldCheck, Users } from 'lucide-react';
 
 export default function BusinessCreation() {
@@ -85,15 +87,20 @@ export default function BusinessCreation() {
         lifecycle_state: 'active',
       });
 
-      // 4. Create verification request (Trust & Reputation stub)
-      await base44.entities.VerificationRequest.create({
-        target_type: 'business',
-        target_id: business.id,
-        verification_type: 'business',
-        status: 'pending_review',
-        submitted_by_id: user.id,
-        submitted_at: new Date().toISOString(),
-        notes: `Business verification for ${businessName}`,
+      // 4. Submit verification through Trust & Reputation
+      await submitVerification('business', business.id, user.id, [], `Business verification for ${businessName}`);
+
+      // Create notification (failure isolated — doesn't undo business creation)
+      await createNotification({
+        recipient_id: user.id,
+        source_system: 'trust',
+        event_type: 'verification_submitted',
+        title: 'Verification Submitted',
+        body: `Your business verification for ${businessName} has been submitted for review.`,
+        category: 'verification',
+        action_url: `/business/${business.id}`,
+        action_label: 'View Business',
+        source_id: business.id,
       });
 
       // 5. Create subscription (plan selection — interface to Plans & Monetisation)

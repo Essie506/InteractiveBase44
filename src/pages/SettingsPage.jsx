@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { Loader2, Save, Check } from 'lucide-react';
+import { getOrCreatePreferences } from '@/lib/notifications';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -18,6 +19,10 @@ export default function SettingsPage() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [theme, setTheme] = useState('system');
   const [language, setLanguage] = useState('en');
+  const [notifPrefs, setNotifPrefs] = useState(null);
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
+  const [quietHoursStart, setQuietHoursStart] = useState('22:00');
+  const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
 
   useEffect(() => {
     if (!user) return;
@@ -49,6 +54,13 @@ export default function SettingsPage() {
         setSettings(created);
       }
       setLoading(false);
+      // Load notification preferences
+      getOrCreatePreferences(user.id).then(prefs => {
+        setNotifPrefs(prefs);
+        setQuietHoursEnabled(prefs.quiet_hours_enabled ?? false);
+        setQuietHoursStart(prefs.quiet_hours_start || '22:00');
+        setQuietHoursEnd(prefs.quiet_hours_end || '07:00');
+      });
     });
   }, [user]);
 
@@ -67,8 +79,16 @@ export default function SettingsPage() {
         language,
       });
       setSettings(updated);
+      // Save notification preferences (quiet hours)
+      if (notifPrefs) {
+        await base44.entities.NotificationPreference.update(notifPrefs.id, {
+          quiet_hours_enabled: quietHoursEnabled,
+          quiet_hours_start: quietHoursStart,
+          quiet_hours_end: quietHoursEnd,
+        });
+      }
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+        setTimeout(() => setSaved(false), 3000);
     } finally {
       setSaving(false);
     }
@@ -134,6 +154,25 @@ export default function SettingsPage() {
           <Toggle checked={emailNotifications} onChange={setEmailNotifications} label="Email Notifications" desc="Receive notifications via email" />
           <Toggle checked={pushNotifications} onChange={setPushNotifications} label="Push Notifications" desc="Receive push notifications on your device" />
         </div>
+      </div>
+
+      {/* Quiet Hours */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 mb-4">
+        <h2 className="font-semibold text-stone-800 mb-4">Quiet Hours</h2>
+        <p className="text-sm text-stone-500 mb-4">Defer interruptive notifications during your quiet hours. Notification records still exist — only delivery is deferred.</p>
+        <Toggle checked={quietHoursEnabled} onChange={setQuietHoursEnabled} label="Enable Quiet Hours" desc="Defer push and interruptive notifications" />
+        {quietHoursEnabled && (
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">Start</label>
+              <input type="time" value={quietHoursStart} onChange={e => setQuietHoursStart(e.target.value)} className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">End</label>
+              <input type="time" value={quietHoursEnd} onChange={e => setQuietHoursEnd(e.target.value)} className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Preferences */}

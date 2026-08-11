@@ -1,0 +1,131 @@
+{
+  "name": "Location",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "Stable reference to the identity that owns this location"
+    },
+    "owner_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "professional",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Owner Type"
+    },
+    "location_context": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "profile",
+        "professional_service",
+        "business",
+        "service_area",
+        "device"
+      ],
+      "title": "Location Context"
+    },
+    "label": {
+      "type": "string",
+      "title": "Label",
+      "description": "Full internal label for the location"
+    },
+    "address_line1": {
+      "type": "string",
+      "title": "Address Line 1"
+    },
+    "address_line2": {
+      "type": "string",
+      "title": "Address Line 2"
+    },
+    "city": {
+      "type": "string",
+      "title": "City"
+    },
+    "region": {
+      "type": "string",
+      "title": "Region"
+    },
+    "postal_code": {
+      "type": "string",
+      "title": "Postal Code"
+    },
+    "country": {
+      "type": "string",
+      "title": "Country"
+    },
+    "latitude": {
+      "type": "number",
+      "title": "Latitude",
+      "description": "Operational coordinates \u2014 private"
+    },
+    "longitude": {
+      "type": "number",
+      "title": "Longitude",
+      "description": "Operational coordinates \u2014 private"
+    },
+    "public_label": {
+      "type": "string",
+      "title": "Public Label",
+      "description": "Public-facing presentation \u2014 may be less precise than operational coordinates"
+    },
+    "precision_level": {
+      "type": "string",
+      "enum": [
+        "exact",
+        "approximate",
+        "city_only",
+        "region_only",
+        "online_only"
+      ],
+      "default": "city_only",
+      "title": "Precision Level"
+    },
+    "is_online_only": {
+      "type": "boolean",
+      "default": false,
+      "title": "Online Only"
+    },
+    "is_hybrid": {
+      "type": "boolean",
+      "default": false,
+      "title": "Hybrid Operation"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "device"
+      ],
+      "default": "manual",
+      "title": "Source"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private"
+      ],
+      "default": "public",
+      "title": "Visibility"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active",
+      "title": "Lifecycle State"
+    }
+  },
+  "required": [
+    "owner_id",
+    "location_context"
+  ]
+}

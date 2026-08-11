@@ -33,17 +33,58 @@
       "default": "pending_review",
       "title": "Verification Status"
     },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected",
+        "additional_info_required",
+        "expired"
+      ],
+      "default": "pending",
+      "title": "Review Decision"
+    },
+    "public_state": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "verified",
+        "new",
+        "rejected",
+        "expired"
+      ],
+      "title": "Public State",
+      "description": "Authoritative public state for display on profiles"
+    },
     "submitted_by_id": {
       "type": "string",
       "title": "Submitted By ID"
     },
     "evidence_url": {
       "type": "string",
-      "title": "Evidence URL"
+      "title": "Evidence URL (legacy)"
+    },
+    "evidence_media_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Media IDs",
+      "description": "Stable references to protected MediaAsset records"
     },
     "notes": {
       "type": "string",
       "title": "Notes"
+    },
+    "trust_explanation": {
+      "type": "string",
+      "title": "Trust Explanation",
+      "description": "Public text explaining the verification decision"
+    },
+    "reviewed_by_id": {
+      "type": "string",
+      "title": "Reviewed By ID"
     },
     "submitted_at": {
       "type": "string",

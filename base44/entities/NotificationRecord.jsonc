@@ -1,0 +1,104 @@
+{
+  "name": "NotificationRecord",
+  "type": "object",
+  "properties": {
+    "recipient_id": {
+      "type": "string",
+      "title": "Recipient ID",
+      "description": "Stable reference to the identity receiving this notification"
+    },
+    "source_system": {
+      "type": "string",
+      "enum": [
+        "trust",
+        "media",
+        "business",
+        "auth",
+        "security",
+        "system"
+      ],
+      "title": "Source System"
+    },
+    "event_type": {
+      "type": "string",
+      "title": "Event Type",
+      "description": "e.g. verification_submitted, verification_approved, business_invitation"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "body": {
+      "type": "string",
+      "title": "Body"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "verification",
+        "media",
+        "business",
+        "security",
+        "system"
+      ],
+      "title": "Category"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ],
+      "default": "normal",
+      "title": "Priority"
+    },
+    "delivery_channels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Delivery Channels",
+      "description": "Resolved channels: in_app, email, push, sms"
+    },
+    "is_read": {
+      "type": "boolean",
+      "default": false,
+      "title": "Is Read"
+    },
+    "read_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Read At"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+    },
+    "action_url": {
+      "type": "string",
+      "title": "Action URL"
+    },
+    "action_label": {
+      "type": "string",
+      "title": "Action Label"
+    },
+    "group_key": {
+      "type": "string",
+      "title": "Group Key",
+      "description": "For grouping related notifications"
+    },
+    "source_id": {
+      "type": "string",
+      "title": "Source ID",
+      "description": "Stable reference to the source entity/event for idempotency"
+    }
+  },
+  "required": [
+    "recipient_id",
+    "source_system",
+    "event_type",
+    "title"
+  ]
+}

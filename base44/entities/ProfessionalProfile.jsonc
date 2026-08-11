@@ -19,6 +19,11 @@
       "type": "string",
       "title": "Avatar URL"
     },
+    "avatar_media_id": {
+      "type": "string",
+      "title": "Avatar Media ID",
+      "description": "Stable reference to the MediaAsset used as the professional profile image"
+    },
     "bio": {
       "type": "string",
       "title": "Bio"
@@ -33,8 +38,7 @@
     },
     "professional_category": {
       "type": "string",
-      "title": "Professional Category",
-      "description": "Primary professional category (e.g. Personal Trainer, Coach, Therapist)"
+      "title": "Professional Category"
     },
     "services": {
       "type": "array",
@@ -45,11 +49,21 @@
     },
     "service_area": {
       "type": "string",
-      "title": "Service Area"
+      "title": "Service Area (display)"
+    },
+    "service_area_location_id": {
+      "type": "string",
+      "title": "Service Area Location ID",
+      "description": "Stable reference to the authoritative Location record"
     },
     "location": {
       "type": "string",
-      "title": "Location"
+      "title": "Location (display)"
+    },
+    "location_id": {
+      "type": "string",
+      "title": "Location ID",
+      "description": "Stable reference to the authoritative Location record"
     },
     "contact_email": {
       "type": "string",
