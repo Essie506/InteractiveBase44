@@ -1,0 +1,493 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ═══════════════════════════════════════════════════════════
+    // REUSABLE HELPER FUNCTIONS
+    // ═══════════════════════════════════════════════════════════
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function isOwner(identityId) {
+      return isAuthenticated() && uid() == identityId;
+    }
+
+    function userExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    function userDoc(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated()
+        && userExists(uid())
+        && userDoc(uid()).role == 'admin';
+    }
+
+    function isReviewer() {
+      return isAuthenticated()
+        && userExists(uid())
+        && userDoc(uid()).role in ['admin', 'reviewer'];
+    }
+
+    // Business membership — deterministic doc ID: {businessId}_{identityId}
+    function membershipId(businessId, identityId) {
+      return businessId + '_' + identityId;
+    }
+
+    function isBusinessMember(businessId) {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/businessMemberships/$(membershipId(businessId, uid())));
+    }
+
+    function membershipData(businessId) {
+      return get(/databases/$(database)/documents/businessMemberships/$(membershipId(businessId, uid()))).data;
+    }
+
+    function hasBusinessRole(businessId, role) {
+      return isBusinessMember(businessId) && membershipData(businessId).role == role;
+    }
+
+    function isBusinessAdmin(businessId) {
+      return hasBusinessRole(businessId, 'owner') || hasBusinessRole(businessId, 'admin');
+    }
+
+    function isBusinessOwner(businessId) {
+      return hasBusinessRole(businessId, 'owner');
+    }
+
+    function conversationExists(conversationId) {
+      return exists(/databases/$(database)/documents/conversations/$(conversationId));
+    }
+
+    function conversationData(conversationId) {
+      return get(/databases/$(database)/documents/conversations/$(conversationId)).data;
+    }
+
+    function isConversationParticipant(conversationId) {
+      return isAuthenticated()
+        && conversationExists(conversationId)
+        && uid() in conversationData(conversationId).participant_ids;
+    }
+
+    function isConversationAccepted(conversationId) {
+      return isAuthenticated()
+        && conversationExists(conversationId)
+        && conversationData(conversationId).request_status == 'accepted';
+    }
+
+    function isNotificationRecipient(resource) {
+      return isOwner(resource.data.recipient_id);
+    }
+
+    function isPubliclyVisible(resource) {
+      return resource.data.visibility == 'public';
+    }
+
+    // Block check — deterministic doc ID: {blockerId}__{blockedId}
+    function isNotBlockedBy(blockerId, blockedId) {
+      return !exists(/databases/$(database)/documents/blockRecords/$(blockerId + '__' + blockedId));
+    }
+
+    function isInvitationForAuthUser(resource) {
+      return isAuthenticated()
+        && request.auth.token.email != null
+        && resource.data.email == request.auth.token.email;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // USERS — APPLICATION IDENTITY STATE
+    // Doc ID == Firebase Auth UID.
+    // ═══════════════════════════════════════════════════════════
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // PERSONAL PROFILES
+    // ═══════════════════════════════════════════════════════════
+
+    match /personalProfiles/{profileId} {
+      allow read: if isOwner(resource.data.identity_id)
+        || isPubliclyVisible(resource)
+        || isAdmin();
+      allow create: if isAuthenticated()
+        && request.resource.data.identity_id == uid();
+      allow update: if isOwner(resource.data.identity_id);
+      allow delete: if isOwner(resource.data.identity_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // PROFESSIONAL PROFILES
+    // Public presentation readable based on visibility.
+    // Private fields (contact info, verification evidence) are
+    // protected at document level. Field-level separation will use
+    // public/private projection collections in production hardening.
+    // ═══════════════════════════════════════════════════════════
+
+    match /professionalProfiles/{profileId} {
+      allow read: if isOwner(resource.data.identity_id)
+        || isPubliclyVisible(resource)
+        || isAdmin();
+      allow create: if isAuthenticated()
+        && request.resource.data.identity_id == uid();
+      allow update: if isOwner(resource.data.identity_id) || isAdmin();
+      allow delete: if isOwner(resource.data.identity_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BUSINESSES
+    // ═══════════════════════════════════════════════════════════
+
+    match /businesses/{businessId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated()
+        && request.resource.data.owner_id == uid();
+      allow update: if isBusinessAdmin(businessId) || isAdmin();
+      allow delete: if isBusinessOwner(businessId) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BUSINESS PROFILES
+    // ═══════════════════════════════════════════════════════════
+
+    match /businessProfiles/{profileId} {
+      allow read: if isAuthenticated();
+      allow create: if isBusinessAdmin(request.resource.data.business_id);
+      allow update: if isBusinessAdmin(resource.data.business_id) || isAdmin();
+      allow delete: if isBusinessOwner(resource.data.business_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BUSINESS MEMBERSHIPS
+    // Deterministic doc ID: {businessId}_{identityId}
+    // Prevents self-promotion, self-join, and unauthorized role changes.
+    // ═══════════════════════════════════════════════════════════
+
+    match /businessMemberships/{membershipId} {
+      allow read: if isOwner(resource.data.identity_id)
+        || isBusinessAdmin(resource.data.business_id)
+        || isAdmin();
+      // Only business admins can create memberships for others.
+      // Self-join is denied. Owner role cannot be created via client.
+      allow create: if isAuthenticated()
+        && isBusinessAdmin(request.resource.data.business_id)
+        && request.resource.data.identity_id != uid()
+        && request.resource.data.role != 'owner';
+      // Admins can update other members' roles (never to owner).
+      // Members can update only their own non-role fields.
+      allow update: if (isBusinessAdmin(resource.data.business_id)
+          && resource.data.identity_id != uid()
+          && request.resource.data.role != 'owner'
+          && request.resource.data.role in ['admin', 'staff', 'member'])
+        || (isOwner(resource.data.identity_id)
+          && request.resource.data.role == resource.data.role)
+        || isAdmin();
+      allow delete: if isBusinessAdmin(resource.data.business_id)
+        || isOwner(resource.data.identity_id)
+        || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BUSINESS INVITATIONS
+    // Invitation acceptance should use a trusted Cloud Function to
+    // atomically create the membership. Client status updates are
+    // allowed for admin or invitee, but membership creation is
+    // classified as a server-required operation.
+    // ═══════════════════════════════════════════════════════════
+
+    match /businessInvitations/{invitationId} {
+      allow read: if isBusinessAdmin(resource.data.business_id)
+        || isInvitationForAuthUser(resource)
+        || isAdmin();
+      allow create: if isAuthenticated()
+        && isBusinessAdmin(request.resource.data.business_id);
+      allow update: if isBusinessAdmin(resource.data.business_id)
+        || isInvitationForAuthUser(resource)
+        || isAdmin();
+      allow delete: if isBusinessAdmin(resource.data.business_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SUBSCRIPTION PLANS — admin-managed
+    // ═══════════════════════════════════════════════════════════
+
+    match /subscriptionPlans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BUSINESS SUBSCRIPTIONS
+    // ═══════════════════════════════════════════════════════════
+
+    match /businessSubscriptions/{subscriptionId} {
+      allow read: if isBusinessAdmin(resource.data.business_id) || isAdmin();
+      allow create: if isBusinessAdmin(request.resource.data.business_id);
+      allow update: if isBusinessAdmin(resource.data.business_id) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ONBOARDING STATES
+    // ═══════════════════════════════════════════════════════════
+
+    match /onboardingStates/{stateId} {
+      allow read: if isOwner(resource.data.identity_id) || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.identity_id == uid();
+      allow update: if isOwner(resource.data.identity_id);
+      allow delete: if isOwner(resource.data.identity_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // USER SETTINGS
+    // ═══════════════════════════════════════════════════════════
+
+    match /userSettings/{settingsId} {
+      allow read: if isOwner(resource.data.identity_id) || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.identity_id == uid();
+      allow update: if isOwner(resource.data.identity_id);
+      allow delete: if isOwner(resource.data.identity_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // NOTIFICATION PREFERENCES
+    // ═══════════════════════════════════════════════════════════
+
+    match /notificationPreferences/{prefId} {
+      allow read: if isOwner(resource.data.identity_id) || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.identity_id == uid();
+      allow update: if isOwner(resource.data.identity_id);
+      allow delete: if isOwner(resource.data.identity_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // NOTIFICATION RECORDS
+    // Clients can only read their own. Creation is server-only
+    // to prevent spoofed notifications from arbitrary systems.
+    // ═══════════════════════════════════════════════════════════
+
+    match /notificationRecords/{notificationId} {
+      allow read: if isNotificationRecipient(resource) || isAdmin();
+      allow create: if false; // Server-only — Cloud Function required
+      allow update: if isNotificationRecipient(resource)
+        && request.resource.data.recipient_id == resource.data.recipient_id;
+      allow delete: if isNotificationRecipient(resource) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MEDIA ASSETS
+    // Protected metadata — file URLs not publicly exposed.
+    // Storage Security Rules deferred to Media migration phase.
+    // ═══════════════════════════════════════════════════════════
+
+    match /mediaAssets/{mediaId} {
+      allow read: if isOwner(resource.data.owner_id)
+        || isPubliclyVisible(resource)
+        || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.owner_id == uid();
+      allow update: if isOwner(resource.data.owner_id) || isAdmin();
+      allow delete: if isOwner(resource.data.owner_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // VERIFICATION REQUESTS
+    // Submitters can read their own and add evidence.
+    // Reviewers can read all and approve/reject.
+    // Approval/rejection should use a Cloud Function to atomically
+    // update TrustRecord + VerificationRequest + notifications.
+    // ═══════════════════════════════════════════════════════════
+
+    match /verificationRequests/{requestId} {
+      allow read: if isOwner(resource.data.submitted_by_id) || isReviewer();
+      allow create: if isAuthenticated()
+        && request.resource.data.submitted_by_id == uid()
+        && request.resource.data.status == 'pending_review'
+        && request.resource.data.decision == 'pending';
+      // Submitter can update non-status fields only; reviewers can update all.
+      allow update: if (isOwner(resource.data.submitted_by_id)
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.decision == resource.data.decision)
+        || isReviewer();
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // TRUST RECORDS
+    // Public indicators readable by target owner + admins.
+    // Creation/updates are reviewer-only.
+    // ═══════════════════════════════════════════════════════════
+
+    match /trustRecords/{trustId} {
+      allow read: if isOwner(resource.data.target_id) || isAdmin();
+      allow create: if isReviewer();
+      allow update: if isReviewer();
+      allow delete: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // TRUST SIGNALS
+    // System-generated only — no client writes.
+    // ═══════════════════════════════════════════════════════════
+
+    match /trustSignals/{signalId} {
+      allow read: if isAdmin();
+      allow write: if false; // Server-only — Cloud Function required
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // LOCATIONS
+    // Private fields (lat/lng/address/postal) protected at document
+    // level. Public label exposed only when visibility == 'public'.
+    // Production hardening should split public/private projections
+    // into separate collections for field-level safety.
+    // ═══════════════════════════════════════════════════════════
+
+    match /locations/{locationId} {
+      allow read: if isOwner(resource.data.owner_id)
+        || isPubliclyVisible(resource)
+        || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.owner_id == uid();
+      allow update: if isOwner(resource.data.owner_id) || isAdmin();
+      allow delete: if isOwner(resource.data.owner_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // CALENDAR EVENTS
+    // Queries must constrain by owner_id or business_id to comply
+    // with rules — Firestore rules are not post-query filters.
+    // ═══════════════════════════════════════════════════════════
+
+    match /calendarEvents/{eventId} {
+      allow read: if isOwner(resource.data.owner_id)
+        || (resource.data.visibility == 'public' && isAuthenticated())
+        || (resource.data.visibility == 'connections' && isAuthenticated())
+        || (resource.data.visibility == 'staff'
+          && resource.data.business_id != null
+          && isBusinessMember(resource.data.business_id))
+        || (resource.data.business_id != null
+          && isBusinessMember(resource.data.business_id))
+        || isAdmin();
+      allow create: if isAuthenticated()
+        && request.resource.data.created_by_id == uid()
+        && (request.resource.data.owner_id == uid()
+          || (request.resource.data.business_id != null
+            && isBusinessAdmin(request.resource.data.business_id)));
+      allow update: if isOwner(resource.data.owner_id)
+        || (resource.data.business_id != null && isBusinessAdmin(resource.data.business_id))
+        || isAdmin();
+      allow delete: if isOwner(resource.data.owner_id)
+        || (resource.data.business_id != null && isBusinessAdmin(resource.data.business_id))
+        || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // AVAILABILITY RULES
+    // Private scheduling detail — owner or business members only.
+    // ═══════════════════════════════════════════════════════════
+
+    match /availabilityRules/{ruleId} {
+      allow read: if isOwner(resource.data.owner_id)
+        || (resource.data.business_id != null && isBusinessMember(resource.data.business_id))
+        || isAdmin();
+      allow create: if isAuthenticated()
+        && request.resource.data.owner_id == uid();
+      allow update: if isOwner(resource.data.owner_id)
+        || (resource.data.business_id != null && isBusinessAdmin(resource.data.business_id))
+        || isAdmin();
+      allow delete: if isOwner(resource.data.owner_id)
+        || (resource.data.business_id != null && isBusinessAdmin(resource.data.business_id))
+        || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // EXTERNAL CALENDAR CONNECTIONS
+    // ═══════════════════════════════════════════════════════════
+
+    match /externalCalendarConnections/{connectionId} {
+      allow read: if isOwner(resource.data.identity_id) || isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.identity_id == uid();
+      allow update: if isOwner(resource.data.identity_id);
+      allow delete: if isOwner(resource.data.identity_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // CONVERSATIONS & MESSAGES
+    // Conversation creation is server-only to enforce message-request
+    // and block-state rules safely. Message writes require an accepted
+    // conversation and sender == authenticated user.
+    // ═══════════════════════════════════════════════════════════
+
+    match /conversations/{conversationId} {
+      allow read: if isConversationParticipant(conversationId) || isAdmin();
+      allow create: if false; // Server-only — Cloud Function required
+      allow update: if isConversationParticipant(conversationId) || isAdmin();
+      allow delete: if isConversationParticipant(conversationId) || isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isConversationParticipant(conversationId) || isAdmin();
+        allow create: if isAuthenticated()
+          && request.resource.data.sender_id == uid()
+          && isConversationParticipant(conversationId)
+          && isConversationAccepted(conversationId);
+        allow update: if isOwner(resource.data.sender_id) || isAdmin();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // BLOCK RECORDS
+    // Deterministic doc ID: {blockerId}__{blockedId}
+    // Only the blocker can create/update/delete their own blocks.
+    // ═══════════════════════════════════════════════════════════
+
+    match /blockRecords/{blockId} {
+      allow read: if isOwner(resource.data.blocker_id) || isAdmin();
+      allow create: if isAuthenticated()
+        && request.resource.data.blocker_id == uid();
+      allow update: if isOwner(resource.data.blocker_id);
+      allow delete: if isOwner(resource.data.blocker_id) || isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SPECVAULT — PROJECTS, SPECIFICATIONS, VERSIONS
+    // Authenticated access. Per-project permissions can be added
+    // in a later hardening phase if needed.
+    // ═══════════════════════════════════════════════════════════
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /specifications/{specId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    match /specVersions/{versionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if false; // Versions are immutable
+      allow delete: if isAdmin();
+    }
+
+  }
+}

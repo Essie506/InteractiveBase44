@@ -1,0 +1,93 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "business_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "conversations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participant_ids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "last_message_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notificationRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recipient_id", "order": "ASCENDING" },
+        { "fieldPath": "_updated_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "specifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "project_id", "order": "ASCENDING" },
+        { "fieldPath": "_updated_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "specVersions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "specification_id", "order": "ASCENDING" },
+        { "fieldPath": "_created_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businessMemberships",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "identity_id", "order": "ASCENDING" },
+        { "fieldPath": "business_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mediaAssets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "_created_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "availabilityRules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "day_of_week", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "verificationRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "target_id", "order": "ASCENDING" },
+        { "fieldPath": "_created_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businessInvitations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "email", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
