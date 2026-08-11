@@ -3,10 +3,12 @@
 // Wraps Firebase Authentication operations behind an Interactive-facing
 // contract matching the existing authService API.
 //
-// M2 status: IMPLEMENTED, NOT YET ACTIVE.
-// The cutover is blocked by §17 (Base44 SDK entity access requires a
-// Base44 authenticated session — see M2 completion report).
-// This service is ready for activation once the hybrid bridge is resolved.
+// M3 status: ACTIVE.
+// All Firebase Auth operations go through getAuthInstance(), which reads
+// the live-binding firebaseAuth export at call time and throws if it
+// has not been initialised. This guarantees no auth operation can
+// execute before initFirebase() completes, and every operation uses
+// the current initialised Auth instance — never a stale or undefined value.
 
 import {
   signInWithEmailAndPassword,
@@ -25,65 +27,119 @@ import { firebaseAuth, isConfigured } from '@/firebase/firebaseClient';
 
 const googleProvider = new GoogleAuthProvider();
 
-function ensureConfigured() {
-  if (!isConfigured) {
+/**
+ * Returns the current Firebase Auth instance, or throws if Firebase
+ * has not been initialised.
+ *
+ * This is the single safe entry point for all auth operations. It
+ * reads the live-binding `firebaseAuth` export at call time (not at
+ * module-load time), so it always sees the value set by initFirebase().
+ * The `isConfigured` flag and the `firebaseAuth` instance are checked
+ * together — they are set atomically in initFirebase(), so if either
+ * is missing the service is not ready.
+ *
+ * @returns {import('firebase/auth').Auth}
+ * @throws {Error} if Firebase is not configured or the Auth instance is unavailable.
+ */
+function getAuthInstance() {
+  if (!isConfigured || !firebaseAuth) {
     throw new Error(
-      'Firebase is not configured. Set VITE_FIREBASE_* environment variables. ' +
-      'See M2 completion report for required configuration.'
+      'Firebase Auth is not initialised. Ensure VITE_FIREBASE_* env vars are set ' +
+      'or initFirebase() has completed before calling any auth operation.'
     );
   }
+  return firebaseAuth;
 }
 
 // ── Registration ──────────────────────────────────────────
 
+/**
+ * Register a new user with email and password.
+ * @param {{ email: string, password: string }} params
+ * @returns {Promise<import('firebase/auth').User>}
+ */
 export async function register({ email, password }) {
-  ensureConfigured();
-  const userCredential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
+  const auth = getAuthInstance();
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   return userCredential.user;
 }
 
 // ── Email/Password Login ───────────────────────────────────
 
+/**
+ * Sign in an existing user with email and password.
+ * @param {string} email
+ * @param {string} password
+ * @returns {Promise<import('firebase/auth').User>}
+ */
 export async function loginViaEmailPassword(email, password) {
-  ensureConfigured();
-  const userCredential = await signInWithEmailAndPassword(firebaseAuth, email, password);
+  const auth = getAuthInstance();
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
   return userCredential.user;
 }
 
 // ── Google Login ───────────────────────────────────────────
 
+/**
+ * Sign in with a Google popup.
+ * @returns {Promise<import('firebase/auth').User>}
+ */
 export async function loginWithGoogle() {
-  ensureConfigured();
-  const result = await signInWithPopup(firebaseAuth, googleProvider);
+  const auth = getAuthInstance();
+  const result = await signInWithPopup(auth, googleProvider);
   return result.user;
 }
 
 // ── Logout ────────────────────────────────────────────────
 
+/**
+ * Sign out the current user.
+ * @returns {Promise<void>}
+ */
 export async function logout() {
-  ensureConfigured();
-  await signOut(firebaseAuth);
+  const auth = getAuthInstance();
+  await signOut(auth);
 }
 
 // ── Auth State ─────────────────────────────────────────────
 
+/**
+ * Subscribe to Firebase auth state changes.
+ * @param {(user: (import('firebase/auth').User | null)) => void} callback
+ * @returns {() => void} Unsubscribe function.
+ */
 export function onAuthStateChange(callback) {
-  ensureConfigured();
-  return onAuthStateChanged(firebaseAuth, callback);
+  const auth = getAuthInstance();
+  return onAuthStateChanged(auth, callback);
 }
 
+/**
+ * Get the current Firebase user, or null if not signed in.
+ * @returns {(import('firebase/auth').User | null)}
+ */
 export function getCurrentUser() {
-  return firebaseAuth.currentUser;
+  const auth = getAuthInstance();
+  return auth.currentUser;
 }
 
+/**
+ * Get the current user's Firebase ID token, or null if not signed in.
+ * @returns {Promise<(string | null)>}
+ */
 export async function getIdToken() {
-  const user = firebaseAuth.currentUser;
+  const auth = getAuthInstance();
+  const user = auth.currentUser;
   if (!user) return null;
   return user.getIdToken();
 }
 
+/**
+ * Check if a user is currently authenticated.
+ * @returns {Promise<boolean>}
+ */
 export async function isAuthenticated() {
-  return firebaseAuth.currentUser !== null;
+  const auth = getAuthInstance();
+  return auth.currentUser !== null;
 }
 
 // ── Email Verification ─────────────────────────────────────
@@ -91,40 +147,70 @@ export async function isAuthenticated() {
 // The existing Base44 registration flow uses OTP — this is a UX difference
 // documented in the M2 completion report.
 
+/**
+ * Send a verification email to the current user.
+ * @returns {Promise<void>}
+ * @throws {Error} if no user is signed in.
+ */
 export async function sendEmailVerification() {
-  ensureConfigured();
-  const user = firebaseAuth.currentUser;
+  const auth = getAuthInstance();
+  const user = auth.currentUser;
   if (!user) throw new Error('No authenticated user');
   await firebaseSendEmailVerification(user);
 }
 
+/**
+ * Resend the verification email to the current user.
+ * @returns {Promise<void>}
+ */
 export async function resendEmailVerification() {
   return sendEmailVerification();
 }
 
+/**
+ * Reload the current user's profile from Firebase.
+ * @returns {Promise<(import('firebase/auth').User | null)>}
+ */
 export async function reloadUser() {
-  const user = firebaseAuth.currentUser;
+  const auth = getAuthInstance();
+  const user = auth.currentUser;
   if (user) await reload(user);
   return user;
 }
 
 // ── Password Reset ─────────────────────────────────────────
 
+/**
+ * Send a password reset email.
+ * @param {string} email
+ * @returns {Promise<void>}
+ */
 export async function resetPasswordRequest(email) {
-  ensureConfigured();
-  await sendPasswordResetEmail(firebaseAuth, email);
+  const auth = getAuthInstance();
+  await sendPasswordResetEmail(auth, email);
 }
 
+/**
+ * Reset password using a reset code.
+ * @param {{ resetCode: string, newPassword: string }} params
+ * @returns {Promise<void>}
+ */
 export async function resetPassword({ resetCode, newPassword }) {
-  ensureConfigured();
-  await confirmPasswordReset(firebaseAuth, resetCode, newPassword);
+  const auth = getAuthInstance();
+  await confirmPasswordReset(auth, resetCode, newPassword);
 }
 
 // ── Profile Updates ────────────────────────────────────────
 
+/**
+ * Update the current user's profile.
+ * @param {Partial<{ displayName: string, photoURL: string }>} data
+ * @returns {Promise<void>}
+ * @throws {Error} if no user is signed in.
+ */
 export async function updateProfile(data) {
-  ensureConfigured();
-  const user = firebaseAuth.currentUser;
+  const auth = getAuthInstance();
+  const user = auth.currentUser;
   if (!user) throw new Error('No authenticated user');
   await firebaseUpdateProfile(user, data);
 }

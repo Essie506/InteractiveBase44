@@ -29,6 +29,7 @@ import { getFirestore } from 'firebase/firestore';
 import { base44 } from '@/api/base44Client';
 
 // ── Environment-based config (local dev) ────────────────────
+/** @type {import('firebase/app').FirebaseOptions} */
 const envConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
@@ -41,9 +42,20 @@ const envConfig = {
 const isEnvConfigured = Boolean(envConfig.apiKey && envConfig.projectId);
 
 // ── Lazy-initialised Firebase instances ────────────────────
+// JSDoc types are required so that importers (firebaseAuthService,
+// repositories) see a concrete type rather than implicit any.
+// The live-binding architecture is preserved: these start as null
+// and are populated by initFirebase() before any auth operation runs.
+/** @type {import('firebase/app').FirebaseApp | null} */
 let app = null;
+
+/** @type {import('firebase/auth').Auth | null} */
 let firebaseAuth = null;
+
+/** @type {import('firebase/firestore').Firestore | null} */
 let db = null;
+
+/** @type {boolean} */
 let isConfigured = isEnvConfigured;
 
 if (isEnvConfigured) {
@@ -62,12 +74,15 @@ if (isEnvConfigured) {
  * Initialise Firebase from the backend function.
  * Called from main.jsx before the app renders, when env vars
  * are not available. In local dev (env vars set), this is a no-op.
+ *
+ * @returns {Promise<void>}
  */
 export async function initFirebase() {
   if (isConfigured) return;
 
   try {
     const response = await base44.functions.invoke('GetFirebaseConfig', {});
+    /** @type {import('firebase/app').FirebaseOptions} */
     const config = response.data;
 
     if (config.apiKey && config.projectId) {
@@ -82,4 +97,3 @@ export async function initFirebase() {
 }
 
 export { app, firebaseAuth, db, isConfigured };
-export default app;
