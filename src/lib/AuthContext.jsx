@@ -34,6 +34,11 @@ export const AuthProvider = ({ children }) => {
 
     const unsubscribe = fbAuth.onAuthStateChange(async (fbUser) => {
       if (fbUser) {
+        // Ensure loading state is active during identity resolution.
+        // A previous null fire (e.g. before session restore) may have
+        // set isLoadingAuth=false; this prevents the app from rendering
+        // routes and redirecting before the user state is loaded.
+        setIsLoadingAuth(true);
         try {
           // Get Firebase ID token
           const idToken = await fbUser.getIdToken();

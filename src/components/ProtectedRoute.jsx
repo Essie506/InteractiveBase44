@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { useFirebase } from '@/lib/backendConfig';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 
 const DefaultFallback = () => (
@@ -12,11 +13,13 @@ const DefaultFallback = () => (
 export default function ProtectedRoute({ fallback = <DefaultFallback />, unauthenticatedElement }) {
   const { isAuthenticated, isLoadingAuth, authChecked, authError, checkUserAuth } = useAuth();
 
+  // In Firebase mode, auth state is managed by AuthContext's
+  // onAuthStateChanged listener — never call the Base44 checkUserAuth.
   useEffect(() => {
-    if (!authChecked && !isLoadingAuth) {
+    if (!useFirebase && !authChecked && !isLoadingAuth) {
       checkUserAuth();
     }
-  }, [authChecked, isLoadingAuth, checkUserAuth]);
+  }, [authChecked, isLoadingAuth, checkUserAuth, useFirebase]);
 
   if (isLoadingAuth || !authChecked) {
     return fallback;
