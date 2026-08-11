@@ -1,0 +1,96 @@
+{
+  "name": "AvailabilityRule",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "Stable reference to the professional identity or business"
+    },
+    "owner_type": {
+      "type": "string",
+      "enum": [
+        "professional",
+        "business"
+      ],
+      "default": "professional",
+      "title": "Owner Type"
+    },
+    "rule_type": {
+      "type": "string",
+      "enum": [
+        "working_hours",
+        "available",
+        "unavailable",
+        "blocked"
+      ],
+      "default": "working_hours",
+      "title": "Rule Type",
+      "description": "working_hours = recurring weekly; unavailable = one-off or recurring block"
+    },
+    "day_of_week": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 6,
+      "title": "Day of Week",
+      "description": "0=Sunday, 6=Saturday. Omit for one-off rules with specific_date"
+    },
+    "start_time": {
+      "type": "string",
+      "title": "Start Time",
+      "description": "HH:MM in the rule's timezone"
+    },
+    "end_time": {
+      "type": "string",
+      "title": "End Time",
+      "description": "HH:MM in the rule's timezone"
+    },
+    "timezone": {
+      "type": "string",
+      "default": "UTC",
+      "title": "Timezone",
+      "description": "IANA timezone identifier"
+    },
+    "effective_from": {
+      "type": "string",
+      "format": "date",
+      "title": "Effective From"
+    },
+    "effective_until": {
+      "type": "string",
+      "format": "date",
+      "title": "Effective Until"
+    },
+    "specific_date": {
+      "type": "string",
+      "format": "date",
+      "title": "Specific Date",
+      "description": "For one-off exceptions (overrides recurring rules for this date)"
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Business context if applicable"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notes"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active",
+      "title": "Lifecycle State"
+    }
+  },
+  "required": [
+    "owner_id",
+    "owner_type",
+    "rule_type",
+    "start_time",
+    "end_time"
+  ]
+}

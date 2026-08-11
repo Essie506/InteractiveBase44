@@ -23,6 +23,12 @@ export default function SettingsPage() {
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
   const [quietHoursStart, setQuietHoursStart] = useState('22:00');
   const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
+  const [calendarInApp, setCalendarInApp] = useState(true);
+  const [calendarEmail, setCalendarEmail] = useState(true);
+  const [calendarPush, setCalendarPush] = useState(true);
+  const [messagingInApp, setMessagingInApp] = useState(true);
+  const [messagingEmail, setMessagingEmail] = useState(false);
+  const [messagingPush, setMessagingPush] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -60,6 +66,12 @@ export default function SettingsPage() {
         setQuietHoursEnabled(prefs.quiet_hours_enabled ?? false);
         setQuietHoursStart(prefs.quiet_hours_start || '22:00');
         setQuietHoursEnd(prefs.quiet_hours_end || '07:00');
+        setCalendarInApp(prefs.calendar_in_app ?? true);
+        setCalendarEmail(prefs.calendar_email ?? true);
+        setCalendarPush(prefs.calendar_push ?? true);
+        setMessagingInApp(prefs.messaging_in_app ?? true);
+        setMessagingEmail(prefs.messaging_email ?? false);
+        setMessagingPush(prefs.messaging_push ?? true);
       });
     });
   }, [user]);
@@ -85,6 +97,12 @@ export default function SettingsPage() {
           quiet_hours_enabled: quietHoursEnabled,
           quiet_hours_start: quietHoursStart,
           quiet_hours_end: quietHoursEnd,
+          calendar_in_app: calendarInApp,
+          calendar_email: calendarEmail,
+          calendar_push: calendarPush,
+          messaging_in_app: messagingInApp,
+          messaging_email: messagingEmail,
+          messaging_push: messagingPush,
         });
       }
       setSaved(true);
@@ -153,6 +171,26 @@ export default function SettingsPage() {
         <div>
           <Toggle checked={emailNotifications} onChange={setEmailNotifications} label="Email Notifications" desc="Receive notifications via email" />
           <Toggle checked={pushNotifications} onChange={setPushNotifications} label="Push Notifications" desc="Receive push notifications on your device" />
+        </div>
+      </div>
+
+      {/* Calendar Notifications */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 mb-4">
+        <h2 className="font-semibold text-stone-800 mb-4">Calendar Notifications</h2>
+        <div>
+          <Toggle checked={calendarInApp} onChange={setCalendarInApp} label="In-App" desc="Calendar event notifications in the Notification Centre" />
+          <Toggle checked={calendarEmail} onChange={setCalendarEmail} label="Email" desc="Receive calendar event updates via email" />
+          <Toggle checked={calendarPush} onChange={setCalendarPush} label="Push" desc="Receive calendar reminders on your device" />
+        </div>
+      </div>
+
+      {/* Messaging Notifications */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 mb-4">
+        <h2 className="font-semibold text-stone-800 mb-4">Messaging Notifications</h2>
+        <div>
+          <Toggle checked={messagingInApp} onChange={setMessagingInApp} label="In-App" desc="Message notifications in the Notification Centre" />
+          <Toggle checked={messagingEmail} onChange={setMessagingEmail} label="Email" desc="Receive message notifications via email" />
+          <Toggle checked={messagingPush} onChange={setMessagingPush} label="Push" desc="Receive message notifications on your device" />
         </div>
       </div>
 

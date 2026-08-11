@@ -28,6 +28,10 @@ import InvitationsPage from '@/pages/InvitationsPage';
 import VerificationPage from '@/pages/VerificationPage';
 import VerificationReview from '@/pages/VerificationReview';
 import Notifications from '@/pages/Notifications';
+import CalendarPage from '@/pages/CalendarPage';
+import AvailabilityPage from '@/pages/AvailabilityPage';
+import Messages from '@/pages/Messages';
+import ConversationPage from '@/pages/ConversationPage';
 import Specifications from '@/pages/Specifications';
 import SpecificationDetail from '@/pages/SpecificationDetail';
 import UploadPage from '@/pages/Upload';
@@ -77,6 +81,10 @@ const AuthenticatedApp = () => {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/invitations" element={<InvitationsPage />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/availability" element={<AvailabilityPage />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/messages/:conversationId" element={<ConversationPage />} />
           <Route path="/professional-profile" element={<ProfessionalProfilePage />} />
           <Route path="/business/:id" element={<BusinessWorkspace />} />
           <Route path="/business/:id/verify" element={<VerificationPage />} />

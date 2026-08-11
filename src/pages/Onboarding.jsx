@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { base44 } from '@/api/base44Client';
 import { Loader2, ArrowLeft, Check } from 'lucide-react';
+import MandatoryLabel from '@/components/MandatoryLabel';
+import FieldError from '@/components/FieldError';
 
 export default function Onboarding() {
   const { user, checkUserAuth } = useAuth();
@@ -24,6 +26,7 @@ export default function Onboarding() {
   const [searchVisibility, setSearchVisibility] = useState(true);
   const [allowDMs, setAllowDMs] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const urlIntent = new URLSearchParams(window.location.search).get('intent');
   const intent = user?.onboarding_intent || urlIntent || 'personal';
@@ -83,14 +86,22 @@ export default function Onboarding() {
     setOnboardingState(updated);
   };
 
+  const validateStep = (step) => {
+    const e = {};
+    if (step === 'terms' && !termsAccepted) e.terms = 'You must accept the terms to continue';
+    if (step === 'profile' && !displayName.trim()) e.displayName = 'Display name is required';
+    if (step === 'profession' && !profession.trim()) e.profession = 'Profession is required';
+    if (step === 'business' && !businessName.trim()) e.businessName = 'Business name is required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
   const handleNext = async () => {
     const currentStep = stepKeys[stepIndex];
-    if (currentStep === 'terms' && !termsAccepted) return;
-    if (currentStep === 'profile' && !displayName.trim()) return;
-    if (currentStep === 'profession' && !profession.trim()) return;
-    if (currentStep === 'business' && !businessName.trim()) return;
+    if (!validateStep(currentStep)) return;
 
     await saveProgress(currentStep);
+    setErrors({});
 
     if (stepIndex < stepKeys.length - 1) {
       setStepIndex(stepIndex + 1);
@@ -236,11 +247,13 @@ export default function Onboarding() {
                   <li>Comply with all applicable laws and regulations</li>
                 </ul>
               </div>
-              <label className="flex items-start gap-3 cursor-pointer mb-6">
+              <label className="flex items-start gap-3 cursor-pointer mb-2">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
-                <span className="text-sm text-stone-700">I have read and accept the terms and conditions</span>
+                <span className="text-sm text-stone-700">I have read and accept the terms and conditions <span className="text-indigo-600 font-semibold">*</span></span>
               </label>
-              <button onClick={handleNext} disabled={!termsAccepted} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+              <FieldError error={errors.terms} />
+              <div className="mb-6" />
+              <button onClick={handleNext} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">
                 Continue
               </button>
             </div>
@@ -250,11 +263,13 @@ export default function Onboarding() {
           {currentStep === 'profile' && (
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <h1 className="text-2xl font-bold text-stone-800 mb-2">Your Profile</h1>
-              <p className="text-stone-500 mb-6">This is how you'll appear across Interactive.</p>
+              <p className="text-stone-500 mb-4">This is how you'll appear across Interactive.</p>
+              <p className="text-xs text-stone-400 mb-6 flex items-center gap-1"><span className="text-indigo-600 font-semibold">*</span> means mandatory</p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Display Name *</label>
-                  <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your name" className={inputClass} />
+                  <MandatoryLabel htmlFor="ob-display-name" required>Display Name</MandatoryLabel>
+                  <input id="ob-display-name" type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Your name" className={inputClass} />
+                  <FieldError error={errors.displayName} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">Screen Name</label>
@@ -275,7 +290,7 @@ export default function Onboarding() {
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={handleBack} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={handleNext} disabled={!displayName.trim()} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}
@@ -284,14 +299,16 @@ export default function Onboarding() {
           {currentStep === 'profession' && (
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <h1 className="text-2xl font-bold text-stone-800 mb-2">Professional Identity</h1>
-              <p className="text-stone-500 mb-6">Activate your professional capability. This adds a professional profile to your existing identity.</p>
+              <p className="text-stone-500 mb-4">Activate your professional capability. This adds a professional profile to your existing identity.</p>
+              <p className="text-xs text-stone-400 mb-6 flex items-center gap-1"><span className="text-indigo-600 font-semibold">*</span> means mandatory</p>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1.5">Profession *</label>
-                <input type="text" value={profession} onChange={e => setProfession(e.target.value)} placeholder="e.g. Personal Trainer, Physiotherapist" className={inputClass} />
+                <MandatoryLabel htmlFor="ob-profession" required>Profession</MandatoryLabel>
+                <input id="ob-profession" type="text" value={profession} onChange={e => setProfession(e.target.value)} placeholder="e.g. Personal Trainer, Physiotherapist" className={inputClass} />
+                <FieldError error={errors.profession} />
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={handleBack} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={handleNext} disabled={!profession.trim()} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}
@@ -300,11 +317,13 @@ export default function Onboarding() {
           {currentStep === 'business' && (
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <h1 className="text-2xl font-bold text-stone-800 mb-2">Business Workspace</h1>
-              <p className="text-stone-500 mb-6">Create your business organisation. This is separate from your personal identity.</p>
+              <p className="text-stone-500 mb-4">Create your business organisation. This is separate from your personal identity.</p>
+              <p className="text-xs text-stone-400 mb-6 flex items-center gap-1"><span className="text-indigo-600 font-semibold">*</span> means mandatory</p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Business Name *</label>
-                  <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="e.g. Acme Fitness Studio" className={inputClass} />
+                  <MandatoryLabel htmlFor="ob-business-name" required>Business Name</MandatoryLabel>
+                  <input id="ob-business-name" type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="e.g. Acme Fitness Studio" className={inputClass} />
+                  <FieldError error={errors.businessName} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">Business Type</label>
@@ -321,7 +340,7 @@ export default function Onboarding() {
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={handleBack} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={handleNext} disabled={!businessName.trim()} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}

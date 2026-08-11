@@ -1,0 +1,94 @@
+{
+  "name": "ExternalCalendarConnection",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "Stable reference to the authenticated identity"
+    },
+    "provider": {
+      "type": "string",
+      "enum": [
+        "google",
+        "outlook",
+        "apple",
+        "ical",
+        "other"
+      ],
+      "title": "Provider"
+    },
+    "provider_calendar_id": {
+      "type": "string",
+      "title": "Provider Calendar ID",
+      "description": "External calendar identifier from the provider"
+    },
+    "display_name": {
+      "type": "string",
+      "title": "Display Name"
+    },
+    "sync_direction": {
+      "type": "string",
+      "enum": [
+        "read_only",
+        "write_only",
+        "two_way"
+      ],
+      "default": "read_only",
+      "title": "Sync Direction"
+    },
+    "sync_status": {
+      "type": "string",
+      "enum": [
+        "disconnected",
+        "pending",
+        "connected",
+        "error",
+        "expired"
+      ],
+      "default": "disconnected",
+      "title": "Sync Status"
+    },
+    "last_synced_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Synced At"
+    },
+    "sync_error": {
+      "type": "string",
+      "title": "Sync Error"
+    },
+    "owner_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "professional",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Owner Type"
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID"
+    },
+    "metadata": {
+      "type": "string",
+      "title": "Metadata",
+      "description": "JSON-encoded provider-specific metadata"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active",
+      "title": "Lifecycle State"
+    }
+  },
+  "required": [
+    "identity_id",
+    "provider"
+  ]
+}

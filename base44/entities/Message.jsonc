@@ -1,0 +1,94 @@
+{
+  "name": "Message",
+  "type": "object",
+  "properties": {
+    "conversation_id": {
+      "type": "string",
+      "title": "Conversation ID",
+      "description": "Stable reference to the Conversation"
+    },
+    "sender_id": {
+      "type": "string",
+      "title": "Sender ID",
+      "description": "The authenticated identity that sent this message"
+    },
+    "sender_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "personal",
+      "title": "Sender Context",
+      "description": "Operating context in which the message was sent"
+    },
+    "sender_business_id": {
+      "type": "string",
+      "title": "Sender Business ID",
+      "description": "Business context if sent on behalf of a business"
+    },
+    "body": {
+      "type": "string",
+      "title": "Body"
+    },
+    "attachment_media_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Attachment Media IDs",
+      "description": "Stable references to MediaAsset records"
+    },
+    "message_type": {
+      "type": "string",
+      "enum": [
+        "text",
+        "system",
+        "calendar_invite",
+        "booking_request"
+      ],
+      "default": "text",
+      "title": "Message Type"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "sent",
+        "delivered",
+        "read",
+        "failed"
+      ],
+      "default": "sent",
+      "title": "Status"
+    },
+    "read_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Read By",
+      "description": "Identity IDs that have read this message"
+    },
+    "source_id": {
+      "type": "string",
+      "title": "Source ID",
+      "description": "Idempotency key for retry-safe message creation"
+    },
+    "calendar_event_id": {
+      "type": "string",
+      "title": "Calendar Event ID",
+      "description": "Reference to a CalendarEvent created from this conversation"
+    },
+    "system_event": {
+      "type": "string",
+      "title": "System Event",
+      "description": "For system messages: e.g. conversation_accepted, booking_requested"
+    }
+  },
+  "required": [
+    "conversation_id",
+    "sender_id",
+    "body"
+  ]
+}

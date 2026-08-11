@@ -1,0 +1,49 @@
+{
+  "name": "BlockRecord",
+  "type": "object",
+  "properties": {
+    "blocker_id": {
+      "type": "string",
+      "title": "Blocker ID",
+      "description": "Stable reference to the identity that initiated the block"
+    },
+    "blocked_id": {
+      "type": "string",
+      "title": "Blocked ID",
+      "description": "Stable reference to the identity that is blocked"
+    },
+    "blocker_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "personal",
+      "title": "Blocker Context"
+    },
+    "blocker_business_id": {
+      "type": "string",
+      "title": "Blocker Business ID",
+      "description": "Business context if blocked on behalf of a business"
+    },
+    "reason": {
+      "type": "string",
+      "title": "Reason",
+      "description": "Optional reason for the block (not publicly visible)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "removed"
+      ],
+      "default": "active",
+      "title": "Status"
+    }
+  },
+  "required": [
+    "blocker_id",
+    "blocked_id"
+  ]
+}

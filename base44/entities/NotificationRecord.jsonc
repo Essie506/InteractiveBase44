@@ -15,14 +15,16 @@
         "business",
         "auth",
         "security",
-        "system"
+        "system",
+        "calendar",
+        "messaging"
       ],
       "title": "Source System"
     },
     "event_type": {
       "type": "string",
       "title": "Event Type",
-      "description": "e.g. verification_submitted, verification_approved, business_invitation"
+      "description": "e.g. verification_submitted, verification_approved, business_invitation, calendar_event_created, message_received"
     },
     "title": {
       "type": "string",
@@ -39,7 +41,9 @@
         "media",
         "business",
         "security",
-        "system"
+        "system",
+        "calendar",
+        "messaging"
       ],
       "title": "Category"
     },

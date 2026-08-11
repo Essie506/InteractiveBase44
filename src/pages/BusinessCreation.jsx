@@ -5,6 +5,8 @@ import { base44 } from '@/api/base44Client';
 import { submitVerification } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, Check, ShieldCheck, Users } from 'lucide-react';
+import MandatoryLabel from '@/components/MandatoryLabel';
+import FieldError from '@/components/FieldError';
 
 export default function BusinessCreation() {
   const { user, checkUserAuth } = useAuth();
@@ -24,6 +26,7 @@ export default function BusinessCreation() {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [staffEmails, setStaffEmails] = useState(['']);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const returnTo = new URLSearchParams(window.location.search).get('returnTo') || '/dashboard';
   const stepKeys = ['identity', 'profile', 'verification', 'plan', 'staff', 'complete'];
@@ -36,11 +39,18 @@ export default function BusinessCreation() {
   const updateStaffEmail = (i, val) => setStaffEmails(staffEmails.map((e, idx) => idx === i ? val : e));
   const removeStaffField = (i) => setStaffEmails(staffEmails.filter((_, idx) => idx !== i));
 
+  const validateStep = (step) => {
+    const e = {};
+    if (step === 'identity' && !businessName.trim()) e.businessName = 'Business name is required';
+    if (step === 'verification' && !termsAccepted) e.terms = 'You must accept the terms to continue';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
   const handleNext = () => {
     const current = stepKeys[stepIndex];
-    if (current === 'identity' && !businessName.trim()) return;
-    if (current === 'verification' && !termsAccepted) return;
-    if (current === 'plan' && !selectedPlan) return;
+    if (!validateStep(current)) return;
+    setErrors({});
 
     if (stepIndex < stepKeys.length - 1) {
       setStepIndex(stepIndex + 1);
@@ -169,11 +179,13 @@ export default function BusinessCreation() {
           {currentStep === 'identity' && (
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <h1 className="text-2xl font-bold text-stone-800 mb-2">Business Identity</h1>
-              <p className="text-stone-500 mb-6">Create a stable Business entity. This is an organisation, not a user account.</p>
+              <p className="text-stone-500 mb-4">Create a stable Business entity. This is an organisation, not a user account.</p>
+              <p className="text-xs text-stone-400 mb-6 flex items-center gap-1"><span className="text-indigo-600 font-semibold">*</span> means mandatory</p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Business Name *</label>
-                  <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="e.g. Acme Fitness Studio" className={inputClass} />
+                  <MandatoryLabel htmlFor="bc-business-name" required>Business Name</MandatoryLabel>
+                  <input id="bc-business-name" type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="e.g. Acme Fitness Studio" className={inputClass} />
+                  <FieldError error={errors.businessName} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">Business Type</label>
@@ -190,7 +202,7 @@ export default function BusinessCreation() {
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => navigate(returnTo)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Cancel</button>
-                <button onClick={handleNext} disabled={!businessName.trim()} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}
@@ -251,13 +263,15 @@ export default function BusinessCreation() {
                   <li>Verification does not block business creation</li>
                 </ul>
               </div>
-              <label className="flex items-start gap-3 cursor-pointer mb-6">
+              <label className="flex items-start gap-3 cursor-pointer mb-2">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
-                <span className="text-sm text-stone-700">I confirm I am authorised to create this business and accept the business terms</span>
+                <span className="text-sm text-stone-700">I confirm I am authorised to create this business and accept the business terms <span className="text-indigo-600 font-semibold">*</span></span>
               </label>
+              <FieldError error={errors.terms} />
+              <div className="mb-6" />
               <div className="flex gap-3">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={handleNext} disabled={!termsAccepted} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}
@@ -297,7 +311,7 @@ export default function BusinessCreation() {
               )}
               <div className="flex gap-3">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={handleNext} disabled={plans.length > 0 && !selectedPlan} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}

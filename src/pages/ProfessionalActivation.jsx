@@ -5,6 +5,8 @@ import { base44 } from '@/api/base44Client';
 import { submitVerification } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
+import MandatoryLabel from '@/components/MandatoryLabel';
+import FieldError from '@/components/FieldError';
 
 export default function ProfessionalActivation() {
   const { user, checkUserAuth } = useAuth();
@@ -26,6 +28,7 @@ export default function ProfessionalActivation() {
   const [contactPhone, setContactPhone] = useState('');
   const [visibility, setVisibility] = useState('public');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const returnTo = new URLSearchParams(window.location.search).get('returnTo') || '/dashboard';
 
@@ -66,10 +69,21 @@ export default function ProfessionalActivation() {
     }
   };
 
+  const validateStep = (step) => {
+    const e = {};
+    if (step === 'identity') {
+      if (!displayName.trim()) e.displayName = 'Display name is required';
+      if (!category.trim()) e.category = 'Professional category is required';
+    }
+    if (step === 'verification' && !termsAccepted) e.terms = 'You must accept the terms to continue';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
   const handleNext = () => {
     const current = stepKeys[stepIndex];
-    if (current === 'identity' && (!displayName.trim() || !category.trim())) return;
-    if (current === 'verification' && !termsAccepted) return;
+    if (!validateStep(current)) return;
+    setErrors({});
 
     if (stepIndex < stepKeys.length - 1) {
       setStepIndex(stepIndex + 1);
@@ -172,11 +186,13 @@ export default function ProfessionalActivation() {
           {currentStep === 'identity' && (
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <h1 className="text-2xl font-bold text-stone-800 mb-2">Professional Identity</h1>
-              <p className="text-stone-500 mb-6">Expand your existing identity with professional capability.</p>
+              <p className="text-stone-500 mb-4">Expand your existing identity with professional capability.</p>
+              <p className="text-xs text-stone-400 mb-6 flex items-center gap-1"><span className="text-indigo-600 font-semibold">*</span> means mandatory</p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Display Name *</label>
-                  <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className={inputClass} />
+                  <MandatoryLabel htmlFor="pa-display-name" required>Display Name</MandatoryLabel>
+                  <input id="pa-display-name" type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className={inputClass} />
+                  <FieldError error={errors.displayName} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">Headline</label>
@@ -187,8 +203,8 @@ export default function ProfessionalActivation() {
                   <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} placeholder="Describe your professional background" className={inputClass + " resize-none"} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Professional Category *</label>
-                  <select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>
+                  <MandatoryLabel htmlFor="pa-category" required>Professional Category</MandatoryLabel>
+                  <select id="pa-category" value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>
                     <option value="">Select a category</option>
                     <option value="Personal Trainer">Personal Trainer</option>
                     <option value="Coach">Coach</option>
@@ -199,11 +215,12 @@ export default function ProfessionalActivation() {
                     <option value="Freelancer">Freelancer</option>
                     <option value="Other">Other</option>
                   </select>
+                  <FieldError error={errors.category} />
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => navigate(returnTo)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Cancel</button>
-                <button onClick={handleNext} disabled={!displayName.trim() || !category.trim()} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}
@@ -279,13 +296,15 @@ export default function ProfessionalActivation() {
                   <li>You'll be notified when verification is reviewed</li>
                 </ul>
               </div>
-              <label className="flex items-start gap-3 cursor-pointer mb-6">
+              <label className="flex items-start gap-3 cursor-pointer mb-2">
                 <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
-                <span className="text-sm text-stone-700">I agree to the professional terms and confirm the information provided is accurate</span>
+                <span className="text-sm text-stone-700">I agree to the professional terms and confirm the information provided is accurate <span className="text-indigo-600 font-semibold">*</span></span>
               </label>
+              <FieldError error={errors.terms} />
+              <div className="mb-6" />
               <div className="flex gap-3">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={handleNext} disabled={!termsAccepted} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors">Continue</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
               </div>
             </div>
           )}

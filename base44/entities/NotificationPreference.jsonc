@@ -61,6 +61,36 @@
       "default": true,
       "title": "Security \u2014 Push"
     },
+    "calendar_in_app": {
+      "type": "boolean",
+      "default": true,
+      "title": "Calendar \u2014 In App"
+    },
+    "calendar_email": {
+      "type": "boolean",
+      "default": true,
+      "title": "Calendar \u2014 Email"
+    },
+    "calendar_push": {
+      "type": "boolean",
+      "default": true,
+      "title": "Calendar \u2014 Push"
+    },
+    "messaging_in_app": {
+      "type": "boolean",
+      "default": true,
+      "title": "Messaging \u2014 In App"
+    },
+    "messaging_email": {
+      "type": "boolean",
+      "default": false,
+      "title": "Messaging \u2014 Email"
+    },
+    "messaging_push": {
+      "type": "boolean",
+      "default": true,
+      "title": "Messaging \u2014 Push"
+    },
     "quiet_hours_enabled": {
       "type": "boolean",
       "default": false,

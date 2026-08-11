@@ -1,0 +1,124 @@
+{
+  "name": "Conversation",
+  "type": "object",
+  "properties": {
+    "participant_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Participant IDs",
+      "description": "Stable references to Interactive identities"
+    },
+    "participant_contexts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "identity_id": {
+            "type": "string"
+          },
+          "operating_context": {
+            "type": "string",
+            "enum": [
+              "personal",
+              "professional",
+              "business"
+            ]
+          },
+          "business_id": {
+            "type": "string"
+          }
+        }
+      },
+      "title": "Participant Contexts",
+      "description": "Per-participant operating context snapshot at conversation creation"
+    },
+    "conversation_type": {
+      "type": "string",
+      "enum": [
+        "direct",
+        "group",
+        "business",
+        "guest"
+      ],
+      "default": "direct",
+      "title": "Conversation Type"
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Business context for business conversations"
+    },
+    "initiated_by_id": {
+      "type": "string",
+      "title": "Initiated By ID",
+      "description": "The identity that started this conversation"
+    },
+    "initiated_by_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "personal",
+      "title": "Initiated By Context"
+    },
+    "last_message_preview": {
+      "type": "string",
+      "title": "Last Message Preview",
+      "description": "Projection \u2014 rebuildable from Message records"
+    },
+    "last_message_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Last Message At"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "default": "active",
+      "title": "Status"
+    },
+    "request_status": {
+      "type": "string",
+      "enum": [
+        "not_required",
+        "pending",
+        "accepted",
+        "declined"
+      ],
+      "default": "not_required",
+      "title": "Message Request Status"
+    },
+    "request_message": {
+      "type": "string",
+      "title": "Request Message",
+      "description": "Introductory message submitted with the message request"
+    },
+    "group_key": {
+      "type": "string",
+      "title": "Group Key",
+      "description": "Deterministic key for idempotent conversation creation"
+    },
+    "guest_email": {
+      "type": "string",
+      "title": "Guest Email",
+      "description": "Email for guest (non-authenticated) communication \u2014 future controlled contact model"
+    },
+    "guest_phone": {
+      "type": "string",
+      "title": "Guest Phone",
+      "description": "Phone for guest (non-authenticated) communication \u2014 future controlled contact model"
+    }
+  },
+  "required": [
+    "participant_ids",
+    "conversation_type",
+    "initiated_by_id"
+  ]
+}

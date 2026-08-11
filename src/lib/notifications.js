@@ -13,6 +13,16 @@ const DELIVERY_POLICY = {
   media_processing_failed:  { in_app: 'conditional',  email: 'conditional', push: 'prohibited',  sms: 'prohibited' },
   business_invitation:      { in_app: 'required',     email: 'required',    push: 'conditional', sms: 'prohibited' },
   security_event:            { in_app: 'required',     email: 'required',    push: 'required',   sms: 'prohibited' },
+  // Calendar events
+  calendar_event_created:    { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
+  calendar_event_updated:    { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
+  calendar_event_cancelled:  { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
+  calendar_reminder:         { in_app: 'conditional',  email: 'conditional', push: 'required',   sms: 'prohibited' },
+  // Messaging events
+  message_received:          { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
+  message_request_received:  { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
+  message_request_accepted:  { in_app: 'conditional',  email: 'conditional', push: 'prohibited',  sms: 'prohibited' },
+  message_request_declined:  { in_app: 'conditional',  email: 'conditional', push: 'prohibited',  sms: 'prohibited' },
 };
 
 export function resolveDeliveryPolicy(eventType, channel) {
@@ -42,10 +52,23 @@ export async function createNotification(event) {
     category, priority, action_url, action_label, group_key, source_id,
   } = event;
 
-  // Resolve delivery channels from policy
+  // Load user preferences for conditional channel resolution
+  let prefs = null;
+  try {
+    prefs = await getOrCreatePreferences(recipient_id);
+  } catch {
+    // Preferences unavailable — conditional channels default to delivered
+  }
+
+  // Resolve delivery channels from policy + user preferences
   const channels = ['in_app', 'email', 'push', 'sms'].filter(ch => {
     const policy = resolveDeliveryPolicy(event_type, ch);
-    return policy === 'required' || policy === 'conditional';
+    if (policy === 'required') return true;
+    if (policy === 'prohibited') return false;
+    // Conditional — check user preference for this category+channel
+    if (!prefs) return true;
+    const prefKey = `${category || 'system'}_${ch}`;
+    return prefs[prefKey] !== false;
   });
 
   // Create the notification record (always — record exists regardless of delivery)

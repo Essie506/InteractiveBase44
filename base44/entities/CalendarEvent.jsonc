@@ -1,0 +1,157 @@
+{
+  "name": "CalendarEvent",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "Stable reference to the identity or business that owns this calendar event"
+    },
+    "owner_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "professional",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Owner Type"
+    },
+    "operating_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "personal",
+      "title": "Operating Context",
+      "description": "The context in which this event was created"
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Time",
+      "description": "ISO 8601 datetime (stored in UTC)"
+    },
+    "end_time": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Time",
+      "description": "ISO 8601 datetime (stored in UTC)"
+    },
+    "timezone": {
+      "type": "string",
+      "default": "UTC",
+      "title": "Timezone",
+      "description": "IANA timezone identifier for display (e.g. Europe/London)"
+    },
+    "all_day": {
+      "type": "boolean",
+      "default": false,
+      "title": "All Day"
+    },
+    "location_id": {
+      "type": "string",
+      "title": "Location ID",
+      "description": "Stable reference to the authoritative Location record"
+    },
+    "location_type": {
+      "type": "string",
+      "enum": [
+        "physical",
+        "online",
+        "hybrid"
+      ],
+      "default": "physical",
+      "title": "Location Type"
+    },
+    "meeting_url": {
+      "type": "string",
+      "title": "Meeting URL"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private",
+        "staff"
+      ],
+      "default": "private",
+      "title": "Visibility"
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "scheduled",
+        "confirmed",
+        "tentative",
+        "cancelled",
+        "completed"
+      ],
+      "default": "scheduled",
+      "title": "Lifecycle State"
+    },
+    "source_system": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "booking",
+        "workout",
+        "business_scheduling",
+        "external",
+        "messaging"
+      ],
+      "default": "manual",
+      "title": "Source System",
+      "description": "Which Interactive system originated this event"
+    },
+    "source_id": {
+      "type": "string",
+      "title": "Source ID",
+      "description": "Stable reference to the source record for idempotency"
+    },
+    "external_calendar_id": {
+      "type": "string",
+      "title": "External Calendar ID",
+      "description": "Reference to ExternalCalendarConnection if synced"
+    },
+    "external_event_id": {
+      "type": "string",
+      "title": "External Event ID",
+      "description": "ID from the external calendar provider"
+    },
+    "created_by_id": {
+      "type": "string",
+      "title": "Created By ID",
+      "description": "The authenticated identity that created this event"
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Business context if applicable"
+    },
+    "recurrence_rule": {
+      "type": "string",
+      "title": "Recurrence Rule",
+      "description": "RRULE string for recurring events (RFC 5545)"
+    }
+  },
+  "required": [
+    "owner_id",
+    "owner_type",
+    "title",
+    "start_time",
+    "end_time",
+    "created_by_id"
+  ]
+}
