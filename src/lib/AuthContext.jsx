@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
           // Resolve Interactive Identity (creates mapping if needed)
           let result;
           try {
-            result = await resolveIdentity(idToken);
+            result = await resolveIdentity(fbUser.uid, idToken);
           } catch (err) {
             // If email not verified, still set the Firebase user but no identity
             if (err.code === 'EMAIL_NOT_VERIFIED' || err.message?.includes('EMAIL_NOT_VERIFIED')) {
