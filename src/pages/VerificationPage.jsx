@@ -122,7 +122,7 @@ export default function VerificationPage() {
           </div>
           <h1 className="text-2xl font-bold text-stone-800">{isBusiness ? 'Business' : 'Professional'} Verification</h1>
         </div>
-        <p className="text-stone-500 text-center">Submit evidence for Trust & Reputation review.</p>
+        <p className="text-stone-500 text-left">Submit evidence for Trust & Reputation review.</p>
       </div>
 
       {alreadyVerified &&
