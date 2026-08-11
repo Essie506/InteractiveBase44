@@ -160,7 +160,7 @@ export default function SettingsPage() {
         </div>
         <div>
           <Toggle checked={searchVisibility} onChange={setSearchVisibility} label="Search Visibility" desc="Allow others to find you in search" />
-          <Toggle checked={allowDMs} onChange={setAllowDMs} label="Direct Messages" desc="Allow others to message you directly" />
+          <Toggle checked={allowDMs} onChange={setAllowDMs} label="Direct Messages" desc="Allow messages straight to your inbox without review" />
           <Toggle checked={showActivity} onChange={setShowActivity} label="Show Activity" desc="Display your recent activity on your profile" />
         </div>
       </div>
