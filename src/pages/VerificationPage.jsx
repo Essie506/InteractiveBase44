@@ -27,7 +27,7 @@ export default function VerificationPage() {
 
   useEffect(() => {
     if (!targetId) return;
-    getVerificationRequest(targetType, targetId).then(req => {
+    getVerificationRequest(targetType, targetId).then((req) => {
       setExisting(req);
       setLoading(false);
     });
@@ -51,13 +51,13 @@ export default function VerificationPage() {
   };
 
   const removeEvidence = (mediaId) => {
-    setEvidence(evidence.filter(e => e.id !== mediaId));
+    setEvidence(evidence.filter((e) => e.id !== mediaId));
   };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const evidenceMediaIds = evidence.map(e => e.id);
+      const evidenceMediaIds = evidence.map((e) => e.id);
       await submitVerification(targetType, targetId, user.id, evidenceMediaIds, notes);
 
       // Create notification (failure isolated — doesn't undo submission)
@@ -70,7 +70,7 @@ export default function VerificationPage() {
         category: 'verification',
         action_url: isBusiness ? `/business/${id}` : '/professional-profile',
         action_label: 'View Profile',
-        source_id: targetId,
+        source_id: targetId
       });
 
       setSubmitted(true);
@@ -83,8 +83,8 @@ export default function VerificationPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
-      </div>
-    );
+      </div>);
+
   }
 
   if (submitted) {
@@ -100,8 +100,8 @@ export default function VerificationPage() {
             Back to {isBusiness ? 'Business' : 'Profile'}
           </Link>
         </div>
-      </div>
-    );
+      </div>);
+
   }
 
   const alreadyVerified = existing?.decision === 'approved' || existing?.public_state === 'verified';
@@ -122,46 +122,46 @@ export default function VerificationPage() {
           </div>
           <h1 className="text-2xl font-bold text-stone-800">{isBusiness ? 'Business' : 'Professional'} Verification</h1>
         </div>
-        <p className="text-stone-500">Submit evidence for Trust & Reputation review. Verification is free — it cannot be purchased.</p>
+        <p className="text-stone-500">Submit evidence for Trust & Reputation review.</p>
       </div>
 
-      {alreadyVerified && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
+      {alreadyVerified &&
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-emerald-600" />
             <span className="font-medium text-emerald-800">Already Verified</span>
           </div>
           <p className="text-sm text-emerald-700 mt-1">{existing?.trust_explanation || 'Your verification has been confirmed.'}</p>
         </div>
-      )}
+      }
 
-      {alreadyPending && !alreadyVerified && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+      {alreadyPending && !alreadyVerified &&
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <div className="flex items-center gap-2">
             <Loader2 className="w-5 h-5 text-amber-600" />
             <span className="font-medium text-amber-800">Verification Pending</span>
           </div>
           <p className="text-sm text-amber-700 mt-1">Your verification request is under review. You'll be notified when a decision is made.</p>
         </div>
-      )}
+      }
 
-      {!alreadyVerified && (
-        <div className="bg-white rounded-xl border border-stone-200 p-6">
+      {!alreadyVerified &&
+      <div className="bg-white rounded-xl border border-stone-200 p-6">
           <h2 className="font-semibold text-stone-800 mb-2">Upload Evidence</h2>
           <p className="text-sm text-stone-500 mb-4">Upload documents that support your verification (e.g. certifications, ID, business registration). Files are stored as protected Media.</p>
 
           {/* Evidence list */}
-          {evidence.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {evidence.map(asset => (
-                <div key={asset.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg">
+          {evidence.length > 0 &&
+        <div className="space-y-2 mb-4">
+              {evidence.map((asset) =>
+          <div key={asset.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg">
                   <FileText className="w-4 h-4 text-stone-400 shrink-0" />
                   <span className="text-sm text-stone-700 flex-1 truncate">{asset.file_name}</span>
                   <button onClick={() => removeEvidence(asset.id)} className="text-stone-400 hover:text-red-500"><X className="w-4 h-4" /></button>
                 </div>
-              ))}
-            </div>
           )}
+            </div>
+        }
 
           {/* Upload button */}
           <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-stone-200 rounded-xl cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
@@ -174,21 +174,21 @@ export default function VerificationPage() {
           {/* Notes */}
           <div className="mt-4">
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Additional Notes (optional)</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Any context about your evidence..." className={inputClass + " resize-none"} />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Any context about your evidence..." className={inputClass + " resize-none"} />
           </div>
 
           {/* Submit */}
           <button
-            onClick={handleSubmit}
-            disabled={submitting || evidence.length === 0}
-            className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
-          >
+          onClick={handleSubmit}
+          disabled={submitting || evidence.length === 0}
+          className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+          
             {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</> : <><ShieldCheck className="w-4 h-4" /> Submit for Verification</>}
           </button>
         </div>
-      )}
+      }
 
       <p className="text-xs text-stone-400 mt-4 text-center">Verification is determined by evidence — not by subscription tier or advertising spend.</p>
-    </div>
-  );
+    </div>);
+
 }
