@@ -1,0 +1,59 @@
+{
+  "name": "IdentityMapping",
+  "type": "object",
+  "properties": {
+    "auth_uid": {
+      "type": "string",
+      "title": "Firebase Auth UID",
+      "description": "The Firebase Authentication UID mapped to an Interactive Identity ID"
+    },
+    "identity_id": {
+      "type": "string",
+      "title": "Interactive Identity ID",
+      "description": "Stable Interactive identity reference (existing Base44 User ID or newly generated)"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email (Migration Join Key)",
+      "description": "Canonical email used for migration-time resolution only; not a permanent key"
+    },
+    "email_verified": {
+      "type": "boolean",
+      "default": false,
+      "title": "Email Verified",
+      "description": "Firebase-level email verification status at mapping creation time"
+    },
+    "is_new_identity": {
+      "type": "boolean",
+      "default": false,
+      "title": "Is New Identity",
+      "description": "True if this mapping created a new Interactive Identity rather than linking to an existing one"
+    },
+    "linked_providers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Linked Auth Providers",
+      "description": "Firebase auth providers linked to this account (password, google.com, etc.)"
+    }
+  },
+  "required": [
+    "auth_uid",
+    "identity_id"
+  ],
+  "rls": {
+    "read": false,
+    "create": {
+      "user_condition": {
+        "role": "service"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "service"
+      }
+    },
+    "delete": false
+  }
+}
