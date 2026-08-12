@@ -3,23 +3,38 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // ════════════════════════════════════════════════════════
-    // DUAL AUTHORIZATION FOR PROTECTED MEDIA (M4 Security Correction)
+    // DUAL AUTHORIZATION — 2-ACCESS LIMIT COMPLIANT (M4 Correction)
     // ════════════════════════════════════════════════════════
-    // Protected media (message attachments, verification evidence)
-    // requires BOTH:
-    //   1. Media-level permission (owner / admin / public)
-    //   2. Source-domain permission (conversation participant /
-    //      verification submitter) — verified at the RULE level
-    //      via Firestore document reads, NOT the application layer.
+    // Firebase Storage Rules permit a maximum of 2 Firestore
+    // document accesses (get/exists) per evaluation. All paths
+    // below stay within this limit by denormalizing access
+    // metadata into documents that are already accessed:
     //
-    // A non-participant who knows the Media ID or Storage path is
-    // denied at the rule level. Long-lived download URLs are not
-    // used for protected media — the getProtectedMediaUrl Cloud
-    // Function returns short-lived signed URLs (15 min) after
-    // server-side authorization.
+    //   identityMappings/{uid}.role
+    //     — denormalized admin role (synced by resolveIdentity
+    //       on every login + setUserRole Cloud Function on role
+    //       changes). Eliminates the separate users/{identityId}
+    //       access that previously pushed owner/public reads to 3.
+    //
+    //   mediaAssets/{mediaId}.authorized_identity_ids
+    //     — immutable list of identities authorized for
+    //       verification evidence (e.g. [submitter_id]). Eliminates
+    //       the separate verificationRequests/{requestId} access.
+    //
+    // Message attachments require reading the conversation document
+    // (a 3rd access), which exceeds the limit. They are DENIED at
+    // the rule level for non-owners and mediated exclusively through
+    // the getProtectedMediaUrl Cloud Function, which verifies
+    // conversation participation server-side and returns a
+    // short-lived signed URL (15 min). This does not weaken
+    // security — the Cloud Function is the authoritative check.
     // ════════════════════════════════════════════════════════
 
-    // ── Identity resolution: Firebase Auth UID → Interactive Identity ID ──
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ── Identity resolution with denormalized role ──
     function identityMappingExists() {
       return isAuthenticated()
         && exists(/databases/(default)/documents/identityMappings/$(request.auth.uid));
@@ -29,17 +44,14 @@ service firebase.storage {
       return get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.identity_id;
     }
 
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
+    // Admin check: uses denormalized role in identityMappings.
+    // 0 additional accesses if identityMappings is already cached.
     function isAdmin() {
       return identityMappingExists()
-        && exists(/databases/(default)/documents/users/$(getIdentityId()))
-        && get(/databases/(default)/documents/users/$(getIdentityId())).data.role == 'admin';
+        && get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // ── Media asset lookup from Firestore ──────────────────────
+    // ── Media asset lookup ──
     function mediaExists(mediaId) {
       return exists(/databases/(default)/documents/mediaAssets/$(mediaId));
     }
@@ -48,18 +60,28 @@ service firebase.storage {
       return get(/databases/(default)/documents/mediaAssets/$(mediaId)).data;
     }
 
+    // Owner: 1 new access (mediaAssets) if identityMappings cached.
     function isOwner(mediaId) {
-      return identityMappingExists()
-        && mediaExists(mediaId)
-        && getMediaAsset(mediaId).owner_id == getIdentityId();
+      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
+      return getMediaAsset(mediaId).owner_id == getIdentityId();
     }
 
-    function isPublicMedia(mediaId) {
-      return mediaExists(mediaId) && getMediaAsset(mediaId).visibility == 'public';
+    // Public active media: 1 access (mediaAssets) standalone.
+    function isPublicActiveMedia(mediaId) {
+      if (!mediaExists(mediaId)) return false;
+      let asset = getMediaAsset(mediaId);
+      return asset.visibility == 'public' && asset.lifecycle_state == 'active';
     }
 
-    function isActiveMedia(mediaId) {
-      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'active';
+    // Verification evidence: uses denormalized authorized_identity_ids
+    // on the mediaAssets document. 0 additional accesses if cached.
+    function isVerificationEvidenceAuthorized(mediaId) {
+      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
+      let asset = getMediaAsset(mediaId);
+      if (asset.source_domain != 'verification') return false;
+      let authorizedIds = asset.authorized_identity_ids;
+      if (authorizedIds == null) return false;
+      return getIdentityId() in authorizedIds;
     }
 
     function isScheduledForDeletion(mediaId) {
@@ -70,94 +92,35 @@ service firebase.storage {
       return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'deleted';
     }
 
-    function isProtectedMedia(mediaId) {
-      if (!mediaExists(mediaId)) return false;
-      let domain = getMediaAsset(mediaId).source_domain;
-      return domain == 'messaging' || domain == 'verification';
-    }
-
-    // ── Source-domain authorization: Message attachments ──────
-    // Verifies that the caller is an active participant in the
-    // Conversation referenced by the media's source_ref_id.
-    // This is the AUTHORITATIVE source-domain check — performed
-    // at the Storage Rule level via Firestore document reads.
-    // A non-participant who knows the Media ID or Storage path
-    // is denied here, regardless of any application-layer URL.
-    function isMessageAttachmentParticipant(mediaId) {
-      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
-      let asset = getMediaAsset(mediaId);
-      if (asset.source_domain != 'messaging') return false;
-      let conversationId = asset.source_ref_id;
-      if (conversationId == null || conversationId == '') return false;
-      if (!exists(/databases/(default)/documents/conversations/$(conversationId))) return false;
-      let conversation = get(/databases/(default)/documents/conversations/$(conversationId)).data;
-      let identityId = getIdentityId();
-      return conversation.participant_ids != null
-        && identityId in conversation.participant_ids
-        && conversation.status == 'active';
-    }
-
-    // ── Source-domain authorization: Verification evidence ──
-    // Verifies that the caller is the submitter of the
-    // VerificationRequest referenced by source_ref_id, or an admin.
-    // This is the AUTHORITATIVE source-domain check — performed
-    // at the Storage Rule level via Firestore document reads.
-    function isVerificationEvidenceAuthorized(mediaId) {
-      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
-      if (isAdmin()) return true;
-      let asset = getMediaAsset(mediaId);
-      if (asset.source_domain != 'verification') return false;
-      let requestId = asset.source_ref_id;
-      if (requestId == null || requestId == '') return false;
-      if (!exists(/databases/(default)/documents/verificationRequests/$(requestId))) return false;
-      let request = get(/databases/(default)/documents/verificationRequests/$(requestId)).data;
-      return getIdentityId() == request.submitted_by_id;
-    }
-
-    // ── Media path: media/{mediaId}/original or derivatives ──
     match /media/{mediaId}/{fileName=**} {
 
-      // ── Read: dual authorization ──
-      // Protected media (messaging, verification) requires source-domain
-      // authorization at the RULE level — not just media-level permission.
-      // Non-protected media uses media-level permission (owner/public/admin).
+      // ── Read: max 2 Firestore document accesses ──
+      // Order optimised: public media (1 access) checked first,
+      // then owner (2 accesses), then admin (0 new), then
+      // verification evidence (0 new).
+      //
+      // Message attachments (source_domain == 'messaging') are
+      // denied for non-owners — participants use the
+      // getProtectedMediaUrl Cloud Function, which verifies
+      // conversation participation server-side.
       allow read: if isAuthenticated() && (
-        // Admin always has access (any lifecycle state)
-        isAdmin()
-        ||
-        // Owner always has access (any lifecycle state)
-        isOwner(mediaId)
-        ||
-        // Non-owner access: active media only, with source-domain authorization
-        (
-          isActiveMedia(mediaId)
-          && (
-            // Message attachments: must be conversation participant
-            isMessageAttachmentParticipant(mediaId)
-            ||
-            // Verification evidence: must be submitter or admin
-            isVerificationEvidenceAuthorized(mediaId)
-            ||
-            // Non-protected public media
-            (!isProtectedMedia(mediaId) && isPublicMedia(mediaId))
-          )
-        )
+        isPublicActiveMedia(mediaId)
+        || isOwner(mediaId)
+        || isAdmin()
+        || isVerificationEvidenceAuthorized(mediaId)
       );
 
-      // ── Create: owner only ──
-      // The mediaAssets document must already exist (created in
-      // 'uploading' state by the service layer before upload).
+      // ── Create: 2 accesses (mediaAssets + identityMappings) ──
       allow create: if isAuthenticated()
         && mediaExists(mediaId)
         && getMediaAsset(mediaId).owner_id == getIdentityId();
 
-      // ── Update: owner or admin ──
+      // ── Update: 2 accesses (identityMappings + mediaAssets) ──
       allow update: if isOwner(mediaId) || isAdmin();
 
-      // ── Delete: lifecycle-guarded ──
-      // Physical deletion only when lifecycle state permits.
+      // ── Delete: 2 accesses (identityMappings + mediaAssets) ──
       allow delete: if (isOwner(mediaId) || isAdmin())
-        && (isScheduledForDeletion(mediaId) || isDeletedMedia(mediaId) || isAdmin());
+        && (isScheduledForDeletion(mediaId) || isDeletedMedia(mediaId));
     }
 
     // Deny everything else

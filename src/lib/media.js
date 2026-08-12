@@ -17,12 +17,14 @@ function getMediaType(mimeType) {
 }
 
 // Upload a file through the authoritative Media pipeline.
-export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'private', sourceRefId = null) {
+export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'private', sourceRefId = null, authorizedIdentityIds = null) {
   // Step 1: Create MediaAsset in uploading state
   // source_ref_id links the asset to its source-domain entity:
   //   - messaging: conversation_id
   //   - verification: verification_request_id
-  // Storage Rules use this for authoritative source-domain authorization.
+  // authorized_identity_ids: denormalized list of identities authorized
+  // to access this media (for verification evidence). Storage Rules use
+  // this for source-domain authorization within the 2-access limit.
   const assetData = {
     owner_id: ownerId,
     media_type: getMediaType(file.type),
@@ -32,6 +34,7 @@ export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'pri
     lifecycle_state: 'uploading',
     source_domain: sourceDomain,
     source_ref_id: sourceRefId,
+    authorized_identity_ids: authorizedIdentityIds,
     visibility,
   };
 

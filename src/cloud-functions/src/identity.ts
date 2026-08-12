@@ -40,8 +40,22 @@ export const resolveIdentity = onCall(
 
     if (mappingDoc.exists) {
       const data = mappingDoc.data()!;
+      const identityId = data.identity_id;
+
+      // Sync denormalized role from users/{identityId} to identityMappings.
+      // Storage Rules use this role for admin checks within the
+      // 2-Firestore-access limit — without it, isAdmin() would need
+      // a separate users/{identityId} access, pushing total to 3.
+      const userDoc = await db.collection('users').doc(identityId).get();
+      if (userDoc.exists) {
+        const currentRole = userDoc.data()!.role || 'user';
+        if (data.role !== currentRole) {
+          await mappingRef.update({ role: currentRole });
+        }
+      }
+
       return {
-        identityId: data.identity_id,
+        identityId,
         isNew: false,
         isExisting: true,
         isLinked: false,
@@ -103,6 +117,17 @@ export const resolveIdentity = onCall(
     }
 
     // Step 6: Create mapping (and user record for new identities)
+    // Determine the role for the identity mapping:
+    //   - New users: 'user'
+    //   - Existing/migrated users: read current role from users/{identityId}
+    let mappingRole = 'user';
+    if (!isNew) {
+      const userDoc = await db.collection('users').doc(identityId).get();
+      if (userDoc.exists) {
+        mappingRole = userDoc.data()!.role || 'user';
+      }
+    }
+
     const batch = db.batch();
 
     batch.set(mappingRef, {
@@ -113,6 +138,7 @@ export const resolveIdentity = onCall(
       is_new_identity: isNew,
       linked_providers: providers,
       auth_provider: 'firebase',
+      role: mappingRole,
     });
 
     if (isNew) {

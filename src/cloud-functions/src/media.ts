@@ -202,6 +202,8 @@ export const migrateMedia = onCall(
 
         // Resolve source_ref_id for protected media if not already set
         let sourceRefId = data.source_ref_id || null;
+        let authorizedIdentityIds: string[] | null = null;
+
         if (!sourceRefId) {
           if (data.source_domain === 'messaging') {
             // Find the conversation containing a message with this attachment
@@ -224,10 +226,25 @@ export const migrateMedia = onCall(
           }
         }
 
-        // Update MediaAsset: store storage_path, source_ref_id, preserve legacy URL
+        // For verification evidence, denormalize authorized_identity_ids
+        // from the verification request's submitted_by_id. Storage Rules
+        // use this for source-domain authorization within the 2-access limit.
+        if (data.source_domain === 'verification' && sourceRefId) {
+          const reqDoc = await db.collection('verificationRequests').doc(sourceRefId).get();
+          if (reqDoc.exists) {
+            const req = reqDoc.data()!;
+            if (req.submitted_by_id) {
+              authorizedIdentityIds = [req.submitted_by_id];
+            }
+          }
+        }
+
+        // Update MediaAsset: store storage_path, source_ref_id,
+        // authorized_identity_ids, preserve legacy URL
         await doc.ref.update({
           storage_path: storagePath,
           source_ref_id: sourceRefId || null,
+          authorized_identity_ids: authorizedIdentityIds,
           legacy_file_url: data.file_url,
           _updated_date: new Date().toISOString(),
         });

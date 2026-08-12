@@ -1,14 +1,18 @@
 /**
- * Storage Security Rules Tests — M4 Security Correction
+ * Storage Security Rules Tests — M4 Access-Limit Correction
  * ───────────────────────────────────────────────────────────
- * Tests dual authorization for protected Media:
- *   - Message attachments: conversation participant check at rule level
- *   - Verification evidence: submitter/admin check at rule level
+ * Tests dual authorization for protected Media with the
+ * restructured rules that stay within Firebase's 2-Firestore-
+ * document-access limit per evaluation.
  *
- * The storage rules use get() to read Firestore documents
- * (identityMappings, users, mediaAssets, conversations,
- * verificationRequests), so both Firestore and Storage emulators
- * must be running.
+ * Key changes from previous version:
+ *   - identityMappings/{uid}.role is denormalized (admin check
+ *     uses 0 additional accesses)
+ *   - mediaAssets/{mediaId}.authorized_identity_ids is denormalized
+ *     for verification evidence (submitter check uses 0 additional
+ *     accesses)
+ *   - Message attachments are denied for non-owners at the rule
+ *     level — participants use the getProtectedMediaUrl Cloud Function
  *
  * Usage:
  *   firebase emulators:exec --only firestore,storage "node tests/storage-rules.test.cjs"
@@ -47,63 +51,44 @@ async function test(name, fn) {
 // ── Firestore data setup ────────────────────────────────────
 
 async function setupFirestoreData(db) {
-  // Identity mappings: Firebase Auth UID → Interactive Identity ID
+  // Identity mappings with denormalized role
   await db.collection('identityMappings').doc('owner-uid').set({
     identity_id: 'owner-identity',
     auth_uid: 'owner-uid',
     email: 'owner@test.com',
+    role: 'user',
   });
   await db.collection('identityMappings').doc('participant-uid').set({
     identity_id: 'participant-identity',
     auth_uid: 'participant-uid',
     email: 'participant@test.com',
+    role: 'user',
   });
   await db.collection('identityMappings').doc('submitter-uid').set({
     identity_id: 'submitter-identity',
     auth_uid: 'submitter-uid',
     email: 'submitter@test.com',
+    role: 'user',
   });
   await db.collection('identityMappings').doc('admin-uid').set({
     identity_id: 'admin-identity',
     auth_uid: 'admin-uid',
     email: 'admin@test.com',
+    role: 'admin',  // denormalized admin role
   });
   await db.collection('identityMappings').doc('other-uid').set({
     identity_id: 'other-identity',
     auth_uid: 'other-uid',
     email: 'other@test.com',
+    role: 'user',
   });
 
-  // Users
+  // Users (authoritative role source — not read by Storage Rules)
   await db.collection('users').doc('owner-identity').set({ email: 'owner@test.com', role: 'user' });
   await db.collection('users').doc('participant-identity').set({ email: 'participant@test.com', role: 'user' });
   await db.collection('users').doc('submitter-identity').set({ email: 'submitter@test.com', role: 'user' });
   await db.collection('users').doc('admin-identity').set({ email: 'admin@test.com', role: 'admin' });
   await db.collection('users').doc('other-identity').set({ email: 'other@test.com', role: 'user' });
-
-  // Conversations
-  await db.collection('conversations').doc('conv-1').set({
-    participant_ids: ['owner-identity', 'participant-identity'],
-    status: 'active',
-    conversation_type: 'direct',
-    initiated_by_id: 'owner-identity',
-  });
-  await db.collection('conversations').doc('conv-archived').set({
-    participant_ids: ['owner-identity', 'participant-identity'],
-    status: 'archived',
-    conversation_type: 'direct',
-    initiated_by_id: 'owner-identity',
-  });
-
-  // Verification requests
-  await db.collection('verificationRequests').doc('verif-1').set({
-    target_type: 'professional',
-    target_id: 'submitter-identity',
-    verification_type: 'identity',
-    status: 'pending_review',
-    submitted_by_id: 'submitter-identity',
-    evidence_media_ids: ['verif-evidence-1'],
-  });
 
   // Media assets
   await db.collection('mediaAssets').doc('public-media-1').set({
@@ -112,6 +97,7 @@ async function setupFirestoreData(db) {
     lifecycle_state: 'active',
     source_domain: 'personal',
     source_ref_id: null,
+    authorized_identity_ids: null,
   });
   await db.collection('mediaAssets').doc('private-media-1').set({
     owner_id: 'owner-identity',
@@ -119,46 +105,44 @@ async function setupFirestoreData(db) {
     lifecycle_state: 'active',
     source_domain: 'personal',
     source_ref_id: null,
+    authorized_identity_ids: null,
   });
-  // Message attachment linked to conv-1
+  // Message attachment — denied for non-owners at rule level
+  // (participants use getProtectedMediaUrl Cloud Function)
   await db.collection('mediaAssets').doc('msg-attachment-1').set({
     owner_id: 'owner-identity',
     visibility: 'private',
     lifecycle_state: 'active',
     source_domain: 'messaging',
     source_ref_id: 'conv-1',
+    authorized_identity_ids: null,
   });
-  // Message attachment linked to an archived conversation
-  await db.collection('mediaAssets').doc('msg-attachment-archived').set({
-    owner_id: 'owner-identity',
-    visibility: 'private',
-    lifecycle_state: 'active',
-    source_domain: 'messaging',
-    source_ref_id: 'conv-archived',
-  });
-  // Message attachment with no source_ref_id (unlinked — should deny non-owner)
-  await db.collection('mediaAssets').doc('msg-no-ref-1').set({
-    owner_id: 'owner-identity',
-    visibility: 'private',
-    lifecycle_state: 'active',
-    source_domain: 'messaging',
-    source_ref_id: null,
-  });
-  // Verification evidence linked to verif-1
+  // Verification evidence with denormalized authorized_identity_ids
   await db.collection('mediaAssets').doc('verif-evidence-1').set({
     owner_id: 'submitter-identity',
     visibility: 'private',
     lifecycle_state: 'active',
     source_domain: 'verification',
     source_ref_id: 'verif-1',
+    authorized_identity_ids: ['submitter-identity'],
   });
-  // Verification evidence with no source_ref_id (unlinked — should deny non-owner)
-  await db.collection('mediaAssets').doc('verif-evidence-no-ref').set({
-    owner_id: 'submitter-identity',
+  // Verification evidence owned by someone else, with authorized submitter
+  await db.collection('mediaAssets').doc('verif-evidence-2').set({
+    owner_id: 'owner-identity',
     visibility: 'private',
     lifecycle_state: 'active',
     source_domain: 'verification',
-    source_ref_id: null,
+    source_ref_id: 'verif-2',
+    authorized_identity_ids: ['submitter-identity'],
+  });
+  // Verification evidence without authorized_identity_ids — non-owner denied
+  await db.collection('mediaAssets').doc('verif-evidence-no-auth').set({
+    owner_id: 'owner-identity',
+    visibility: 'private',
+    lifecycle_state: 'active',
+    source_domain: 'verification',
+    source_ref_id: 'verif-3',
+    authorized_identity_ids: null,
   });
   await db.collection('mediaAssets').doc('archived-media-1').set({
     owner_id: 'owner-identity',
@@ -166,6 +150,7 @@ async function setupFirestoreData(db) {
     lifecycle_state: 'archived',
     source_domain: 'personal',
     source_ref_id: null,
+    authorized_identity_ids: null,
   });
   await db.collection('mediaAssets').doc('scheduled-deletion-1').set({
     owner_id: 'owner-identity',
@@ -173,6 +158,7 @@ async function setupFirestoreData(db) {
     lifecycle_state: 'scheduled_for_deletion',
     source_domain: 'personal',
     source_ref_id: null,
+    authorized_identity_ids: null,
   });
 }
 
@@ -185,129 +171,142 @@ async function main() {
     storage: { rules: STORAGE_RULES },
   });
 
-  // Set up Firestore data with security rules disabled
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setupFirestoreData(context.firestore());
   });
 
   // ════════════════════════════════════════════════════════
-  // MESSAGE ATTACHMENTS — conversation participant authorization
+  // ADMIN READ (via denormalized role — 1 access)
   // ════════════════════════════════════════════════════════
 
-  // 1. Owner can read their own message attachment
-  await test('Owner can read their own message attachment', async () => {
-    const owner = testEnv.authenticatedContext('owner-uid');
-    const storage = owner.storage();
-    await assertSucceeds(storage.ref('media/msg-attachment-1/original').getDownloadURL());
+  await test('Admin can read private media (denormalized role)', async () => {
+    const admin = testEnv.authenticatedContext('admin-uid');
+    const storage = admin.storage();
+    await assertSucceeds(storage.ref('media/private-media-1/original').getDownloadURL());
   });
 
-  // 2. Conversation participant can read message attachment
-  await test('Conversation participant can read message attachment', async () => {
-    const participant = testEnv.authenticatedContext('participant-uid');
-    const storage = participant.storage();
-    await assertSucceeds(storage.ref('media/msg-attachment-1/original').getDownloadURL());
-  });
-
-  // 3. Non-participant cannot read message attachment even with known Media ID/path
-  await test('Non-participant cannot read message attachment (known path)', async () => {
-    const other = testEnv.authenticatedContext('other-uid');
-    const storage = other.storage();
-    await assertFails(storage.ref('media/msg-attachment-1/original').getDownloadURL());
-  });
-
-  // 4. Participant cannot read attachment from archived conversation
-  await test('Participant cannot read attachment from archived conversation', async () => {
-    const participant = testEnv.authenticatedContext('participant-uid');
-    const storage = participant.storage();
-    await assertFails(storage.ref('media/msg-attachment-archived/original').getDownloadURL());
-  });
-
-  // 5. Owner can still read attachment from archived conversation
-  await test('Owner can read attachment from archived conversation', async () => {
-    const owner = testEnv.authenticatedContext('owner-uid');
-    const storage = owner.storage();
-    await assertSucceeds(storage.ref('media/msg-attachment-archived/original').getDownloadURL());
-  });
-
-  // 6. Message attachment without source_ref_id: non-owner denied
-  await test('Message attachment without source_ref_id denies non-owner', async () => {
-    const other = testEnv.authenticatedContext('other-uid');
-    const storage = other.storage();
-    await assertFails(storage.ref('media/msg-no-ref-1/original').getDownloadURL());
-  });
-
-  // 7. Message attachment without source_ref_id: owner still allowed
-  await test('Message attachment without source_ref_id allows owner', async () => {
-    const owner = testEnv.authenticatedContext('owner-uid');
-    const storage = owner.storage();
-    await assertSucceeds(storage.ref('media/msg-no-ref-1/original').getDownloadURL());
-  });
-
-  // 8. Admin can read any message attachment
   await test('Admin can read message attachment', async () => {
     const admin = testEnv.authenticatedContext('admin-uid');
     const storage = admin.storage();
     await assertSucceeds(storage.ref('media/msg-attachment-1/original').getDownloadURL());
   });
 
-  // ════════════════════════════════════════════════════════
-  // VERIFICATION EVIDENCE — submitter/admin authorization
-  // ════════════════════════════════════════════════════════
-
-  // 9. Submitter can read their verification evidence
-  await test('Submitter can read verification evidence', async () => {
-    const submitter = testEnv.authenticatedContext('submitter-uid');
-    const storage = submitter.storage();
-    await assertSucceeds(storage.ref('media/verif-evidence-1/original').getDownloadURL());
-  });
-
-  // 10. Admin can read verification evidence
   await test('Admin can read verification evidence', async () => {
     const admin = testEnv.authenticatedContext('admin-uid');
     const storage = admin.storage();
     await assertSucceeds(storage.ref('media/verif-evidence-1/original').getDownloadURL());
   });
 
-  // 11. Unrelated user cannot read verification evidence
-  await test('Unrelated user cannot read verification evidence', async () => {
+  // ════════════════════════════════════════════════════════
+  // OWNER READ (2 accesses: identityMappings + mediaAssets)
+  // ════════════════════════════════════════════════════════
+
+  await test('Owner can read their own private media', async () => {
+    const owner = testEnv.authenticatedContext('owner-uid');
+    const storage = owner.storage();
+    await assertSucceeds(storage.ref('media/private-media-1/original').getDownloadURL());
+  });
+
+  await test('Owner can read their own message attachment', async () => {
+    const owner = testEnv.authenticatedContext('owner-uid');
+    const storage = owner.storage();
+    await assertSucceeds(storage.ref('media/msg-attachment-1/original').getDownloadURL());
+  });
+
+  await test('Owner can read archived media', async () => {
+    const owner = testEnv.authenticatedContext('owner-uid');
+    const storage = owner.storage();
+    await assertSucceeds(storage.ref('media/archived-media-1/original').getDownloadURL());
+  });
+
+  // ════════════════════════════════════════════════════════
+  // PUBLIC MEDIA READ (1 access: mediaAssets)
+  // ════════════════════════════════════════════════════════
+
+  await test('Authenticated user can read public active media', async () => {
+    const other = testEnv.authenticatedContext('other-uid');
+    const storage = other.storage();
+    await assertSucceeds(storage.ref('media/public-media-1/original').getDownloadURL());
+  });
+
+  await test('Non-owner cannot read archived public media', async () => {
+    const other = testEnv.authenticatedContext('other-uid');
+    const storage = other.storage();
+    await assertFails(storage.ref('media/archived-media-1/original').getDownloadURL());
+  });
+
+  // ════════════════════════════════════════════════════════
+  // MESSAGE ATTACHMENTS — denied for non-owners at rule level
+  // (participants use getProtectedMediaUrl Cloud Function)
+  // ════════════════════════════════════════════════════════
+
+  await test('Conversation participant is denied by Storage Rules (uses CF)', async () => {
+    const participant = testEnv.authenticatedContext('participant-uid');
+    const storage = participant.storage();
+    // Denied at rule level — participant uses getProtectedMediaUrl CF
+    await assertFails(storage.ref('media/msg-attachment-1/original').getDownloadURL());
+  });
+
+  await test('Non-participant cannot read message attachment (known path)', async () => {
+    const other = testEnv.authenticatedContext('other-uid');
+    const storage = other.storage();
+    await assertFails(storage.ref('media/msg-attachment-1/original').getDownloadURL());
+  });
+
+  // ════════════════════════════════════════════════════════
+  // VERIFICATION EVIDENCE — denormalized authorized_identity_ids
+  // ════════════════════════════════════════════════════════
+
+  await test('Authorized identity can read verification evidence (is owner)', async () => {
+    const submitter = testEnv.authenticatedContext('submitter-uid');
+    const storage = submitter.storage();
+    await assertSucceeds(storage.ref('media/verif-evidence-1/original').getDownloadURL());
+  });
+
+  await test('Authorized identity can read verification evidence (non-owner)', async () => {
+    const submitter = testEnv.authenticatedContext('submitter-uid');
+    const storage = submitter.storage();
+    // verif-evidence-2 is owned by owner-identity but authorized_identity_ids
+    // includes submitter-identity
+    await assertSucceeds(storage.ref('media/verif-evidence-2/original').getDownloadURL());
+  });
+
+  await test('Owner can read their own verification evidence', async () => {
+    const owner = testEnv.authenticatedContext('owner-uid');
+    const storage = owner.storage();
+    // verif-evidence-2 is owned by owner-identity
+    await assertSucceeds(storage.ref('media/verif-evidence-2/original').getDownloadURL());
+  });
+
+  await test('Unauthorized user cannot read verification evidence', async () => {
     const other = testEnv.authenticatedContext('other-uid');
     const storage = other.storage();
     await assertFails(storage.ref('media/verif-evidence-1/original').getDownloadURL());
   });
 
-  // 12. Verification evidence without source_ref_id: non-owner denied
-  await test('Verification evidence without source_ref_id denies non-owner', async () => {
-    const other = testEnv.authenticatedContext('other-uid');
-    const storage = other.storage();
-    await assertFails(storage.ref('media/verif-evidence-no-ref/original').getDownloadURL());
-  });
-
-  // 13. Verification evidence without source_ref_id: owner (submitter) allowed
-  await test('Verification evidence without source_ref_id allows owner', async () => {
+  await test('Verification evidence without authorized_identity_ids denies non-owner', async () => {
     const submitter = testEnv.authenticatedContext('submitter-uid');
     const storage = submitter.storage();
-    await assertSucceeds(storage.ref('media/verif-evidence-no-ref/original').getDownloadURL());
+    // verif-evidence-no-auth is owned by owner-identity, no authorized_identity_ids
+    await assertFails(storage.ref('media/verif-evidence-no-auth/original').getDownloadURL());
   });
 
   // ════════════════════════════════════════════════════════
   // UNAUTHENTICATED ACCESS
   // ════════════════════════════════════════════════════════
 
-  // 14. Unauthenticated cannot read message attachment
   await test('Unauthenticated cannot read message attachment', async () => {
     const unauthed = testEnv.unauthenticatedContext();
     const storage = unauthed.storage();
     await assertFails(storage.ref('media/msg-attachment-1/original').getDownloadURL());
   });
 
-  // 15. Unauthenticated cannot read verification evidence
   await test('Unauthenticated cannot read verification evidence', async () => {
     const unauthed = testEnv.unauthenticatedContext();
     const storage = unauthed.storage();
     await assertFails(storage.ref('media/verif-evidence-1/original').getDownloadURL());
   });
 
-  // 16. Unauthenticated cannot read public media
   await test('Unauthenticated cannot read public media', async () => {
     const unauthed = testEnv.unauthenticatedContext();
     const storage = unauthed.storage();
@@ -315,49 +314,31 @@ async function main() {
   });
 
   // ════════════════════════════════════════════════════════
-  // NON-PROTECTED MEDIA (personal, professional, business)
+  // NON-PROTECTED PRIVATE MEDIA
   // ════════════════════════════════════════════════════════
 
-  // 17. Owner can read their own private media
-  await test('Owner can read their own private media', async () => {
-    const owner = testEnv.authenticatedContext('owner-uid');
-    const storage = owner.storage();
-    await assertSucceeds(storage.ref('media/private-media-1/original').getDownloadURL());
-  });
-
-  // 18. Unrelated user cannot read private media
   await test('Unrelated user cannot read private media', async () => {
     const other = testEnv.authenticatedContext('other-uid');
     const storage = other.storage();
     await assertFails(storage.ref('media/private-media-1/original').getDownloadURL());
   });
 
-  // 19. Authenticated user can read public active media
-  await test('Authenticated user can read public active media', async () => {
-    const other = testEnv.authenticatedContext('other-uid');
-    const storage = other.storage();
-    await assertSucceeds(storage.ref('media/public-media-1/original').getDownloadURL());
-  });
-
   // ════════════════════════════════════════════════════════
   // WRITE PROTECTION
   // ════════════════════════════════════════════════════════
 
-  // 20. Owner can upload to their own media path
   await test('Owner can upload to their own media path', async () => {
     const owner = testEnv.authenticatedContext('owner-uid');
     const storage = owner.storage();
     await assertSucceeds(storage.ref('media/msg-attachment-1/original').putString('test'));
   });
 
-  // 21. Non-owner cannot upload to another user's media path
   await test('Non-owner cannot upload to another user media path', async () => {
     const other = testEnv.authenticatedContext('other-uid');
     const storage = other.storage();
     await assertFails(storage.ref('media/msg-attachment-1/original').putString('malicious'));
   });
 
-  // 22. Non-owner cannot delete another user's media
   await test('Non-owner cannot delete another user media', async () => {
     const other = testEnv.authenticatedContext('other-uid');
     const storage = other.storage();
@@ -368,31 +349,21 @@ async function main() {
   // LIFECYCLE GUARDS
   // ════════════════════════════════════════════════════════
 
-  // 23. Owner can read archived media
-  await test('Owner can read archived media', async () => {
-    const owner = testEnv.authenticatedContext('owner-uid');
-    const storage = owner.storage();
-    await assertSucceeds(storage.ref('media/archived-media-1/original').getDownloadURL());
-  });
-
-  // 24. Non-owner cannot read archived public media
-  await test('Non-owner cannot read archived public media', async () => {
-    const other = testEnv.authenticatedContext('other-uid');
-    const storage = other.storage();
-    await assertFails(storage.ref('media/archived-media-1/original').getDownloadURL());
-  });
-
-  // 25. Owner cannot delete active media (lifecycle guard)
   await test('Owner cannot delete active media (lifecycle guard)', async () => {
     const owner = testEnv.authenticatedContext('owner-uid');
     const storage = owner.storage();
     await assertFails(storage.ref('media/public-media-1/original').delete());
   });
 
-  // 26. Owner can delete scheduled-for-deletion media
   await test('Owner can delete scheduled-for-deletion media', async () => {
     const owner = testEnv.authenticatedContext('owner-uid');
     const storage = owner.storage();
+    await assertSucceeds(storage.ref('media/scheduled-deletion-1/original').delete());
+  });
+
+  await test('Admin can delete scheduled-for-deletion media', async () => {
+    const admin = testEnv.authenticatedContext('admin-uid');
+    const storage = admin.storage();
     await assertSucceeds(storage.ref('media/scheduled-deletion-1/original').delete());
   });
 

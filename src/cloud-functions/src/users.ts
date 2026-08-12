@@ -7,7 +7,7 @@
 //   Does not expose private user records to clients.
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId } from './shared';
+import { db, allowedOrigins, getIdentityId, isAdmin } from './shared';
 
 // ── findUserByEmail ─────────────────────────────────────────
 
@@ -100,5 +100,53 @@ export const resolveParticipants = onCall(
     }
 
     return { results };
+  }
+);
+
+// ── setUserRole ────────────────────────────────────────────
+// Admin-only. Updates a user's role and syncs the denormalized
+// role to all identityMappings documents for that identity.
+// Storage Rules use identityMappings/{uid}.role for admin checks
+// within the 2-Firestore-access limit.
+export const setUserRole = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+
+    const callerIdentityId = await getIdentityId(request.auth.uid);
+
+    // Only admins can change roles
+    if (!(await isAdmin(callerIdentityId))) {
+      throw new HttpsError('permission-denied', 'Admin access required');
+    }
+
+    const { identity_id, role } = request.data || {};
+    if (!identity_id || !role) {
+      throw new HttpsError('invalid-argument', 'identity_id and role are required');
+    }
+
+    if (!['user', 'admin'].includes(role)) {
+      throw new HttpsError('invalid-argument', 'Invalid role. Must be "user" or "admin"');
+    }
+
+    const batch = db.batch();
+
+    // Update users/{identityId}.role (authoritative source)
+    batch.update(db.collection('users').doc(identity_id), { role });
+
+    // Sync identityMappings/{uid}.role for all mappings with this identity
+    const mappingsSnap = await db.collection('identityMappings')
+      .where('identity_id', '==', identity_id)
+      .get();
+
+    for (const mappingDoc of mappingsSnap.docs) {
+      batch.update(mappingDoc.ref, { role });
+    }
+
+    await batch.commit();
+
+    return { identity_id, role, mappings_updated: mappingsSnap.size };
   }
 );

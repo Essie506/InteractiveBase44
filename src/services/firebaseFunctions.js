@@ -66,6 +66,11 @@ export async function callResolveParticipants(data) {
   return result.data;
 }
 
+export async function callSetUserRole(data) {
+  const result = await callable('setUserRole')(data);
+  return result.data;
+}
+
 // ── Media migration (admin only) ──
 export async function callMigrateMedia(data) {
   const result = await callable('migrateMedia')(data);

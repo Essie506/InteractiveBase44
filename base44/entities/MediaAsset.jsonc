@@ -112,6 +112,14 @@
       "title": "Source Reference ID",
       "description": "Authoritative link to the source-domain entity. For messaging: conversation_id. For verification: verification_request_id. Used by Storage Rules for source-domain authorization."
     },
+    "authorized_identity_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Authorized Identity IDs",
+      "description": "Denormalized immutable list of identities authorized to access this media. For verification evidence: [submitter_id]. Used by Storage Rules for source-domain authorization within the 2-Firestore-access limit."
+    },
     "visibility": {
       "type": "string",
       "enum": [
