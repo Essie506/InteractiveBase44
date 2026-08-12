@@ -146,7 +146,12 @@ service cloud.firestore {
     match /users/{identityId} {
       allow read: if isOwner(identityId) || isAdmin();
       allow create: if false; // Server-only — Cloud Function
-      allow update: if isOwner(identityId) || isAdmin();
+      // Owner can update any field EXCEPT role — role promotion
+      // is server-authoritative (setUserRole Cloud Function only).
+      // Admins can update any field including role.
+      allow update: if (isOwner(identityId)
+          && request.resource.data.role == resource.data.role)
+        || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -321,8 +326,16 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.owner_id)
         || isPubliclyVisible(resource)
         || isAdmin();
-      allow create: if isOwner(request.resource.data.owner_id);
-      allow update: if isOwner(resource.data.owner_id) || isAdmin();
+      // authorized_identity_ids is server-authoritative — clients
+      // cannot set it on create. Only null (absent) is permitted.
+      allow create: if isOwner(request.resource.data.owner_id)
+        && request.resource.data.authorized_identity_ids == null;
+      // Owner can update any field EXCEPT authorized_identity_ids —
+      // that field is server-authoritative (Cloud Function only).
+      // Admins can update any field including authorized_identity_ids.
+      allow update: if (isOwner(resource.data.owner_id)
+          && request.resource.data.authorized_identity_ids == resource.data.authorized_identity_ids)
+        || isAdmin();
       allow delete: if isOwner(resource.data.owner_id) || isAdmin();
     }
 

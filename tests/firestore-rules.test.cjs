@@ -149,6 +149,16 @@ async function setupSpecVersion(db, versionId, data) {
   await db.collection('specVersions').doc(versionId).set(data);
 }
 
+async function setupMediaAsset(db, mediaId, ownerId, data) {
+  await db.collection('mediaAssets').doc(mediaId).set({
+    owner_id: ownerId,
+    visibility: 'private',
+    lifecycle_state: 'active',
+    source_domain: 'personal',
+    ...data,
+  });
+}
+
 // ── Test cases ──
 
 async function runTests() {
@@ -677,6 +687,179 @@ async function runIdentityMappingTests() {
   });
 }
 
+// ── M4 Server-Authoritative Write Protection Tests ──
+
+async function runServerAuthoritativeTests() {
+  // 40. Ordinary user cannot promote their own role
+  await test('40. Ordinary user cannot promote own role to admin', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'identityA', { role: 'user', email: 'a@test.com' });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('users').doc('identityA').update({
+      role: 'admin',
+    }));
+  });
+
+  // 41. Ordinary user can update non-role fields on own user doc
+  await test('41. Ordinary user can update non-role fields on own user doc', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'identityA', { role: 'user', email: 'a@test.com', display_name: 'A' });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('users').doc('identityA').update({
+      display_name: 'Updated Name',
+    }));
+  });
+
+  // 42. Admin can promote a user role (direct Firestore write)
+  await test('42. Admin can update a user role', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authAdmin', 'adminIdentity');
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'adminIdentity', { role: 'admin', email: 'admin@test.com' });
+      await setupUser(db, 'identityA', { role: 'user', email: 'a@test.com' });
+    });
+    const db = testEnv.authenticatedContext('authAdmin').firestore();
+    await assertSucceeds(db.collection('users').doc('identityA').update({
+      role: 'admin',
+    }));
+  });
+
+  // 43. Client cannot write to identityMappings (role denormalization target)
+  await test('43. Client cannot write to identityMappings role field', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('identityMappings').doc('authA').update({
+      role: 'admin',
+    }));
+  });
+
+  // 44. Client cannot set authorized_identity_ids on mediaAssets create
+  await test('44. Client cannot set authorized_identity_ids on media create', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').set({
+      owner_id: 'identityA',
+      media_type: 'image',
+      source_domain: 'verification',
+      authorized_identity_ids: ['identityA'],
+    }));
+  });
+
+  // 45. Client can create media without authorized_identity_ids
+  await test('45. Client can create media without authorized_identity_ids', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').set({
+      owner_id: 'identityA',
+      media_type: 'image',
+      source_domain: 'personal',
+    }));
+  });
+
+  // 46. Owner cannot add themselves to authorized_identity_ids via update
+  await test('46. Owner cannot add self to authorized_identity_ids via update', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        authorized_identity_ids: ['identityB'],
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      authorized_identity_ids: ['identityA'],
+    }));
+  });
+
+  // 47. Owner cannot add others to authorized_identity_ids via update
+  await test('47. Owner cannot add others to authorized_identity_ids via update', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        authorized_identity_ids: null,
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      authorized_identity_ids: ['identityB'],
+    }));
+  });
+
+  // 48. Owner can update other media fields without changing authorized_identity_ids
+  await test('48. Owner can update other media fields (authorized_identity_ids unchanged)', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'personal',
+        authorized_identity_ids: null,
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      alt_text: 'An image',
+    }));
+  });
+
+  // 49. Admin can update authorized_identity_ids on media
+  await test('49. Admin can update authorized_identity_ids on media', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authAdmin', 'adminIdentity');
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'adminIdentity', { role: 'admin', email: 'admin@test.com' });
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        authorized_identity_ids: null,
+      });
+    });
+    const db = testEnv.authenticatedContext('authAdmin').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      authorized_identity_ids: ['identityA'],
+    }));
+  });
+
+  // 50. Non-owner cannot update authorized_identity_ids on someone else media
+  await test('50. Non-owner cannot update authorized_identity_ids on others media', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        authorized_identity_ids: null,
+      });
+    });
+    const db = testEnv.authenticatedContext('authB').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      authorized_identity_ids: ['identityB'],
+    }));
+  });
+}
+
 // ── Main ──
 
 async function main() {
@@ -702,6 +885,7 @@ async function main() {
 
   await runTests();
   await runIdentityMappingTests();
+  await runServerAuthoritativeTests();
 
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
