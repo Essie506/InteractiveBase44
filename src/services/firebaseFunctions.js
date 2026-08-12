@@ -71,3 +71,12 @@ export async function callMigrateMedia(data) {
   const result = await callable('migrateMedia')(data);
   return result.data;
 }
+
+// ── Media access (protected media signed URL) ──
+// Returns a short-lived signed URL (15 min) after server-side
+// source-domain authorization. Used for message attachments and
+// verification evidence — prevents long-lived download URL sharing.
+export async function callGetProtectedMediaUrl(data) {
+  const result = await callable('getProtectedMediaUrl')(data);
+  return result.data;
+}

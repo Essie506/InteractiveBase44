@@ -2,7 +2,29 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // ════════════════════════════════════════════════════════
+    // DUAL AUTHORIZATION FOR PROTECTED MEDIA (M4 Security Correction)
+    // ════════════════════════════════════════════════════════
+    // Protected media (message attachments, verification evidence)
+    // requires BOTH:
+    //   1. Media-level permission (owner / admin / public)
+    //   2. Source-domain permission (conversation participant /
+    //      verification submitter) — verified at the RULE level
+    //      via Firestore document reads, NOT the application layer.
+    //
+    // A non-participant who knows the Media ID or Storage path is
+    // denied at the rule level. Long-lived download URLs are not
+    // used for protected media — the getProtectedMediaUrl Cloud
+    // Function returns short-lived signed URLs (15 min) after
+    // server-side authorization.
+    // ════════════════════════════════════════════════════════
+
     // ── Identity resolution: Firebase Auth UID → Interactive Identity ID ──
+    function identityMappingExists() {
+      return isAuthenticated()
+        && exists(/databases/(default)/documents/identityMappings/$(request.auth.uid));
+    }
+
     function getIdentityId() {
       return get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.identity_id;
     }
@@ -12,24 +34,24 @@ service firebase.storage {
     }
 
     function isAdmin() {
-      return isAuthenticated()
+      return identityMappingExists()
         && exists(/databases/(default)/documents/users/$(getIdentityId()))
         && get(/databases/(default)/documents/users/$(getIdentityId())).data.role == 'admin';
     }
 
     // ── Media asset lookup from Firestore ──────────────────────
-    // The mediaAssets/{mediaId} document is the source of truth for
-    // ownership, visibility, lifecycle, and source-domain.
-    function getMediaAsset(mediaId) {
-      return get(/databases/(default)/documents/mediaAssets/$(mediaId)).data;
-    }
-
     function mediaExists(mediaId) {
       return exists(/databases/(default)/documents/mediaAssets/$(mediaId));
     }
 
+    function getMediaAsset(mediaId) {
+      return get(/databases/(default)/documents/mediaAssets/$(mediaId)).data;
+    }
+
     function isOwner(mediaId) {
-      return isAuthenticated() && mediaExists(mediaId) && getMediaAsset(mediaId).owner_id == getIdentityId();
+      return identityMappingExists()
+        && mediaExists(mediaId)
+        && getMediaAsset(mediaId).owner_id == getIdentityId();
     }
 
     function isPublicMedia(mediaId) {
@@ -40,64 +62,100 @@ service firebase.storage {
       return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'active';
     }
 
-    function isArchivedMedia(mediaId) {
-      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'archived';
+    function isScheduledForDeletion(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'scheduled_for_deletion';
     }
 
     function isDeletedMedia(mediaId) {
       return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'deleted';
     }
 
-    function isScheduledForDeletion(mediaId) {
-      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'scheduled_for_deletion';
+    function isProtectedMedia(mediaId) {
+      if (!mediaExists(mediaId)) return false;
+      let domain = getMediaAsset(mediaId).source_domain;
+      return domain == 'messaging' || domain == 'verification';
     }
 
-    // Verification evidence: source_domain == 'verification'
-    function isVerificationEvidence(mediaId) {
-      return mediaExists(mediaId) && getMediaAsset(mediaId).source_domain == 'verification';
+    // ── Source-domain authorization: Message attachments ──────
+    // Verifies that the caller is an active participant in the
+    // Conversation referenced by the media's source_ref_id.
+    // This is the AUTHORITATIVE source-domain check — performed
+    // at the Storage Rule level via Firestore document reads.
+    // A non-participant who knows the Media ID or Storage path
+    // is denied here, regardless of any application-layer URL.
+    function isMessageAttachmentParticipant(mediaId) {
+      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
+      let asset = getMediaAsset(mediaId);
+      if (asset.source_domain != 'messaging') return false;
+      let conversationId = asset.source_ref_id;
+      if (conversationId == null || conversationId == '') return false;
+      if (!exists(/databases/(default)/documents/conversations/$(conversationId))) return false;
+      let conversation = get(/databases/(default)/documents/conversations/$(conversationId)).data;
+      let identityId = getIdentityId();
+      return conversation.participant_ids != null
+        && identityId in conversation.participant_ids
+        && conversation.status == 'active';
     }
 
-    // ── Media path: media/{mediaId}/original or media/{mediaId}/derivatives/{type} ──
+    // ── Source-domain authorization: Verification evidence ──
+    // Verifies that the caller is the submitter of the
+    // VerificationRequest referenced by source_ref_id, or an admin.
+    // This is the AUTHORITATIVE source-domain check — performed
+    // at the Storage Rule level via Firestore document reads.
+    function isVerificationEvidenceAuthorized(mediaId) {
+      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
+      if (isAdmin()) return true;
+      let asset = getMediaAsset(mediaId);
+      if (asset.source_domain != 'verification') return false;
+      let requestId = asset.source_ref_id;
+      if (requestId == null || requestId == '') return false;
+      if (!exists(/databases/(default)/documents/verificationRequests/$(requestId))) return false;
+      let request = get(/databases/(default)/documents/verificationRequests/$(requestId)).data;
+      return getIdentityId() == request.submitted_by_id;
+    }
+
+    // ── Media path: media/{mediaId}/original or derivatives ──
     match /media/{mediaId}/{fileName=**} {
 
-      // ── Read rules ──
-      // Public active media: readable by anyone (avatars, logos, promotional)
-      // Private/protected media: readable by owner or admin
-      // Verification evidence: readable by owner (submitter) or admin only
-      // Archived/deleted/scheduled-for-deletion: readable by owner or admin only
+      // ── Read: dual authorization ──
+      // Protected media (messaging, verification) requires source-domain
+      // authorization at the RULE level — not just media-level permission.
+      // Non-protected media uses media-level permission (owner/public/admin).
       allow read: if isAuthenticated() && (
-        // Verification evidence — strict: owner or admin only
-        (isVerificationEvidence(mediaId) && (isOwner(mediaId) || isAdmin()))
+        // Admin always has access (any lifecycle state)
+        isAdmin()
         ||
-        // Non-verification media
-        (!isVerificationEvidence(mediaId) && (
-          // Public active media
-          (isPublicMedia(mediaId) && isActiveMedia(mediaId))
-          ||
-          // Owner always has access (any lifecycle state)
-          isOwner(mediaId)
-          ||
-          // Admin always has access
-          isAdmin()
-        ))
+        // Owner always has access (any lifecycle state)
+        isOwner(mediaId)
+        ||
+        // Non-owner access: active media only, with source-domain authorization
+        (
+          isActiveMedia(mediaId)
+          && (
+            // Message attachments: must be conversation participant
+            isMessageAttachmentParticipant(mediaId)
+            ||
+            // Verification evidence: must be submitter or admin
+            isVerificationEvidenceAuthorized(mediaId)
+            ||
+            // Non-protected public media
+            (!isProtectedMedia(mediaId) && isPublicMedia(mediaId))
+          )
+        )
       );
 
-      // ── Create rules ──
-      // Only the owner can upload to their media path.
-      // The mediaAssets document must already exist (created in 'uploading' state
-      // by the service layer before the file upload).
+      // ── Create: owner only ──
+      // The mediaAssets document must already exist (created in
+      // 'uploading' state by the service layer before upload).
       allow create: if isAuthenticated()
         && mediaExists(mediaId)
         && getMediaAsset(mediaId).owner_id == getIdentityId();
 
-      // ── Update rules ──
-      // Only the owner or admin can update (e.g. add derivatives).
+      // ── Update: owner or admin ──
       allow update: if isOwner(mediaId) || isAdmin();
 
-      // ── Delete rules ──
-      // Physical deletion only by owner or admin, and only when the
-      // lifecycle state permits (scheduled_for_deletion or deleted).
-      // This prevents accidental deletion of active media.
+      // ── Delete: lifecycle-guarded ──
+      // Physical deletion only when lifecycle state permits.
       allow delete: if (isOwner(mediaId) || isAdmin())
         && (isScheduledForDeletion(mediaId) || isDeletedMedia(mediaId) || isAdmin());
     }

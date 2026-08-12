@@ -14,4 +14,4 @@ export { createNotification } from './notifications';
 export { createTrustSignal, decideVerification } from './trust';
 export { acceptInvitation } from './business';
 export { findUserByEmail, resolveParticipants } from './users';
-export { migrateMedia } from './media';
+export { migrateMedia, getProtectedMediaUrl } from './media';

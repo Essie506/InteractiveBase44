@@ -77,6 +77,7 @@ export async function uploadMediaFile(mediaId, file, metadata = {}) {
       ownerId: metadata.owner_id || '',
       visibility: metadata.visibility || 'private',
       sourceDomain: metadata.source_domain || '',
+      sourceRefId: metadata.source_ref_id || '',
       lifecycleState: metadata.lifecycle_state || 'uploading',
     },
   });

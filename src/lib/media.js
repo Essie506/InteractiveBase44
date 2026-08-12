@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { mediaRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
+import { callGetProtectedMediaUrl } from '@/services/firebaseFunctions';
 
 // Media System — M3: routes to Firebase when configured.
 // Media metadata is migrated to Firestore. Media FILES remain on Base44
@@ -16,8 +17,12 @@ function getMediaType(mimeType) {
 }
 
 // Upload a file through the authoritative Media pipeline.
-export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'private') {
+export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'private', sourceRefId = null) {
   // Step 1: Create MediaAsset in uploading state
+  // source_ref_id links the asset to its source-domain entity:
+  //   - messaging: conversation_id
+  //   - verification: verification_request_id
+  // Storage Rules use this for authoritative source-domain authorization.
   const assetData = {
     owner_id: ownerId,
     media_type: getMediaType(file.type),
@@ -26,6 +31,7 @@ export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'pri
     size_bytes: file.size,
     lifecycle_state: 'uploading',
     source_domain: sourceDomain,
+    source_ref_id: sourceRefId,
     visibility,
   };
 
@@ -44,6 +50,7 @@ export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'pri
         owner_id: ownerId,
         visibility,
         source_domain: sourceDomain,
+        source_ref_id: sourceRefId,
         lifecycle_state: 'uploading',
       });
     } else {
@@ -127,10 +134,25 @@ export async function removeReference(mediaId) {
 export async function getMediaUrl(asset) {
   if (!asset) return null;
   if (useFirebase && asset.storage_path) {
+    // Protected media (messaging, verification): use server-mediated
+    // signed URL to enforce source-domain authorization server-side
+    // and prevent long-lived download URL sharing. The Cloud Function
+    // verifies conversation participation / verification submitter
+    // before returning a 15-minute signed URL.
+    const sourceDomain = asset.source_domain;
+    if (sourceDomain === 'messaging' || sourceDomain === 'verification') {
+      try {
+        const result = await callGetProtectedMediaUrl({ media_id: asset.id });
+        return result.url;
+      } catch {
+        return null;
+      }
+    }
+    // Non-protected media: use Firebase Storage download URL directly.
+    // Storage Rules enforce owner/public access at the SDK level.
     try {
       return await mediaRepository.getMediaDownloadUrl(asset.storage_path);
     } catch {
-      // Fall back to legacy URL if Storage URL resolution fails
       return asset.legacy_file_url || asset.file_url || null;
     }
   }

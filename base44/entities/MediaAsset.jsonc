@@ -10,7 +10,17 @@
     "file_url": {
       "type": "string",
       "title": "File URL",
-      "description": "Storage path \u2014 knowing this alone does not grant access"
+      "description": "Display URL \u2014 knowing this alone does not grant access; Storage Rules enforce authorization"
+    },
+    "storage_path": {
+      "type": "string",
+      "title": "Storage Path",
+      "description": "Firebase Cloud Storage path (e.g. media/{mediaId}/original) \u2014 the authoritative reference for server-side operations and Storage Rules"
+    },
+    "legacy_file_url": {
+      "type": "string",
+      "title": "Legacy File URL",
+      "description": "Original Base44 URL preserved for rollback during M4 migration"
     },
     "file_name": {
       "type": "string",
@@ -96,6 +106,11 @@
       ],
       "title": "Source Domain",
       "description": "Which connected system owns the usage context"
+    },
+    "source_ref_id": {
+      "type": "string",
+      "title": "Source Reference ID",
+      "description": "Authoritative link to the source-domain entity. For messaging: conversation_id. For verification: verification_request_id. Used by Storage Rules for source-domain authorization."
     },
     "visibility": {
       "type": "string",
