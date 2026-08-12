@@ -26,7 +26,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import { base44 } from '@/api/base44Client';
 
 // ── Environment-based config (local dev) ────────────────────
 /** @type {import('firebase/app').FirebaseOptions} */
@@ -81,9 +80,13 @@ export async function initFirebase() {
   if (isConfigured) return;
 
   try {
-    const response = await base44.functions.invoke('GetFirebaseConfig', {});
+    const response = await fetch('/functions/GetFirebaseConfig', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
     /** @type {import('firebase/app').FirebaseOptions} */
-    const config = response.data;
+    const config = await response.json();
 
     if (config.apiKey && config.projectId) {
       app = initializeApp(config);

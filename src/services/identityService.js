@@ -16,7 +16,6 @@
 //      does not require a Base44 frontend auth token — the Firebase token
 //      is the auth proof.
 
-import { base44 } from '@/api/base44Client';
 import { getIdentityId } from '@/data/firebase/firebaseIdentityRepository';
 
 const IDENTITY_STORAGE_KEY = 'interactive_identity_id';
@@ -42,12 +41,26 @@ export async function resolveIdentity(authUid, idToken) {
     };
   }
 
-  // Step 2: First-time login — call ResolveIdentity to create the mapping.
-  // This is a trusted server operation that verifies the Firebase ID token
-  // and creates the identityMappings/{authUid} document in Firestore.
-  // Only called when the mapping does not already exist.
-  const response = await base44.functions.invoke('ResolveIdentity', { idToken });
-  return response.data;
+  // Step 2: First-time login — call ResolveIdentity via direct HTTP.
+  // Uses the standard Base44 function URL format (/functions/{name}) which
+  // does not require the Base44 app ID. The function is a trusted server
+  // operation that verifies the Firebase ID token and creates the
+  // identityMappings/{authUid} document in Firestore. No Base44 SDK
+  // initialization, no Base44 auth token, no VITE_BASE44_APP_ID needed.
+  const response = await fetch('/functions/ResolveIdentity', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({ error: 'Unknown error', code: 'UNKNOWN' }));
+    const err = new Error(errorBody.error || `ResolveIdentity failed: ${response.status}`);
+    err.code = errorBody.code || 'UNKNOWN';
+    throw err;
+  }
+
+  return response.json();
 }
 
 /**

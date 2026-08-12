@@ -275,3 +275,82 @@ export async function firestoreCountDocs(
   const docs = await firestoreListDocs(projectId, collection, token);
   return docs.length;
 }
+
+// ── Single Document Get ────────────────────────────────────
+
+export async function firestoreGetDoc(
+  projectId: string,
+  collection: string,
+  docId: string,
+  token: string
+): Promise<{ id: string; data: Record<string, any> } | null> {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collection}/${docId}`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Firestore get failed for ${collection}/${docId}: ${errText.substring(0, 200)}`);
+  }
+  const data = await response.json();
+  return { id: docId, data: fromFirestoreFields(data.fields || {}) };
+}
+
+// ── Filtered Query (runQuery) ───────────────────────────────
+
+export async function firestoreRunQuery(
+  projectId: string,
+  collection: string,
+  filters: Array<{ field: string; op: string; value: any }>,
+  token: string
+): Promise<Array<{ id: string; data: Record<string, any> }>> {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+
+  const filterObjs = filters.map((f) => ({
+    fieldFilter: {
+      field: { fieldPath: f.field },
+      op: f.op,
+      value: toFirestoreValue(f.value),
+    },
+  }));
+
+  const where =
+    filterObjs.length === 1
+      ? filterObjs[0]
+      : { compositeFilter: { op: 'AND', filters: filterObjs } };
+
+  const body = {
+    structuredQuery: {
+      from: [{ collectionId: collection }],
+      where,
+      limit: 10,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Firestore query failed for ${collection}: ${errText.substring(0, 200)}`);
+  }
+
+  const results = await response.json();
+  const docs: Array<{ id: string; data: Record<string, any> }> = [];
+
+  for (const item of results) {
+    if (item.document) {
+      const id = item.document.name.split('/').pop();
+      docs.push({ id, data: fromFirestoreFields(item.document.fields || {}) });
+    }
+  }
+
+  return docs;
+}
