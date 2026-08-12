@@ -1,9 +1,9 @@
 {
   "name": "interactive-cloud-functions",
-  "description": "Firebase Cloud Functions for Interactive — trusted identity bootstrap",
+  "description": "Firebase Cloud Functions for Interactive — trusted server operations",
   "private": true,
   "engines": {
-    "node": "18"
+    "node": "20"
   },
   "main": "lib/index.js",
   "scripts": {

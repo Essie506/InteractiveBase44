@@ -1,0 +1,129 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ════════════════════════════════════════════════════════
+    // DUAL AUTHORIZATION — 2-ACCESS LIMIT COMPLIANT (M4 Correction)
+    // ════════════════════════════════════════════════════════
+    // Firebase Storage Rules permit a maximum of 2 Firestore
+    // document accesses (get/exists) per evaluation. All paths
+    // below stay within this limit by denormalizing access
+    // metadata into documents that are already accessed:
+    //
+    //   identityMappings/{uid}.role
+    //     — denormalized admin role (synced by resolveIdentity
+    //       on every login + setUserRole Cloud Function on role
+    //       changes). Eliminates the separate users/{identityId}
+    //       access that previously pushed owner/public reads to 3.
+    //
+    //   mediaAssets/{mediaId}.authorized_identity_ids
+    //     — immutable list of identities authorized for
+    //       verification evidence (e.g. [submitter_id]). Eliminates
+    //       the separate verificationRequests/{requestId} access.
+    //
+    // Message attachments require reading the conversation document
+    // (a 3rd access), which exceeds the limit. They are DENIED at
+    // the rule level for non-owners and mediated exclusively through
+    // the getProtectedMediaUrl Cloud Function, which verifies
+    // conversation participation server-side and returns a
+    // short-lived signed URL (15 min). This does not weaken
+    // security — the Cloud Function is the authoritative check.
+    // ════════════════════════════════════════════════════════
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ── Identity resolution with denormalized role ──
+    function identityMappingExists() {
+      return isAuthenticated()
+        && exists(/databases/(default)/documents/identityMappings/$(request.auth.uid));
+    }
+
+    function getIdentityId() {
+      return get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.identity_id;
+    }
+
+    // Admin check: uses denormalized role in identityMappings.
+    // 0 additional accesses if identityMappings is already cached.
+    function isAdmin() {
+      return identityMappingExists()
+        && get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ── Media asset lookup ──
+    function mediaExists(mediaId) {
+      return exists(/databases/(default)/documents/mediaAssets/$(mediaId));
+    }
+
+    function getMediaAsset(mediaId) {
+      return get(/databases/(default)/documents/mediaAssets/$(mediaId)).data;
+    }
+
+    // Owner: 1 new access (mediaAssets) if identityMappings cached.
+    function isOwner(mediaId) {
+      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
+      return getMediaAsset(mediaId).owner_id == getIdentityId();
+    }
+
+    // Public active media: 1 access (mediaAssets) standalone.
+    function isPublicActiveMedia(mediaId) {
+      if (!mediaExists(mediaId)) return false;
+      let asset = getMediaAsset(mediaId);
+      return asset.visibility == 'public' && asset.lifecycle_state == 'active';
+    }
+
+    // Verification evidence: uses denormalized authorized_identity_ids
+    // on the mediaAssets document. 0 additional accesses if cached.
+    function isVerificationEvidenceAuthorized(mediaId) {
+      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
+      let asset = getMediaAsset(mediaId);
+      if (asset.source_domain != 'verification') return false;
+      let authorizedIds = asset.authorized_identity_ids;
+      if (authorizedIds == null) return false;
+      return getIdentityId() in authorizedIds;
+    }
+
+    function isScheduledForDeletion(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'scheduled_for_deletion';
+    }
+
+    function isDeletedMedia(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'deleted';
+    }
+
+    match /media/{mediaId}/{fileName=**} {
+
+      // ── Read: max 2 Firestore document accesses ──
+      // Order optimised: public media (1 access) checked first,
+      // then owner (2 accesses), then admin (0 new), then
+      // verification evidence (0 new).
+      //
+      // Message attachments (source_domain == 'messaging') are
+      // denied for non-owners — participants use the
+      // getProtectedMediaUrl Cloud Function, which verifies
+      // conversation participation server-side.
+      allow read: if isAuthenticated() && (
+        isPublicActiveMedia(mediaId)
+        || isOwner(mediaId)
+        || isAdmin()
+        || isVerificationEvidenceAuthorized(mediaId)
+      );
+
+      // ── Create: 2 accesses (mediaAssets + identityMappings) ──
+      allow create: if isAuthenticated()
+        && mediaExists(mediaId)
+        && getMediaAsset(mediaId).owner_id == getIdentityId();
+
+      // ── Update: 2 accesses (identityMappings + mediaAssets) ──
+      allow update: if isOwner(mediaId) || isAdmin();
+
+      // ── Delete: 2 accesses (identityMappings + mediaAssets) ──
+      allow delete: if (isOwner(mediaId) || isAdmin())
+        && (isScheduledForDeletion(mediaId) || isDeletedMedia(mediaId));
+    }
+
+    // Deny everything else
+    allow read, write: if false;
+  }
+}
