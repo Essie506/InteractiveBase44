@@ -26,6 +26,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 // ── Environment-based config (local dev) ────────────────────
 /** @type {import('firebase/app').FirebaseOptions} */
@@ -56,6 +57,30 @@ let db = null;
 
 /** @type {boolean} */
 let isConfigured = isEnvConfigured;
+
+// ── Lazy-initialised Firebase Functions instance ──────────
+// The Cloud Functions region must match the deployment region
+// in cloud-functions/src/index.ts (europe-west2).
+/** @type {import('firebase/functions').Functions | null} */
+let functionsInstance = null;
+
+/**
+ * Returns the Firebase Functions instance for the deployed
+ * Cloud Function region. Throws if Firebase is not configured.
+ * Called lazily — the instance is created on first use, after
+ * initFirebase() has completed.
+ *
+ * @returns {import('firebase/functions').Functions}
+ */
+export function getFunctionsInstance() {
+  if (!isConfigured || !app) {
+    throw new Error('Firebase Functions not configured — initFirebase() has not completed');
+  }
+  if (!functionsInstance) {
+    functionsInstance = getFunctions(app, 'europe-west2');
+  }
+  return functionsInstance;
+}
 
 if (isEnvConfigured) {
   // Local dev: env vars available → initialise synchronously

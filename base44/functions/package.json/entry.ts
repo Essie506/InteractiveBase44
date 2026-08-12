@@ -1,0 +1,25 @@
+{
+  "name": "interactive-functions",
+  "description": "Firebase Cloud Functions for Interactive — trusted identity bootstrap",
+  "private": true,
+  "engines": {
+    "node": "18"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "lint": "",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.0",
+    "firebase-functions": "^4.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
