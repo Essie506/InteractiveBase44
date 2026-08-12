@@ -146,11 +146,17 @@ service cloud.firestore {
     match /users/{identityId} {
       allow read: if isOwner(identityId) || isAdmin();
       allow create: if false; // Server-only — Cloud Function
-      // Owner can update any field EXCEPT role — role promotion
-      // is server-authoritative (setUserRole Cloud Function only).
-      // Admins can update any field including role.
+      // ── Field-diff update policy ──
+      // Client-editable: display_name, avatar_url, onboarding_status,
+      //   active_context, professional_activated, terms_accepted,
+      //   search_visibility
+      // Immutable (owner): email (identity integrity — tied to Firebase
+      //   Auth and identityMappings), role (privilege — server-authoritative
+      //   via setUserRole Cloud Function)
+      // Admin: unrestricted
       allow update: if (isOwner(identityId)
-          && request.resource.data.role == resource.data.role)
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email)
         || isAdmin();
       allow delete: if isAdmin();
     }
@@ -330,12 +336,43 @@ service cloud.firestore {
       // cannot set it on create. Only null (absent) is permitted.
       allow create: if isOwner(request.resource.data.owner_id)
         && request.resource.data.authorized_identity_ids == null;
-      // Owner can update any field EXCEPT authorized_identity_ids —
-      // that field is server-authoritative (Cloud Function only).
-      // Admins can update any field including authorized_identity_ids.
+      // ── Field-diff update policy ──
+      // Client-editable: alt_text, derivatives, processing_error,
+      //   checksum, width, height
+      // Immutable (owner): owner_id (no ownership transfer),
+      //   source_domain (no source-domain reassignment),
+      //   source_ref_id (no source-ref reassignment),
+      //   authorized_identity_ids (server-authoritative),
+      //   file_url, storage_path, legacy_file_url (set during
+      //     upload/migration — file_url & storage_path may be set
+      //     from null during the upload flow, but not changed after)
+      // Conditional: visibility & lifecycle_state — owner can
+      //   decrease access (archive, schedule deletion) but cannot
+      //   escalate protected media (verification, messaging) to
+      //   public visibility or reactivate archived/deleted protected
+      //   media to active state
+      // Admin: unrestricted
       allow update: if (isOwner(resource.data.owner_id)
-          && request.resource.data.authorized_identity_ids == resource.data.authorized_identity_ids)
-        || isAdmin();
+          // ── Immutable identity & authorization fields ──
+          && request.resource.data.owner_id == resource.data.owner_id
+          && request.resource.data.source_domain == resource.data.source_domain
+          && request.resource.data.source_ref_id == resource.data.source_ref_id
+          && request.resource.data.authorized_identity_ids == resource.data.authorized_identity_ids
+          // ── Immutable storage fields (set once during upload/migration) ──
+          && (resource.data.file_url == null
+            || request.resource.data.file_url == resource.data.file_url)
+          && (resource.data.storage_path == null
+            || request.resource.data.storage_path == resource.data.storage_path)
+          && request.resource.data.legacy_file_url == resource.data.legacy_file_url
+          // ── Protected media: no visibility escalation to public ──
+          && !(resource.data.source_domain in ['verification', 'messaging']
+            && request.resource.data.visibility == 'public'
+            && resource.data.visibility != 'public')
+          // ── Protected media: no lifecycle reactivation ──
+          && !(resource.data.source_domain in ['verification', 'messaging']
+            && resource.data.lifecycle_state in ['archived', 'scheduled_for_deletion', 'deleted']
+            && request.resource.data.lifecycle_state == 'active')
+        ) || isAdmin();
       allow delete: if isOwner(resource.data.owner_id) || isAdmin();
     }
 

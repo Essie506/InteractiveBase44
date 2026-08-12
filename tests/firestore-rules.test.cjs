@@ -858,6 +858,295 @@ async function runServerAuthoritativeTests() {
       authorized_identity_ids: ['identityB'],
     }));
   });
+
+  // ── M4 Full Field-Diff Regression Tests ──
+
+  // 51. User cannot change own email (identity integrity)
+  await test('51. User cannot change own email', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'identityA', { role: 'user', email: 'a@test.com' });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('users').doc('identityA').update({
+      email: 'changed@test.com',
+    }));
+  });
+
+  // 52. Owner cannot transfer media ownership
+  await test('52. Owner cannot transfer media ownership (owner_id)', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupMediaAsset(db, 'media1', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      owner_id: 'identityB',
+    }));
+  });
+
+  // 53. Owner cannot reassign source_domain
+  await test('53. Owner cannot reassign source_domain', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'personal',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      source_domain: 'verification',
+    }));
+  });
+
+  // 54. Owner cannot reassign source_ref_id
+  await test('54. Owner cannot reassign source_ref_id', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'messaging',
+        source_ref_id: 'conv1',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      source_ref_id: 'conv2',
+    }));
+  });
+
+  // 55. Owner cannot change storage_path after it is set
+  await test('55. Owner cannot change storage_path after set', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        storage_path: 'media/media1/original',
+        file_url: 'https://example.com/media1',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      storage_path: 'media/media2/original',
+    }));
+  });
+
+  // 56. Owner can set storage_path from null (upload flow)
+  await test('56. Owner can set storage_path from null (upload flow)', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        storage_path: null,
+        file_url: null,
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      storage_path: 'media/media1/original',
+      file_url: 'https://example.com/media1',
+      lifecycle_state: 'active',
+    }));
+  });
+
+  // 57. Owner cannot change file_url after it is set
+  await test('57. Owner cannot change file_url after set', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        file_url: 'https://example.com/original',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      file_url: 'https://evil.com/replacement',
+    }));
+  });
+
+  // 58. Owner cannot escalate protected media to public visibility
+  await test('58. Owner cannot escalate protected media to public', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        visibility: 'private',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      visibility: 'public',
+    }));
+  });
+
+  // 59. Owner cannot reactivate archived protected media
+  await test('59. Owner cannot reactivate archived protected media', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        lifecycle_state: 'archived',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      lifecycle_state: 'active',
+    }));
+  });
+
+  // 60. Owner can archive active protected media (lifecycle decrease)
+  await test('60. Owner can archive active protected media', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        lifecycle_state: 'active',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      lifecycle_state: 'archived',
+    }));
+  });
+
+  // 61. Owner can change visibility on non-protected media
+  await test('61. Owner can change visibility on non-protected media', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'personal',
+        visibility: 'private',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      visibility: 'public',
+    }));
+  });
+
+  // 62. Owner can update alt_text (non-sensitive field)
+  await test('62. Owner can update alt_text (non-sensitive field)', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      alt_text: 'A photo of my cat',
+    }));
+  });
+
+  // 63. Admin can reassign owner_id
+  await test('63. Admin can reassign owner_id', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authAdmin', 'adminIdentity');
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupUser(db, 'adminIdentity', { role: 'admin', email: 'admin@test.com' });
+      await setupMediaAsset(db, 'media1', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authAdmin').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      owner_id: 'identityB',
+    }));
+  });
+
+  // 64. Admin can reassign source_domain
+  await test('64. Admin can reassign source_domain', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authAdmin', 'adminIdentity');
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'adminIdentity', { role: 'admin', email: 'admin@test.com' });
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'personal',
+      });
+    });
+    const db = testEnv.authenticatedContext('authAdmin').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      source_domain: 'verification',
+    }));
+  });
+
+  // 65. Admin can escalate protected media visibility
+  await test('65. Admin can escalate protected media visibility', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authAdmin', 'adminIdentity');
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupUser(db, 'adminIdentity', { role: 'admin', email: 'admin@test.com' });
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'verification',
+        source_ref_id: 'verif1',
+        visibility: 'private',
+      });
+    });
+    const db = testEnv.authenticatedContext('authAdmin').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      visibility: 'public',
+    }));
+  });
+
+  // 66. Owner cannot change legacy_file_url
+  await test('66. Owner cannot change legacy_file_url', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        legacy_file_url: 'https://legacy.base44.com/file/123',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      legacy_file_url: 'https://evil.com/replacement',
+    }));
+  });
+
+  // 67. Owner cannot reactivate scheduled-for-deletion protected media
+  await test('67. Owner cannot reactivate scheduled-for-deletion protected media', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'messaging',
+        source_ref_id: 'conv1',
+        lifecycle_state: 'scheduled_for_deletion',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('mediaAssets').doc('media1').update({
+      lifecycle_state: 'active',
+    }));
+  });
+
+  // 68. Owner can schedule non-protected media for deletion
+  await test('68. Owner can schedule non-protected media for deletion', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupMediaAsset(db, 'media1', 'identityA', {
+        source_domain: 'personal',
+        lifecycle_state: 'active',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('mediaAssets').doc('media1').update({
+      lifecycle_state: 'scheduled_for_deletion',
+    }));
+  });
 }
 
 // ── Main ──
