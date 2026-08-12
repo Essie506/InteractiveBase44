@@ -37,15 +37,39 @@ export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'pri
   }
 
   try {
-    // Step 2: Upload file to storage (Base44 storage — temporary M3 dependency)
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    let storagePath;
+    if (useFirebase) {
+      // Step 2a: Upload to Firebase Cloud Storage
+      storagePath = await mediaRepository.uploadMediaFile(asset.id, file, {
+        owner_id: ownerId,
+        visibility,
+        source_domain: sourceDomain,
+        lifecycle_state: 'uploading',
+      });
+    } else {
+      // Step 2b: Upload to Base44 storage (legacy path)
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      storagePath = file_url;
+    }
 
     // Step 3: Transition to active
-    const updateData = { file_url, lifecycle_state: 'active' };
     if (useFirebase) {
-      return mediaRepository.updateMediaAsset(asset.id, updateData);
+      // Resolve the Firebase Storage download URL for display purposes.
+      // Firebase Storage download URLs are long-lived (do not expire).
+      // file_url is preserved for backward compatibility with components
+      // that display media via URL. storage_path is the authoritative
+      // reference for server-side operations and storage rules.
+      const downloadUrl = await mediaRepository.getMediaDownloadUrl(storagePath);
+      return mediaRepository.updateMediaAsset(asset.id, {
+        storage_path: storagePath,
+        file_url: downloadUrl,
+        lifecycle_state: 'active',
+      });
     }
-    return base44.entities.MediaAsset.update(asset.id, updateData);
+    return base44.entities.MediaAsset.update(asset.id, {
+      file_url: storagePath,
+      lifecycle_state: 'active',
+    });
   } catch (err) {
     const failData = {
       lifecycle_state: 'processing_failed',
@@ -91,4 +115,24 @@ export function canAccessMedia(asset, viewerId, sourceDomainPermission) {
 
 export async function removeReference(mediaId) {
   return true;
+}
+
+/**
+ * Gets a displayable URL for a media asset.
+ * In Firebase mode, resolves a Firebase Storage download URL from the storage_path.
+ * In Base44 mode, returns the file_url directly.
+ * @param {object} asset — MediaAsset record
+ * @returns {Promise<string|null>} URL or null
+ */
+export async function getMediaUrl(asset) {
+  if (!asset) return null;
+  if (useFirebase && asset.storage_path) {
+    try {
+      return await mediaRepository.getMediaDownloadUrl(asset.storage_path);
+    } catch {
+      // Fall back to legacy URL if Storage URL resolution fails
+      return asset.legacy_file_url || asset.file_url || null;
+    }
+  }
+  return asset.file_url || asset.legacy_file_url || null;
 }

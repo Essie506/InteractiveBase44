@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { getInvitationsForEmail, createMembership, updateInvitation } from '@/services/businessService';
+import { callAcceptInvitation } from '@/services/firebaseFunctions';
+import { useFirebase } from '@/lib/backendConfig';
 import { Loader2, Mail, Check, X, Building2, ArrowRight } from 'lucide-react';
 
 export default function InvitationsPage() {
@@ -23,16 +25,22 @@ export default function InvitationsPage() {
   const acceptInvite = async (invite) => {
     setProcessing(invite.id);
     try {
-      // Create business membership
-      await createMembership({
-        business_id: invite.business_id,
-        identity_id: user.id,
-        role: invite.role,
-        invited_by_id: invite.invited_by_id,
-        lifecycle_state: 'active',
-      });
-      // Update invitation status
-      await updateInvitation(invite.id, { status: 'accepted', identity_id: user.id });
+      if (useFirebase) {
+        // Server-only: call the acceptInvitation Firebase Cloud Function.
+        // The function atomically validates, creates membership, and updates
+        // invitation status. The caller's identity is resolved server-side.
+        await callAcceptInvitation({ invitation_id: invite.id });
+      } else {
+        // Base44 path: client-side membership creation
+        await createMembership({
+          business_id: invite.business_id,
+          identity_id: user.id,
+          role: invite.role,
+          invited_by_id: invite.invited_by_id,
+          lifecycle_state: 'active',
+        });
+        await updateInvitation(invite.id, { status: 'accepted', identity_id: user.id });
+      }
       // Refresh
       const updated = invitations.filter(i => i.id !== invite.id);
       setInvitations(updated);

@@ -3,6 +3,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { approveVerification, rejectVerification, getPendingVerifications } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
 import { getMedia } from '@/lib/media';
+import { useFirebase } from '@/lib/backendConfig';
 import { Loader2, ShieldCheck, X, Check, FileText, AlertCircle } from 'lucide-react';
 
 // Admin-only verification review page.
@@ -45,18 +46,21 @@ export default function VerificationReview() {
     setProcessing(selected.id);
     try {
       await approveVerification(selected.id, user.id, 'Verified by Interactive Trust & Reputation');
-      // Create notification (failure isolated)
-      await createNotification({
-        recipient_id: selected.submitted_by_id,
-        source_system: 'trust',
-        event_type: 'verification_approved',
-        title: 'Verification Approved',
-        body: `Your ${selected.target_type} verification has been approved. You are now verified on Interactive.`,
-        category: 'verification',
-        action_url: selected.target_type === 'business' ? `/business/${selected.target_id}` : '/professional-profile',
-        action_label: 'View Profile',
-        source_id: selected.id,
-      });
+      // In Firebase mode, decideVerification atomically creates the notification.
+      // In Base44 mode, create it separately here.
+      if (!useFirebase) {
+        await createNotification({
+          recipient_id: selected.submitted_by_id,
+          source_system: 'trust',
+          event_type: 'verification_approved',
+          title: 'Verification Approved',
+          body: `Your ${selected.target_type} verification has been approved. You are now verified on Interactive.`,
+          category: 'verification',
+          action_url: selected.target_type === 'business' ? `/business/${selected.target_id}` : '/professional-profile',
+          action_label: 'View Profile',
+          source_id: selected.id,
+        });
+      }
       setSelected(null);
       await loadRequests();
     } finally {
@@ -69,17 +73,19 @@ export default function VerificationReview() {
     setProcessing(selected.id);
     try {
       await rejectVerification(selected.id, user.id, rejectReason);
-      await createNotification({
-        recipient_id: selected.submitted_by_id,
-        source_system: 'trust',
-        event_type: 'verification_rejected',
-        title: 'Verification Could Not Be Confirmed',
-        body: `Your ${selected.target_type} verification could not be confirmed. ${rejectReason}`,
-        category: 'verification',
-        action_url: selected.target_type === 'business' ? `/business/${selected.target_id}/verify` : '/verify-professional',
-        action_label: 'Resubmit',
-        source_id: selected.id,
-      });
+      if (!useFirebase) {
+        await createNotification({
+          recipient_id: selected.submitted_by_id,
+          source_system: 'trust',
+          event_type: 'verification_rejected',
+          title: 'Verification Could Not Be Confirmed',
+          body: `Your ${selected.target_type} verification could not be confirmed. ${rejectReason}`,
+          category: 'verification',
+          action_url: selected.target_type === 'business' ? `/business/${selected.target_id}/verify` : '/verify-professional',
+          action_label: 'Resubmit',
+          source_id: selected.id,
+        });
+      }
       setSelected(null);
       await loadRequests();
     } finally {

@@ -1,0 +1,108 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Identity resolution: Firebase Auth UID → Interactive Identity ID ──
+    function getIdentityId() {
+      return get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.identity_id;
+    }
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated()
+        && exists(/databases/(default)/documents/users/$(getIdentityId()))
+        && get(/databases/(default)/documents/users/$(getIdentityId())).data.role == 'admin';
+    }
+
+    // ── Media asset lookup from Firestore ──────────────────────
+    // The mediaAssets/{mediaId} document is the source of truth for
+    // ownership, visibility, lifecycle, and source-domain.
+    function getMediaAsset(mediaId) {
+      return get(/databases/(default)/documents/mediaAssets/$(mediaId)).data;
+    }
+
+    function mediaExists(mediaId) {
+      return exists(/databases/(default)/documents/mediaAssets/$(mediaId));
+    }
+
+    function isOwner(mediaId) {
+      return isAuthenticated() && mediaExists(mediaId) && getMediaAsset(mediaId).owner_id == getIdentityId();
+    }
+
+    function isPublicMedia(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).visibility == 'public';
+    }
+
+    function isActiveMedia(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'active';
+    }
+
+    function isArchivedMedia(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'archived';
+    }
+
+    function isDeletedMedia(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'deleted';
+    }
+
+    function isScheduledForDeletion(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).lifecycle_state == 'scheduled_for_deletion';
+    }
+
+    // Verification evidence: source_domain == 'verification'
+    function isVerificationEvidence(mediaId) {
+      return mediaExists(mediaId) && getMediaAsset(mediaId).source_domain == 'verification';
+    }
+
+    // ── Media path: media/{mediaId}/original or media/{mediaId}/derivatives/{type} ──
+    match /media/{mediaId}/{fileName=**} {
+
+      // ── Read rules ──
+      // Public active media: readable by anyone (avatars, logos, promotional)
+      // Private/protected media: readable by owner or admin
+      // Verification evidence: readable by owner (submitter) or admin only
+      // Archived/deleted/scheduled-for-deletion: readable by owner or admin only
+      allow read: if isAuthenticated() && (
+        // Verification evidence — strict: owner or admin only
+        (isVerificationEvidence(mediaId) && (isOwner(mediaId) || isAdmin()))
+        ||
+        // Non-verification media
+        (!isVerificationEvidence(mediaId) && (
+          // Public active media
+          (isPublicMedia(mediaId) && isActiveMedia(mediaId))
+          ||
+          // Owner always has access (any lifecycle state)
+          isOwner(mediaId)
+          ||
+          // Admin always has access
+          isAdmin()
+        ))
+      );
+
+      // ── Create rules ──
+      // Only the owner can upload to their media path.
+      // The mediaAssets document must already exist (created in 'uploading' state
+      // by the service layer before the file upload).
+      allow create: if isAuthenticated()
+        && mediaExists(mediaId)
+        && getMediaAsset(mediaId).owner_id == getIdentityId();
+
+      // ── Update rules ──
+      // Only the owner or admin can update (e.g. add derivatives).
+      allow update: if isOwner(mediaId) || isAdmin();
+
+      // ── Delete rules ──
+      // Physical deletion only by owner or admin, and only when the
+      // lifecycle state permits (scheduled_for_deletion or deleted).
+      // This prevents accidental deletion of active media.
+      allow delete: if (isOwner(mediaId) || isAdmin())
+        && (isScheduledForDeletion(mediaId) || isDeletedMedia(mediaId) || isAdmin());
+    }
+
+    // Deny everything else
+    allow read, write: if false;
+  }
+}

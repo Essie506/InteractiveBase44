@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { notificationRepository, settingsRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
+import { callCreateNotification } from '@/services/firebaseFunctions';
 
 // Notification System — M3: routes to Firebase when configured.
 // Notification CREATION is server-only (security rules: allow create: if false).
@@ -85,9 +86,8 @@ export async function createNotification(event) {
 
   let record;
   if (useFirebase) {
-    // Server-only: call the CreateNotification backend function
-    const response = await base44.functions.invoke('CreateNotification', notificationData);
-    record = response.data || response;
+    // Server-only: call the createNotification Firebase Cloud Function
+    record = await callCreateNotification(notificationData);
   } else {
     record = await base44.entities.NotificationRecord.create(notificationData);
 

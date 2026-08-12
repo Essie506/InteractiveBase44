@@ -2,6 +2,13 @@ import { base44 } from '@/api/base44Client';
 import { messagingRepository, blockRepository, profileRepository, settingsRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
 import { createNotification } from '@/lib/notifications';
+import {
+  callCreateConversation,
+  callRespondMessageRequest,
+  callFindUserByEmail,
+  callResolveParticipants,
+  callCreateTrustSignal,
+} from '@/services/firebaseFunctions';
 
 // Messaging System — M3: routes to Firebase when configured.
 // Conversation CREATION is server-only (security rules: allow create: if false).
@@ -84,16 +91,16 @@ export async function createOrGetConversation(participantIds, initiatedById, ini
   }
 
   if (useFirebase) {
-    // Server-only: call the CreateConversation backend function
-    const response = await base44.functions.invoke('CreateConversation', {
+    // Server-only: call the createConversation Firebase Cloud Function.
+    // The function resolves the initiator identity from request.auth —
+    // the client-supplied initiatedById is not trusted server-side.
+    return callCreateConversation({
       participant_ids: participantIds,
-      initiated_by_id: initiatedById,
       initiated_by_context: initiatedByContext,
       business_id: businessId,
       conversation_type: conversationType,
       request_message: requestMessage,
     });
-    return response.data || response;
   }
 
   // Base44 path (existing logic)
@@ -282,9 +289,8 @@ export async function acceptMessageRequest(conversationId, identityId) {
   if (!(conversation.participant_ids || []).includes(identityId)) return conversation;
 
   if (useFirebase) {
-    const updated = await messagingRepository.updateConversation(conversationId, {
-      request_status: 'accepted',
-    });
+    // Server-only: call the respondMessageRequest Firebase Cloud Function
+    await callRespondMessageRequest({ conversation_id: conversationId, response: 'accept' });
   } else {
     await base44.entities.Conversation.update(conversationId, { request_status: 'accepted' });
   }
@@ -324,10 +330,8 @@ export async function declineMessageRequest(conversationId, identityId) {
   if (!(conversation.participant_ids || []).includes(identityId)) return conversation;
 
   if (useFirebase) {
-    return messagingRepository.updateConversation(conversationId, {
-      request_status: 'declined',
-      status: 'archived',
-    });
+    // Server-only: call the respondMessageRequest Firebase Cloud Function
+    return callRespondMessageRequest({ conversation_id: conversationId, response: 'decline' });
   }
   return base44.entities.Conversation.update(conversationId, {
     request_status: 'declined',
@@ -341,12 +345,22 @@ export async function archiveConversation(conversationId) {
 }
 
 export async function findUserByEmail(email) {
+  if (useFirebase) {
+    return callFindUserByEmail({ email: email.trim() });
+  }
   const response = await base44.functions.invoke('FindUserByEmail', { email: email.trim() });
   return response.data || response;
 }
 
 export async function resolveParticipantDisplay(identityId) {
   try {
+    if (useFirebase) {
+      const data = await callResolveParticipants({ identity_ids: [identityId] });
+      if (data.results && data.results[identityId]) {
+        return data.results[identityId];
+      }
+      return { identity_id: identityId, display_name: 'Unknown User', avatar_url: null };
+    }
     const response = await base44.functions.invoke('ResolveParticipants', { identity_ids: [identityId] });
     const data = response.data || response;
     if (data.results && data.results[identityId]) {
@@ -360,6 +374,10 @@ export async function resolveParticipantDisplay(identityId) {
 
 export async function resolveParticipants(identityIds) {
   try {
+    if (useFirebase) {
+      const data = await callResolveParticipants({ identity_ids: identityIds });
+      return data.results || {};
+    }
     const response = await base44.functions.invoke('ResolveParticipants', { identity_ids: identityIds });
     const data = response.data || response;
     return data.results || {};
@@ -380,8 +398,8 @@ export async function getUnreadMessageCount(identityId) {
 
 export async function reportUser(reporterId, reportedId, reason, context = 'personal') {
   if (useFirebase) {
-    // TrustSignals are server-only — call a backend function
-    const response = await base44.functions.invoke('CreateTrustSignal', {
+    // TrustSignals are server-only — call the createTrustSignal Firebase Cloud Function
+    return callCreateTrustSignal({
       source_system: 'trust_safety',
       target_type: 'professional',
       target_id: reportedId,
@@ -389,7 +407,6 @@ export async function reportUser(reporterId, reportedId, reason, context = 'pers
       signal_data: JSON.stringify({ reporter_id: reporterId, reason, context }),
       operation_id: `report:${reporterId}:${reportedId}:${Date.now()}`,
     });
-    return response.data || response;
   }
   return base44.entities.TrustSignal.create({
     source_system: 'trust_safety',

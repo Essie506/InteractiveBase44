@@ -1,0 +1,73 @@
+// Firebase Cloud Function callable wrappers
+// ───────────────────────────────────────────────────────────
+// Centralised client-side invocations for all trusted server
+// operations. Uses the Firebase Functions SDK (httpsCallable)
+// which automatically attaches the user's Firebase ID token.
+//
+// All functions are onCall — Firebase infrastructure verifies
+// the ID token before invoking the function. No manual token
+// handling, no Base44 SDK dependency.
+
+import { httpsCallable } from 'firebase/functions';
+import { getFunctionsInstance } from '@/firebase/firebaseClient';
+
+function callable(name) {
+  return httpsCallable(getFunctionsInstance(), name);
+}
+
+// ── Identity ──
+export async function callResolveIdentity() {
+  const result = await callable('resolveIdentity')();
+  return result.data;
+}
+
+// ── Conversations ──
+export async function callCreateConversation(data) {
+  const result = await callable('createConversation')(data);
+  return result.data;
+}
+
+export async function callRespondMessageRequest(data) {
+  const result = await callable('respondMessageRequest')(data);
+  return result.data;
+}
+
+// ── Notifications ──
+export async function callCreateNotification(data) {
+  const result = await callable('createNotification')(data);
+  return result.data;
+}
+
+// ── Trust ──
+export async function callCreateTrustSignal(data) {
+  const result = await callable('createTrustSignal')(data);
+  return result.data;
+}
+
+export async function callDecideVerification(data) {
+  const result = await callable('decideVerification')(data);
+  return result.data;
+}
+
+// ── Business ──
+export async function callAcceptInvitation(data) {
+  const result = await callable('acceptInvitation')(data);
+  return result.data;
+}
+
+// ── Users ──
+export async function callFindUserByEmail(data) {
+  const result = await callable('findUserByEmail')(data);
+  return result.data;
+}
+
+export async function callResolveParticipants(data) {
+  const result = await callable('resolveParticipants')(data);
+  return result.data;
+}
+
+// ── Media migration (admin only) ──
+export async function callMigrateMedia(data) {
+  const result = await callable('migrateMedia')(data);
+  return result.data;
+}

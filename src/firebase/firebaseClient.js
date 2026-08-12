@@ -27,6 +27,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { getStorage } from 'firebase/storage';
 
 // ── Environment-based config (local dev) ────────────────────
 /** @type {import('firebase/app').FirebaseOptions} */
@@ -64,6 +65,9 @@ let isConfigured = isEnvConfigured;
 /** @type {import('firebase/functions').Functions | null} */
 let functionsInstance = null;
 
+/** @type {import('firebase/storage').FirebaseStorage | null} */
+let storage = null;
+
 /**
  * Returns the Firebase Functions instance for the deployed
  * Cloud Function region. Throws if Firebase is not configured.
@@ -87,6 +91,7 @@ if (isEnvConfigured) {
   app = initializeApp(envConfig);
   firebaseAuth = getAuth(app);
   db = getFirestore(app);
+  storage = getStorage(app);
 } else {
   console.warn(
     '[Firebase] VITE_FIREBASE_* env vars not set. ' +
@@ -117,6 +122,7 @@ export async function initFirebase() {
       app = initializeApp(config);
       firebaseAuth = getAuth(app);
       db = getFirestore(app);
+      storage = getStorage(app);
       isConfigured = true;
     }
   } catch (err) {
@@ -124,4 +130,4 @@ export async function initFirebase() {
   }
 }
 
-export { app, firebaseAuth, db, isConfigured };
+export { app, firebaseAuth, db, storage, isConfigured };

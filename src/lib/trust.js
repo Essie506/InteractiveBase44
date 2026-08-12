@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { trustRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
+import { callDecideVerification } from '@/services/firebaseFunctions';
 
 // Trust & Reputation — M3: routes to Firebase when configured.
 // Note: Verification approval/rejection and TrustSignal creation are
@@ -37,28 +38,28 @@ export async function submitVerification(targetType, targetId, submittedById, ev
 }
 
 export async function approveVerification(requestId, reviewedById, explanation) {
-  let request;
   if (useFirebase) {
-    request = await trustRepository.getVerificationRequest(requestId);
-    await trustRepository.updateVerificationRequest(requestId, {
-      status: 'verified',
+    // Server-only: call the decideVerification Firebase Cloud Function.
+    // The function atomically updates VerificationRequest, target profile,
+    // TrustRecord, and creates a notification. The reviewer identity is
+    // resolved server-side from request.auth — the client-supplied
+    // reviewedById is not trusted.
+    return callDecideVerification({
+      request_id: requestId,
       decision: 'approved',
-      public_state: 'verified',
-      reviewed_by_id: reviewedById,
-      reviewed_at: new Date().toISOString(),
-      trust_explanation: explanation || 'Verified by Interactive',
-    });
-  } else {
-    request = await base44.entities.VerificationRequest.get(requestId);
-    await base44.entities.VerificationRequest.update(requestId, {
-      status: 'verified',
-      decision: 'approved',
-      public_state: 'verified',
-      reviewed_by_id: reviewedById,
-      reviewed_at: new Date().toISOString(),
-      trust_explanation: explanation || 'Verified by Interactive',
+      explanation: explanation || 'Verified by Interactive Trust & Reputation',
     });
   }
+
+  const request = await base44.entities.VerificationRequest.get(requestId);
+  await base44.entities.VerificationRequest.update(requestId, {
+    status: 'verified',
+    decision: 'approved',
+    public_state: 'verified',
+    reviewed_by_id: reviewedById,
+    reviewed_at: new Date().toISOString(),
+    trust_explanation: explanation || 'Verified by Interactive',
+  });
 
   await updateTargetVerificationState(request.target_type, request.target_id, 'verified');
   await updateTrustRecord(request.target_type, request.target_id, {
@@ -74,28 +75,24 @@ export async function approveVerification(requestId, reviewedById, explanation) 
 }
 
 export async function rejectVerification(requestId, reviewedById, reason) {
-  let request;
   if (useFirebase) {
-    request = await trustRepository.getVerificationRequest(requestId);
-    await trustRepository.updateVerificationRequest(requestId, {
-      status: 'failed',
+    // Server-only: call the decideVerification Firebase Cloud Function
+    return callDecideVerification({
+      request_id: requestId,
       decision: 'rejected',
-      public_state: 'rejected',
-      reviewed_by_id: reviewedById,
-      reviewed_at: new Date().toISOString(),
-      trust_explanation: reason || 'Verification could not be confirmed',
-    });
-  } else {
-    request = await base44.entities.VerificationRequest.get(requestId);
-    await base44.entities.VerificationRequest.update(requestId, {
-      status: 'failed',
-      decision: 'rejected',
-      public_state: 'rejected',
-      reviewed_by_id: reviewedById,
-      reviewed_at: new Date().toISOString(),
-      trust_explanation: reason || 'Verification could not be confirmed',
+      explanation: reason || 'Verification could not be confirmed',
     });
   }
+
+  const request = await base44.entities.VerificationRequest.get(requestId);
+  await base44.entities.VerificationRequest.update(requestId, {
+    status: 'failed',
+    decision: 'rejected',
+    public_state: 'rejected',
+    reviewed_by_id: reviewedById,
+    reviewed_at: new Date().toISOString(),
+    trust_explanation: reason || 'Verification could not be confirmed',
+  });
 
   await updateTargetVerificationState(request.target_type, request.target_id, 'failed');
   await updateTrustRecord(request.target_type, request.target_id, {
