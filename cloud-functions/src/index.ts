@@ -15,3 +15,9 @@ export { createTrustSignal, decideVerification } from './trust';
 export { acceptInvitation } from './business';
 export { findUserByEmail, resolveParticipants, setUserRole } from './users';
 export { migrateMedia, getProtectedMediaUrl } from './media';
+
+// Phase 5 — Booking + Payments
+export { createConnectAccount, getConnectAccountStatus, getStripeConfig } from './stripeConnect';
+export { createBookingDraft, createPaymentIntent, confirmFreeBooking } from './bookingPayment';
+export { stripeWebhook } from './stripeWebhook';
+export { cancelBooking, rescheduleBooking, reportNoShow, completeBooking } from './bookingLifecycle';
