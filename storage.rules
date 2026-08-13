@@ -61,27 +61,32 @@ service firebase.storage {
     }
 
     // Owner: 1 new access (mediaAssets) if identityMappings cached.
+    // get() results are cached within a rule evaluation, so
+    // repeated getMediaAsset() calls count as one document access.
     function isOwner(mediaId) {
-      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
-      return getMediaAsset(mediaId).owner_id == getIdentityId();
+      return identityMappingExists()
+        && mediaExists(mediaId)
+        && getMediaAsset(mediaId).owner_id == getIdentityId();
     }
 
     // Public active media: 1 access (mediaAssets) standalone.
+    // get() is cached — repeated calls count as one document access.
     function isPublicActiveMedia(mediaId) {
-      if (!mediaExists(mediaId)) return false;
-      let asset = getMediaAsset(mediaId);
-      return asset.visibility == 'public' && asset.lifecycle_state == 'active';
+      return mediaExists(mediaId)
+        && getMediaAsset(mediaId).visibility == 'public'
+        && getMediaAsset(mediaId).lifecycle_state == 'active';
     }
 
     // Verification evidence: uses denormalized authorized_identity_ids
     // on the mediaAssets document. 0 additional accesses if cached.
+    // Short-circuit && ensures the `in` check is only evaluated when
+    // authorized_identity_ids is non-null.
     function isVerificationEvidenceAuthorized(mediaId) {
-      if (!identityMappingExists() || !mediaExists(mediaId)) return false;
-      let asset = getMediaAsset(mediaId);
-      if (asset.source_domain != 'verification') return false;
-      let authorizedIds = asset.authorized_identity_ids;
-      if (authorizedIds == null) return false;
-      return getIdentityId() in authorizedIds;
+      return identityMappingExists()
+        && mediaExists(mediaId)
+        && getMediaAsset(mediaId).source_domain == 'verification'
+        && getMediaAsset(mediaId).authorized_identity_ids != null
+        && getIdentityId() in getMediaAsset(mediaId).authorized_identity_ids;
     }
 
     function isScheduledForDeletion(mediaId) {
