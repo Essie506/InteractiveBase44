@@ -48,7 +48,7 @@ service firebase.storage {
     // 0 additional accesses if identityMappings is already cached.
     function isAdmin() {
       return identityMappingExists()
-        && firestore.get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.role == 'admin';
+        && firestore.get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.get('role', null) == 'admin';
     }
 
     // ── Media asset lookup ──

@@ -60,6 +60,7 @@ async function setupFirestoreData(db) {
     identity_id: 'admin-identity',
     auth_uid: 'admin-uid',
     email: 'admin@test.com',
+    role: 'admin',  // denormalized admin role for Storage Rules
   });
 
   // Users
@@ -115,6 +116,25 @@ async function setupFirestoreData(db) {
   });
 }
 
+// ── Storage data setup ───────────────────────────────────────
+// Seeds dummy objects at every Storage path used by tests that
+// expect an existing file. Without these, getDownloadURL() and
+// delete() fail with storage/object-not-found before rules are
+// even evaluated, causing false negatives on assertSucceeds tests.
+
+async function setupStorageData(storage) {
+  const paths = [
+    'media/private-media-1/original',
+    'media/public-media-1/original',
+    'media/verification-evidence-1/original',
+    'media/archived-media-1/original',
+    'media/scheduled-deletion-1/original',
+  ];
+  for (const p of paths) {
+    await storage.ref(p).putString('dummy content');
+  }
+}
+
 // ── Main ────────────────────────────────────────────────────
 
 async function main() {
@@ -127,6 +147,7 @@ async function main() {
   // Set up Firestore data with security rules disabled
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setupFirestoreData(context.firestore());
+    await setupStorageData(context.storage());
   });
 
   // ── 1. Unauthenticated protected media access denied ──
