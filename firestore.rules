@@ -334,18 +334,20 @@ service cloud.firestore {
         || isAdmin();
       // authorized_identity_ids is server-authoritative — clients
       // cannot set it on create. Only null (absent) is permitted.
+      // .get() safely handles absence of the optional field.
       allow create: if isOwner(request.resource.data.owner_id)
-        && request.resource.data.authorized_identity_ids == null;
+        && request.resource.data.get('authorized_identity_ids', null) == null;
       // ── Field-diff update policy ──
+      // Uses diff().affectedKeys() to detect field changes without
+      // requiring optional fields to exist on the document.
+      //
       // Client-editable: alt_text, derivatives, processing_error,
-      //   checksum, width, height
-      // Immutable (owner): owner_id (no ownership transfer),
-      //   source_domain (no source-domain reassignment),
-      //   source_ref_id (no source-ref reassignment),
-      //   authorized_identity_ids (server-authoritative),
-      //   file_url, storage_path, legacy_file_url (set during
-      //     upload/migration — file_url & storage_path may be set
-      //     from null during the upload flow, but not changed after)
+      //   checksum, width, height, visibility, lifecycle_state
+      //   (subject to protected-media restrictions below)
+      // Immutable (owner): owner_id, source_domain,
+      //   authorized_identity_ids, legacy_file_url
+      // Set-once (owner): source_ref_id, storage_path, file_url
+      //   — may be set from null/absent, but not changed once set
       // Conditional: visibility & lifecycle_state — owner can
       //   decrease access (archive, schedule deletion) but cannot
       //   escalate protected media (verification, messaging) to
@@ -353,25 +355,29 @@ service cloud.firestore {
       //   media to active state
       // Admin: unrestricted
       allow update: if (isOwner(resource.data.owner_id)
-          // ── Immutable identity & authorization fields ──
-          && request.resource.data.owner_id == resource.data.owner_id
-          && request.resource.data.source_domain == resource.data.source_domain
-          && request.resource.data.source_ref_id == resource.data.source_ref_id
-          && request.resource.data.authorized_identity_ids == resource.data.authorized_identity_ids
-          // ── Immutable storage fields (set once during upload/migration) ──
-          && (resource.data.file_url == null
-            || request.resource.data.file_url == resource.data.file_url)
-          && (resource.data.storage_path == null
-            || request.resource.data.storage_path == resource.data.storage_path)
-          && request.resource.data.legacy_file_url == resource.data.legacy_file_url
+          // ── Truly immutable fields: must not appear in affected keys ──
+          && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['owner_id', 'source_domain',
+                       'authorized_identity_ids', 'legacy_file_url'])
+          // ── Set-once fields: blocked from change once already set ──
+          && !(resource.data.get('source_ref_id', null) != null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasAny(['source_ref_id']))
+          && !(resource.data.get('storage_path', null) != null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasAny(['storage_path']))
+          && !(resource.data.get('file_url', null) != null
+              && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasAny(['file_url']))
           // ── Protected media: no visibility escalation to public ──
-          && !(resource.data.source_domain in ['verification', 'messaging']
-            && request.resource.data.visibility == 'public'
-            && resource.data.visibility != 'public')
+          && !(resource.data.get('source_domain', null) in ['verification', 'messaging']
+              && request.resource.data.get('visibility', null) == 'public'
+              && resource.data.get('visibility', null) != 'public')
           // ── Protected media: no lifecycle reactivation ──
-          && !(resource.data.source_domain in ['verification', 'messaging']
-            && resource.data.lifecycle_state in ['archived', 'scheduled_for_deletion', 'deleted']
-            && request.resource.data.lifecycle_state == 'active')
+          && !(resource.data.get('source_domain', null) in ['verification', 'messaging']
+              && resource.data.get('lifecycle_state', null)
+                  in ['archived', 'scheduled_for_deletion', 'deleted']
+              && request.resource.data.get('lifecycle_state', null) == 'active')
         ) || isAdmin();
       allow delete: if isOwner(resource.data.owner_id) || isAdmin();
     }
