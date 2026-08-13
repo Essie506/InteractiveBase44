@@ -15,6 +15,24 @@
 // Setup: configure the webhook endpoint URL in the Stripe
 // Dashboard (or via Stripe CLI for local testing) and set
 // the STRIPE_WEBHOOK_SECRET Firebase secret.
+//
+// ── Bootstrap state ──────────────────────────────────────────
+// STRIPE_WEBHOOK_SECRET is intentionally NOT declared in the
+// function's `secrets` array yet. Firebase cannot deploy the
+// function if a declared secret does not exist in Secret Manager,
+// and Stripe cannot generate the real whsec_... signing secret
+// until the deployed endpoint URL exists.
+//
+// This bootstrap version deploys with only STRIPE_SECRET_KEY bound.
+// While STRIPE_WEBHOOK_SECRET is absent, the function returns 503
+// and processes NO Stripe events — verification is never bypassed
+// and no unsigned event is accepted.
+//
+// After Stripe registers the endpoint and provides the real whsec_...:
+//   1. Set STRIPE_WEBHOOK_SECRET in Firebase Secret Manager
+//   2. Restore 'STRIPE_WEBHOOK_SECRET' to the secrets array below
+//   3. Redeploy stripeWebhook
+//   4. Verify signed Stripe sandbox events
 
 import { onRequest } from 'firebase-functions/v2/https';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -26,19 +44,33 @@ const db = getFirestore();
 export const stripeWebhook = onRequest(
   {
     region: 'europe-west2',
-    secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+    // Bootstrap: STRIPE_WEBHOOK_SECRET intentionally omitted — see above.
+    // Restore to: secrets: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']
+    secrets: ['STRIPE_SECRET_KEY'],
     timeoutSeconds: 60,
   },
   async (req, res) => {
+    // ── Bootstrap gate ──
+    // If the webhook secret is not yet configured, return a controlled
+    // 503 and process no events. This allows Firebase to deploy the
+    // endpoint so Stripe can register it and generate the signing secret.
+    // Verification is never weakened — no event is processed without a
+    // valid secret and signature.
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.warn('STRIPE_WEBHOOK_SECRET not configured — webhook endpoint in bootstrap state');
+      res.status(503).send('Webhook not configured');
+      return;
+    }
+
     // ── Signature verification ──
     // Stripe sends the signature in the `stripe-signature` header.
     // The raw body is required for verification — Firebase Functions
     // v2 onRequest provides req.rawBody.
     const signature = req.headers['stripe-signature'] as string;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    if (!signature || !webhookSecret) {
-      res.status(400).send('Missing signature or webhook secret');
+    if (!signature) {
+      res.status(400).send('Missing signature');
       return;
     }
 
