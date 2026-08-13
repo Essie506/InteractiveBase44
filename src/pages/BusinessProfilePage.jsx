@@ -6,6 +6,7 @@ import {
   getMembership, hasPermission,
 } from '@/services/businessService';
 import { getVerificationRequest } from '@/lib/trust';
+import { getMedia, getMediaUrl } from '@/lib/media';
 import { Loader2, Save, Check, Camera, ArrowLeft, AlertCircle, Plus, X, ShieldCheck } from 'lucide-react';
 import MediaUploadButton from '@/components/MediaUploadButton';
 import LocationPicker from '@/components/LocationPicker';
@@ -66,6 +67,14 @@ export default function BusinessProfilePage() {
         setWebsite(p.website || '');
         setOperatingHours(p.operating_hours || '');
         setVisibility(p.visibility || 'public');
+        // Resolve logo URL from MediaAsset via canonical getMediaUrl path
+        if (p.logo_media_id) {
+          const asset = await getMedia(p.logo_media_id);
+          if (asset) {
+            const resolvedUrl = await getMediaUrl(asset);
+            if (resolvedUrl) setLogoUrl(resolvedUrl);
+          }
+        }
       } else {
         setName(biz.name || '');
         setContactEmail(biz.contact_email || '');

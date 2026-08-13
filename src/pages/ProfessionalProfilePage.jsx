@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
 import { updateProfile } from '@/services/authService';
+import { getMedia, getMediaUrl } from '@/lib/media';
 import { Loader2, Camera, Save, Check, ShieldCheck, Plus, X } from 'lucide-react';
 import MediaUploadButton from '@/components/MediaUploadButton';
 import LocationPicker from '@/components/LocationPicker';
@@ -37,7 +38,7 @@ export default function ProfessionalProfilePage() {
     Promise.all([
       getProfessionalProfile(user.id),
       getVerificationRequest('professional', user.id),
-    ]).then(([p, req]) => {
+    ]).then(async ([p, req]) => {
       if (p) {
         setProfile(p);
         setDisplayName(p.display_name || '');
@@ -54,6 +55,14 @@ export default function ProfessionalProfilePage() {
         setAvatarUrl(p.avatar_url || '');
         setAvatarMediaId(p.avatar_media_id || '');
         setVisibility(p.visibility || 'public');
+        // Resolve avatar URL from MediaAsset via canonical getMediaUrl path
+        if (p.avatar_media_id) {
+          const asset = await getMedia(p.avatar_media_id);
+          if (asset) {
+            const resolvedUrl = await getMediaUrl(asset);
+            if (resolvedUrl) setAvatarUrl(resolvedUrl);
+          }
+        }
       } else {
         setDisplayName(user.display_name || '');
         setContactEmail(user.email || '');

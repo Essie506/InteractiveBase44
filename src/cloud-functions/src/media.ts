@@ -13,9 +13,9 @@
 //    Retains legacy Base44 URL in legacy_file_url for rollback.
 //
 // M4 Hardening:
-//   - Query filters unmigrated assets (storage_path == null) so
-//     migrated documents are excluded from subsequent batches and
-//     migration progresses naturally without cursor pagination.
+//   - Cursor-based scan ordered by document ID; application logic
+//     filters migrated vs unmigrated (no query-level storage_path
+//     filter, which can exclude missing-field legacy documents).
 //   - dry_run mode performs analysis without uploading or writing.
 //   - Legacy URL validation restricts fetch() to expected Base44
 //     storage origins — rejects malformed or unexpected external URLs.
@@ -159,11 +159,16 @@ function validateLegacyUrl(url: string): { valid: boolean; reason?: string } {
 // ── migrateMedia ────────────────────────────────────────────
 // Admin-only. Copies Base44-hosted Media files into Firebase Storage.
 //
-// Query progression: filters by storage_path == null, which matches
-// both null and absent (missing-field) legacy documents. Already-
-// migrated assets (storage_path set) are excluded from the query,
-// so each batch retrieves fresh unmigrated documents and the
-// migration progresses naturally without cursor-based pagination.
+// Query progression: cursor-based scan ordered by document ID.
+// We do NOT filter by storage_path at the query level — Firestore
+// treats absent fields separately from explicit nulls in some index
+// configurations, and a `== null` query can silently exclude legacy
+// documents with a missing storage_path field. Instead, we scan in
+// document-ID order and filter in application logic: process records
+// where !data.storage_path (covers both absent and null) and a valid
+// legacy file_url exists. The cursor (last document ID) is returned
+// for the next batch, ensuring deterministic progression that never
+// stalls on already-migrated documents.
 //
 // Idempotent: skips assets that already have a storage_path
 // (defensive safety net alongside the query filter).
@@ -189,24 +194,31 @@ export const migrateMedia = onCall(
 
     await requireAdmin(request.auth.uid);
 
-    const { dry_run, batch_size } = request.data || {};
-    // Clamp batch_size to safe range 1–500
-    const limit = Math.max(1, Math.min(batch_size || 100, 500));
+    const { dry_run, batch_size, cursor } = request.data || {};
+    // Validate batch_size as a finite integer; fall back to 100 default
+    const limit = (typeof batch_size === 'number'
+      && Number.isFinite(batch_size)
+      && Number.isInteger(batch_size))
+      ? Math.max(1, Math.min(batch_size, 500))
+      : 100;
 
     const storage = getStorage();
     const bucket = storage.bucket();
 
-    // Select unmigrated MediaAssets: storage_path is null OR absent.
-    // Firestore `== null` matches both null and missing fields, so
-    // legacy documents without a storage_path field are included.
-    // Already-migrated assets (storage_path set) are excluded,
-    // ensuring migration progresses across batches without
-    // re-processing the same documents.
-    const query = db.collection('mediaAssets')
-      .where('storage_path', '==', null)
+    // Cursor-based scan ordered deterministically by document ID.
+    // No query-level storage_path filter — application logic handles
+    // all three states (absent, null, populated) to avoid excluding
+    // legacy documents with missing fields.
+    let query = db.collection('mediaAssets')
+      .orderBy('__name__')
       .limit(limit);
-
+    if (typeof cursor === 'string' && cursor.length > 0) {
+      query = query.startAfter(cursor);
+    }
     const snapshot = await query.get();
+    const lastDoc = snapshot.docs[snapshot.size - 1] || null;
+    const nextCursor = lastDoc ? lastDoc.id : null;
+    const hasMore = snapshot.size === limit;
 
     const results = {
       dry_run: !!dry_run,
@@ -214,6 +226,8 @@ export const migrateMedia = onCall(
       migrated: 0,
       failed: 0,
       skipped: 0,
+      next_cursor: hasMore ? nextCursor : null,
+      has_more: hasMore,
       candidates: [] as Array<{
         mediaId: string;
         ownerId: string;
@@ -232,7 +246,9 @@ export const migrateMedia = onCall(
       const data = doc.data();
       const mediaId = doc.id;
 
-      // Defensive safety net: skip if already migrated
+      // Application-level filter: process only unmigrated records.
+      // Handles all three storage_path states: absent (undefined),
+      // explicit null, and populated. Populated → skip (already migrated).
       if (data.storage_path) {
         results.skipped++;
         continue;

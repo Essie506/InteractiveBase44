@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getPersonalProfile, savePersonalProfile } from '@/services/profileService';
 import { updateProfile } from '@/services/authService';
+import { getMedia, getMediaUrl } from '@/lib/media';
 import { Loader2, Camera, Save, Check } from 'lucide-react';
 import MediaUploadButton from '@/components/MediaUploadButton';
 import LocationPicker from '@/components/LocationPicker';
@@ -25,7 +26,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    getPersonalProfile(user.id).then(p => {
+    getPersonalProfile(user.id).then(async p => {
       if (p) {
         setProfile(p);
         setDisplayName(p.display_name || '');
@@ -37,6 +38,14 @@ export default function ProfilePage() {
         setAvatarUrl(p.avatar_url || '');
         setAvatarMediaId(p.avatar_media_id || '');
         setVisibility(p.visibility || 'public');
+        // Resolve avatar URL from MediaAsset via canonical getMediaUrl path
+        if (p.avatar_media_id) {
+          const asset = await getMedia(p.avatar_media_id);
+          if (asset) {
+            const resolvedUrl = await getMediaUrl(asset);
+            if (resolvedUrl) setAvatarUrl(resolvedUrl);
+          }
+        }
       } else {
         setDisplayName(user.display_name || '');
       }

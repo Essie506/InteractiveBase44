@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { approveVerification, rejectVerification, getPendingVerifications } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
-import { getMedia } from '@/lib/media';
+import { getMedia, getMediaUrl } from '@/lib/media';
 import { useFirebase } from '@/lib/backendConfig';
 import { Loader2, ShieldCheck, X, Check, FileText, AlertCircle } from 'lucide-react';
 
@@ -15,6 +15,7 @@ export default function VerificationReview() {
   const [processing, setProcessing] = useState(null);
   const [selected, setSelected] = useState(null);
   const [evidenceAssets, setEvidenceAssets] = useState([]);
+  const [evidenceUrls, setEvidenceUrls] = useState({});
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
 
@@ -34,10 +35,18 @@ export default function VerificationReview() {
     setEvidenceAssets([]);
     setShowReject(false);
     setRejectReason('');
-    // Load evidence media
+    // Load evidence media and resolve URLs via canonical getMediaUrl path
+    setEvidenceUrls({});
     if (req.evidence_media_ids && req.evidence_media_ids.length > 0) {
       const assets = await Promise.all(req.evidence_media_ids.map(id => getMedia(id)));
-      setEvidenceAssets(assets.filter(a => a));
+      const valid = assets.filter(a => a);
+      setEvidenceAssets(valid);
+      const urlMap = {};
+      await Promise.all(valid.map(async a => {
+        const url = await getMediaUrl(a);
+        if (url) urlMap[a.id] = url;
+      }));
+      setEvidenceUrls(urlMap);
     }
   };
 
@@ -141,8 +150,8 @@ export default function VerificationReview() {
                     <div className="text-sm text-stone-700 truncate">{asset.file_name}</div>
                     <div className="text-xs text-stone-400">{asset.mime_type} · {(asset.size_bytes / 1024).toFixed(1)} KB</div>
                   </div>
-                  {asset.media_type === 'image' && asset.file_url && (
-                    <img src={asset.file_url} alt="" className="w-10 h-10 object-cover rounded" />
+                  {asset.media_type === 'image' && evidenceUrls[asset.id] && (
+                    <img src={evidenceUrls[asset.id]} alt="" className="w-10 h-10 object-cover rounded" />
                   )}
                 </div>
               ))}
