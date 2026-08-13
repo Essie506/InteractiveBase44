@@ -45,12 +45,14 @@ export const cancelBooking = onCall(
     if (booking.business_id) {
       isBizAdmin = await hasBusinessRole(booking.business_id, callerIdentityId, ['owner', 'admin']);
     }
-    if (!isCustomer && !isProvider && !isBizAdmin) {
+    // Platform admin can cancel any booking (checked before rejection)
+    const isPlatformAdmin = await isAdmin(callerIdentityId);
+
+    if (!isCustomer && !isProvider && !isBizAdmin && !isPlatformAdmin) {
       throw new HttpsError('permission-denied', 'Not authorized to cancel this booking');
     }
 
     // Determine cancellation actor (Booking V2 — identify actor)
-    const isPlatformAdmin = await isAdmin(callerIdentityId);
     let cancelledByState: string;
     if (isCustomer) {
       cancelledByState = 'cancelled_by_customer';
