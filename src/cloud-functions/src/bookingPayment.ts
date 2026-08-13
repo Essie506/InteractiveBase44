@@ -105,11 +105,28 @@ export const createBookingDraft = onCall(
     // ── Fee rule resolution (data-driven, not hardcoded) ──
     // Fee rules are loaded from the provider's subscription plan configuration.
     // Numerical fee values are NOT hardcoded — they come from plan data.
-    const { feeRule, planTier, hasProWaiver } = await resolveFeeRule(db, provider_identity_id, business_id || null);
+    const { feeRule, planTier, hasProWaiver, feeConfigStatus } = await resolveFeeRule(db, provider_identity_id, business_id || null);
 
     // ── Price snapshot + fee calculation (server-side) ──
     const basePrice = base_price_pence || 0;
-    const feeCalc = calculateBookingFee(basePrice, feeRule);
+
+    // ── Fee configuration safety ──
+    // Do not allow a missing fee configuration to silently become an
+    // unintended zero-fee production Stripe booking.
+    //   'waiver' / 'explicit_none' → deliberate zero fee, OK
+    //   'configured'               → authoritative fee rule, OK
+    //   'unresolved'               → no authoritative configuration
+    // Free/no-fee routes (base_price = 0, or non-Stripe routes) can
+    // still operate without Stripe fee calculation.
+    if (needsStripe && basePrice > 0 && feeConfigStatus === 'unresolved') {
+      throw new HttpsError('failed-precondition',
+        'Provider plan fee configuration is unresolved. ' +
+        'Cannot create a paid Stripe booking without authoritative fee rules. ' +
+        'Configure subscriptionPlans.fee_rule or set fee_waiver before accepting paid bookings.'
+      );
+    }
+
+    const feeCalc = calculateBookingFee(basePrice, feeRule, feeConfigStatus);
 
     // For deposit route, the Stripe charge is the deposit amount
     // The total is still base + fee, but only deposit is charged now

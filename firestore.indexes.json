@@ -87,6 +87,49 @@
         { "fieldPath": "email", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "slotHolds",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "provider_identity_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "provider_identity_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" },
+        { "fieldPath": "booking_status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" },
+        { "fieldPath": "lifecycle_state", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businessSubscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "business_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notificationRecords",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "source_id", "order": "ASCENDING" },
+        { "fieldPath": "event_type", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
