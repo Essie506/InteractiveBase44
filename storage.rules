@@ -36,29 +36,29 @@ service firebase.storage {
 
     // ── Identity resolution with denormalized role ──
     function identityMappingExists() {
-      return isAuthenticated()
-        && exists(/databases/(default)/documents/identityMappings/$(request.auth.uid));
-    }
+  return isAuthenticated()
+    && firestore.exists(/databases/(default)/documents/identityMappings/$(request.auth.uid));
+}
 
-    function getIdentityId() {
-      return get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.identity_id;
-    }
+function getIdentityId() {
+  return firestore.get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.identity_id;
+}
 
-    // Admin check: uses denormalized role in identityMappings.
-    // 0 additional accesses if identityMappings is already cached.
-    function isAdmin() {
-      return identityMappingExists()
-        && get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.role == 'admin';
-    }
+// Admin check: uses denormalized role in identityMappings.
+// 0 additional accesses if identityMappings is already cached.
+function isAdmin() {
+  return identityMappingExists()
+    && firestore.get(/databases/(default)/documents/identityMappings/$(request.auth.uid)).data.get('role', null) == 'admin';
+}
 
-    // ── Media asset lookup ──
-    function mediaExists(mediaId) {
-      return exists(/databases/(default)/documents/mediaAssets/$(mediaId));
-    }
+// ── Media asset lookup ──
+function mediaExists(mediaId) {
+  return firestore.exists(/databases/(default)/documents/mediaAssets/$(mediaId));
+}
 
-    function getMediaAsset(mediaId) {
-      return get(/databases/(default)/documents/mediaAssets/$(mediaId)).data;
-    }
+function getMediaAsset(mediaId) {
+  return firestore.get(/databases/(default)/documents/mediaAssets/$(mediaId)).data;
+}
 
     // Owner: 1 new access (mediaAssets) if identityMappings cached.
     // get() results are cached within a rule evaluation, so
