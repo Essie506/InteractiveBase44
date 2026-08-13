@@ -529,6 +529,97 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // PHASE 5 — BOOKING + PAYMENTS
+    // ───────────────────────────────────────────────────────────
+    // All financial transitions are server-only (Cloud Functions).
+    // Clients can read their own bookings/payments/receipts but
+    // cannot modify payment-related fields, booking status, Stripe
+    // IDs, price/fee snapshots, or refund status.
+    // ═══════════════════════════════════════════════════════════
+
+    match /bookings/{bookingId} {
+      allow read: if hasIdentityMapping()
+        && (
+          getIdentityId() == resource.data.customer_identity_id
+          || getIdentityId() == resource.data.provider_identity_id
+          || (resource.data.business_id != null
+            && isBusinessMember(resource.data.business_id))
+          || isAdmin()
+        );
+      // All writes are server-only — Cloud Functions create/update bookings
+      allow create: if false;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    match /paymentRecords/{paymentRecordId} {
+      allow read: if hasIdentityMapping()
+        && (
+          getIdentityId() == resource.data.payer_identity_id
+          || getIdentityId() == resource.data.provider_identity_id
+          || (resource.data.business_id != null
+            && isBusinessMember(resource.data.business_id))
+          || isAdmin()
+        );
+      // All writes are server-only — Cloud Functions manage payment records
+      allow write: if false;
+    }
+
+    match /refundRecords/{refundRecordId} {
+      allow read: if hasIdentityMapping()
+        && (
+          getIdentityId() == resource.data.requester_identity_id
+          || isAdmin()
+        );
+      // All writes are server-only — Cloud Functions manage refund records
+      allow write: if false;
+    }
+
+    match /receipts/{receiptId} {
+      allow read: if hasIdentityMapping()
+        && (
+          getIdentityId() == resource.data.customer_snapshot.identity_id
+          || getIdentityId() == resource.data.provider_snapshot.identity_id
+          || (resource.data.provider_snapshot.business_id != null
+            && isBusinessMember(resource.data.provider_snapshot.business_id))
+          || isAdmin()
+        );
+      // All writes are server-only — Cloud Functions create receipts
+      allow write: if false;
+    }
+
+    match /slotHolds/{holdId} {
+      // Slot holds are internal — only the creator and admin can read
+      allow read: if hasIdentityMapping()
+        && (
+          getIdentityId() == resource.data.created_by_identity_id
+          || getIdentityId() == resource.data.provider_identity_id
+          || isAdmin()
+        );
+      // All writes are server-only — Cloud Functions manage holds
+      allow write: if false;
+    }
+
+    match /stripeConnectAccounts/{accountId} {
+      // Private — only the owner or business admin can read
+      allow read: if hasIdentityMapping()
+        && (
+          getIdentityId() == resource.data.identity_id
+          || (resource.data.business_id != null
+            && isBusinessMember(resource.data.business_id))
+          || isAdmin()
+        );
+      // All writes are server-only — Cloud Functions manage Connect accounts
+      allow write: if false;
+    }
+
+    match /processedStripeEvents/{eventId} {
+      // Internal idempotency records — server-only
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // SPECVAULT — PROJECTS, SPECIFICATIONS, VERSIONS
     // ═══════════════════════════════════════════════════════════
 

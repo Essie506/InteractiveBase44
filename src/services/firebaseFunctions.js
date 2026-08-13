@@ -85,3 +85,56 @@ export async function callGetProtectedMediaUrl(data) {
   const result = await callable('getProtectedMediaUrl')(data);
   return result.data;
 }
+
+// ── Phase 5: Stripe Connect ──
+export async function callCreateConnectAccount(data) {
+  const result = await callable('createConnectAccount')(data);
+  return result.data;
+}
+
+export async function callGetConnectAccountStatus(data) {
+  const result = await callable('getConnectAccountStatus')(data);
+  return result.data;
+}
+
+export async function callGetStripeConfig(data) {
+  const result = await callable('getStripeConfig')(data);
+  return result.data;
+}
+
+// ── Phase 5: Booking Payment ──
+export async function callCreateBookingDraft(data) {
+  const result = await callable('createBookingDraft')(data);
+  return result.data;
+}
+
+export async function callCreatePaymentIntent(data) {
+  const result = await callable('createPaymentIntent')(data);
+  return result.data;
+}
+
+export async function callConfirmFreeBooking(data) {
+  const result = await callable('confirmFreeBooking')(data);
+  return result.data;
+}
+
+// ── Phase 5: Booking Lifecycle ──
+export async function callCancelBooking(data) {
+  const result = await callable('cancelBooking')(data);
+  return result.data;
+}
+
+export async function callRescheduleBooking(data) {
+  const result = await callable('rescheduleBooking')(data);
+  return result.data;
+}
+
+export async function callReportNoShow(data) {
+  const result = await callable('reportNoShow')(data);
+  return result.data;
+}
+
+export async function callCompleteBooking(data) {
+  const result = await callable('completeBooking')(data);
+  return result.data;
+}
