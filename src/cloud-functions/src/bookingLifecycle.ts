@@ -9,7 +9,7 @@
 // calculates authoritative refund values or transitions booking state.
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
+import { db, allowedOrigins, getIdentityId, hasBusinessRole, isAdmin } from './shared';
 import { getStripe } from './stripe';
 
 // ── cancelBooking ────────────────────────────────────────────
@@ -49,8 +49,20 @@ export const cancelBooking = onCall(
       throw new HttpsError('permission-denied', 'Not authorized to cancel this booking');
     }
 
+    // Determine cancellation actor (Booking V2 — identify actor)
+    const isPlatformAdmin = await isAdmin(callerIdentityId);
+    let cancelledByState: string;
+    if (isCustomer) {
+      cancelledByState = 'cancelled_by_customer';
+    } else if (isPlatformAdmin && !isProvider && !isBizAdmin) {
+      cancelledByState = 'cancelled_by_platform';
+    } else {
+      cancelledByState = 'cancelled_by_provider';
+    }
+
     // Validate booking state
-    if (booking.booking_status === 'cancelled') {
+    const cancelledStates = ['cancelled_by_customer', 'cancelled_by_provider', 'cancelled_by_platform'];
+    if (cancelledStates.includes(booking.booking_status)) {
       throw new HttpsError('failed-precondition', 'Booking is already cancelled');
     }
     if (booking.booking_status === 'completed') {
@@ -73,12 +85,6 @@ export const cancelBooking = onCall(
       // Past deadline — no refund (or partial per policy)
       refundPercentage = 0;
     }
-
-    // ── Transition booking to cancellation_pending ──
-    await bookingDoc.ref.update({
-      booking_status: 'cancellation_pending',
-      _updated_date: nowIso,
-    });
 
     let refundRecordId: string | null = null;
     let refundAmountPence = 0;
@@ -130,9 +136,9 @@ export const cancelBooking = onCall(
       }
     }
 
-    // ── Finalise cancellation ──
+    // ── Finalise cancellation (Booking V2 — identify actor) ──
     await bookingDoc.ref.update({
-      booking_status: 'cancelled',
+      booking_status: cancelledByState,
       cancelled_at: nowIso,
       _updated_date: nowIso,
     });
@@ -242,15 +248,15 @@ export const rescheduleBooking = onCall(
       throw new HttpsError('permission-denied', 'Not authorized to reschedule this booking');
     }
 
-    // Validate booking state
-    if (booking.booking_status !== 'confirmed') {
-      throw new HttpsError('failed-precondition', 'Only confirmed bookings can be rescheduled');
+    // Validate booking state — must be scheduled or confirmed (Booking V2)
+    if (booking.booking_status !== 'scheduled' && booking.booking_status !== 'confirmed') {
+      throw new HttpsError('failed-precondition', 'Only scheduled or confirmed bookings can be rescheduled');
     }
 
-    // Transition to reschedule_pending
+    // Transition to reschedule_requested (Booking V2 lifecycle)
     const now = new Date().toISOString();
     await bookingDoc.ref.update({
-      booking_status: 'reschedule_pending',
+      booking_status: 'reschedule_requested',
       _updated_date: now,
     });
 
@@ -272,11 +278,27 @@ export const rescheduleBooking = onCall(
         db.collection('bookings')
           .where('provider_identity_id', '==', booking.provider_identity_id)
           .where('start_time', '==', new_start_time)
-          .where('booking_status', 'in', ['confirmed', 'payment_pending'])
+          .where('booking_status', 'in', [
+            'requested', 'accepted', 'awaiting_customer_confirmation',
+            'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',
+          ])
           .limit(1),
       );
       if (!bookedSnap.empty) {
         throw new HttpsError('failed-precondition', 'New slot is already booked');
+      }
+
+      // Check Calendar for existing events (Calendar is authoritative for availability)
+      const calendarOwner = booking.business_id || booking.provider_identity_id;
+      const calendarSnap = await tx.get(
+        db.collection('calendarEvents')
+          .where('owner_id', '==', calendarOwner)
+          .where('start_time', '==', new_start_time)
+          .where('lifecycle_state', 'in', ['scheduled', 'confirmed', 'tentative'])
+          .limit(1),
+      );
+      if (!calendarSnap.empty) {
+        throw new HttpsError('failed-precondition', 'New slot conflicts with an existing calendar event');
       }
 
       // Create new hold
@@ -307,9 +329,9 @@ export const rescheduleBooking = onCall(
       timestamp: now,
     };
 
-    // Update booking
+    // Update booking — transition through rescheduled (Booking V2 lifecycle)
     await bookingDoc.ref.update({
-      booking_status: 'confirmed',
+      booking_status: 'rescheduled',
       start_time: new_start_time,
       end_time: new_end_time,
       hold_id: holdResult,
@@ -337,6 +359,12 @@ export const rescheduleBooking = onCall(
     // Confirm new hold
     await db.collection('slotHolds').doc(holdResult).update({
       status: 'confirmed',
+      _updated_date: now,
+    });
+
+    // Transition back to scheduled (Calendar has active event at new time — Booking V2)
+    await bookingDoc.ref.update({
+      booking_status: 'scheduled',
       _updated_date: now,
     });
 
@@ -392,19 +420,23 @@ export const reportNoShow = onCall(
     }
     const booking = bookingDoc.data()!;
 
-    // Authorization: only provider or business admin
+    // Authorization: provider reports customer no-show; customer reports provider no-show
     const isProvider = booking.provider_identity_id === callerIdentityId;
+    const isCustomer = booking.customer_identity_id === callerIdentityId;
     let isBizAdmin = false;
     if (booking.business_id) {
       isBizAdmin = await hasBusinessRole(booking.business_id, callerIdentityId, ['owner', 'admin']);
     }
-    if (!isProvider && !isBizAdmin) {
-      throw new HttpsError('permission-denied', 'Only the provider can report no-show');
+    if (!isProvider && !isBizAdmin && !isCustomer) {
+      throw new HttpsError('permission-denied', 'Not authorized to report no-show for this booking');
     }
 
-    // Validate booking state — must be confirmed and past
-    if (booking.booking_status !== 'confirmed' && booking.booking_status !== 'completed') {
-      throw new HttpsError('failed-precondition', 'No-show can only be reported for confirmed/completed bookings');
+    // Determine no-show type (Booking V2 — identify customer vs provider)
+    const noShowState = (isProvider || isBizAdmin) ? 'no_show_customer' : 'no_show_provider';
+
+    // Validate booking state — must be scheduled, confirmed, or completed and past
+    if (booking.booking_status !== 'scheduled' && booking.booking_status !== 'confirmed' && booking.booking_status !== 'completed') {
+      throw new HttpsError('failed-precondition', 'No-show can only be reported for scheduled/completed bookings');
     }
 
     const now = new Date();
@@ -420,12 +452,13 @@ export const reportNoShow = onCall(
 
     const nowIso = now.toISOString();
     await bookingDoc.ref.update({
-      booking_status: 'no_show',
+      booking_status: noShowState,
       no_show_state: {
         reported: true,
         reported_by: callerIdentityId,
         reported_at: nowIso,
         reason: reason || null,
+        no_show_type: noShowState === 'no_show_customer' ? 'customer' : 'provider',
       },
       _updated_date: nowIso,
     });
@@ -482,8 +515,8 @@ export const completeBooking = onCall(
       throw new HttpsError('permission-denied', 'Only the provider can complete this booking');
     }
 
-    if (booking.booking_status !== 'confirmed') {
-      throw new HttpsError('failed-precondition', 'Only confirmed bookings can be completed');
+    if (booking.booking_status !== 'scheduled' && booking.booking_status !== 'in_progress' && booking.booking_status !== 'confirmed') {
+      throw new HttpsError('failed-precondition', 'Only scheduled, in-progress, or confirmed bookings can be completed');
     }
 
     const now = new Date().toISOString();

@@ -39,6 +39,42 @@
       "type": "number",
       "default": 0,
       "title": "Sort Order"
+    },
+    "fee_waiver": {
+      "type": "boolean",
+      "default": false,
+      "title": "Fee Waiver",
+      "description": "Whether this plan waives Interactive booking fees. The authoritative Plans spec determines which plans waive fees."
+    },
+    "fee_rule": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "percentage",
+            "flat",
+            "none"
+          ],
+          "title": "Fee Type"
+        },
+        "value": {
+          "type": "number",
+          "title": "Fee Value",
+          "description": "Percentage (e.g. 5 = 5%) or flat amount in pence"
+        },
+        "minimum_pence": {
+          "type": "number",
+          "title": "Minimum Fee (pence)"
+        },
+        "applies_to_free_events": {
+          "type": "boolean",
+          "default": false,
+          "title": "Applies to Free Events"
+        }
+      },
+      "title": "Fee Rule",
+      "description": "Data-driven fee configuration. Numerical values must be supplied via authoritative plan configuration before production payment activation."
     }
   },
   "required": [

@@ -11,7 +11,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
-import { getStripe, calculateBookingFee, resolveConnectedAccount, isPaymentReady } from './stripe';
+import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount, isPaymentReady } from './stripe';
 
 // ── Slot hold duration ───────────────────────────────────────
 const HOLD_DURATION_MINUTES = 15;
@@ -102,28 +102,14 @@ export const createBookingDraft = onCall(
       }
     }
 
-    // ── Plan/fee resolution ──
-    // Look up the provider's plan tier for fee calculation
-    let planTier: string | null = null;
-    let hasProWaiver = false;
-    const subscriptionSnap = await db.collection('businessSubscriptions')
-      .where('business_id', '==', business_id || provider_identity_id)
-      .where('status', 'in', ['selected', 'active'])
-      .limit(1)
-      .get();
-    if (!subscriptionSnap.empty) {
-      const subData = subscriptionSnap.docs[0].data();
-      const planId = subData.plan_id;
-      const planDoc = await db.collection('subscriptionPlans').doc(planId).get();
-      if (planDoc.exists) {
-        planTier = planDoc.data()!.tier || null;
-        hasProWaiver = planTier === 'professional';
-      }
-    }
+    // ── Fee rule resolution (data-driven, not hardcoded) ──
+    // Fee rules are loaded from the provider's subscription plan configuration.
+    // Numerical fee values are NOT hardcoded — they come from plan data.
+    const { feeRule, planTier, hasProWaiver } = await resolveFeeRule(db, provider_identity_id, business_id || null);
 
     // ── Price snapshot + fee calculation (server-side) ──
     const basePrice = base_price_pence || 0;
-    const feeCalc = calculateBookingFee(basePrice, planTier, hasProWaiver);
+    const feeCalc = calculateBookingFee(basePrice, feeRule);
 
     // For deposit route, the Stripe charge is the deposit amount
     // The total is still base + fee, but only deposit is charged now
@@ -165,16 +151,32 @@ export const createBookingDraft = onCall(
         throw new HttpsError('failed-precondition', 'This slot is already being booked');
       }
 
-      // Also check for confirmed bookings (calendar events)
+      // Also check for existing bookings in active states (Booking V2 lifecycle)
       const confirmedSnap = await tx.get(
         db.collection('bookings')
           .where('provider_identity_id', '==', provider_identity_id)
           .where('start_time', '==', start_time)
-          .where('booking_status', 'in', ['confirmed', 'payment_pending'])
+          .where('booking_status', 'in', [
+            'requested', 'accepted', 'awaiting_customer_confirmation',
+            'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',
+          ])
           .limit(1),
       );
       if (!confirmedSnap.empty) {
         throw new HttpsError('failed-precondition', 'This slot is already booked');
+      }
+
+      // Check Calendar for existing events (Calendar is authoritative for availability)
+      const calendarOwner = business_id || provider_identity_id;
+      const calendarSnap = await tx.get(
+        db.collection('calendarEvents')
+          .where('owner_id', '==', calendarOwner)
+          .where('start_time', '==', start_time)
+          .where('lifecycle_state', 'in', ['scheduled', 'confirmed', 'tentative'])
+          .limit(1),
+      );
+      if (!calendarSnap.empty) {
+        throw new HttpsError('failed-precondition', 'This slot conflicts with an existing calendar event');
       }
 
       // Create the hold
@@ -238,7 +240,7 @@ export const createBookingDraft = onCall(
       calendar_event_id: null,
       // Audit
       reschedule_history: [],
-      no_show_state: { reported: false, reported_by: null, reported_at: null, reason: null },
+      no_show_state: { reported: false, reported_by: null, reported_at: null, reason: null, no_show_type: null },
       hold_id: holdResult,
       _created_date: now.toISOString(),
       _updated_date: now.toISOString(),
@@ -308,8 +310,8 @@ export const createPaymentIntent = onCall(
       }
     }
 
-    // Validate booking state
-    if (booking.booking_status !== 'draft' && booking.booking_status !== 'payment_pending') {
+    // Validate booking state — must be in draft, awaiting_payment, or payment_pending (Booking V2)
+    if (booking.booking_status !== 'draft' && booking.booking_status !== 'awaiting_payment' && booking.booking_status !== 'payment_pending') {
       throw new HttpsError('failed-precondition', `Booking is ${booking.booking_status}, cannot create payment`);
     }
 
@@ -455,8 +457,8 @@ export const confirmFreeBooking = onCall(
       }
     }
 
-    // Validate booking state
-    if (booking.booking_status !== 'draft') {
+    // Validate booking state — must be in draft, accepted, or awaiting_customer_confirmation (Booking V2)
+    if (booking.booking_status !== 'draft' && booking.booking_status !== 'accepted' && booking.booking_status !== 'awaiting_customer_confirmation') {
       throw new HttpsError('failed-precondition', `Booking is ${booking.booking_status}`);
     }
 
@@ -464,11 +466,11 @@ export const confirmFreeBooking = onCall(
       throw new HttpsError('failed-precondition', 'This booking requires payment — use createPaymentIntent');
     }
 
-    // Transition to confirmed
+    // Transition to confirmed (all agreement steps complete — Booking V2)
     const now = new Date().toISOString();
     await bookingDoc.ref.update({
       booking_status: 'confirmed',
-      payment_status_mirror: booking.payment_route === 'free' ? 'not_required' : 'not_required',
+      payment_status_mirror: 'not_required',
       confirmed_at: now,
       _updated_date: now,
     });
@@ -505,7 +507,12 @@ export const confirmFreeBooking = onCall(
       _updated_date: now,
     });
 
-    await bookingDoc.ref.update({ calendar_event_id: calendarRef.id });
+    // Transition to scheduled (Calendar has an active event — Booking V2)
+    await bookingDoc.ref.update({
+      calendar_event_id: calendarRef.id,
+      booking_status: 'scheduled',
+      _updated_date: now,
+    });
 
     // Create receipt
     const receiptRef = db.collection('receipts').doc();

@@ -38,7 +38,14 @@ async function getStripeInstance() {
 }
 
 // ── Payment Provider Adapter ─────────────────────────────────
-// Abstracts the Stripe-specific payment confirmation logic.
+// EXPLICIT BOUNDARY: Stripe-specific behaviour lives behind this
+// adapter only. React/UI must never contain Stripe business logic
+// directly. The booking service and UI components call this adapter,
+// not Stripe.js or the Stripe API directly.
+//
+// Architecture:
+//   Booking → Payment Service → Payment Provider Adapter → Firebase → Stripe
+//
 // If a different provider is added in the future, only this
 // adapter needs to change — the booking service stays the same.
 

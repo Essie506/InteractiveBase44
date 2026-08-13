@@ -38,18 +38,28 @@ export const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
 // Interactive decides whether a booking fee applies.
 // Stripe executes the resulting fee via application_fee_amount.
 //
-// Plan rules (from SubscriptionPlan tier):
-//   professional → Pro fee waiver (booking_fee = 0)
-//   growth       → standard fee
-//   essential    → standard fee
-//
-// Free events (£0 base) can still have a booking fee per spec.
-//
 // All amounts are in the smallest currency unit (pence for GBP).
+
+// ── Fee rule configuration (data-driven, not hardcoded) ─────
+// Numerical fee values (percentages, flat fees, minimums) are NOT
+// hardcoded. They are loaded from the provider's subscription plan
+// configuration data (subscriptionPlans.fee_rule).
 //
-// NOTE: The exact fee percentages/waivers should be confirmed
-// against the authoritative Plans spec. The values below are
-// reasonable defaults — adjust when the Plans spec is available.
+// If no fee rule is configured for a plan, the booking fee is 0.
+// If exact numerical fee values cannot be found in the authoritative
+// Plans spec, they remain unresolved configuration — production/live
+// payment activation must be prevented until authoritative values
+// are supplied.
+//
+// Plans define fee entitlement. Payments applies those rules.
+// Stripe executes the resulting money movement.
+
+export interface FeeRule {
+  type: 'percentage' | 'flat' | 'none';
+  value: number; // percentage (e.g. 5 = 5%) or flat amount in pence
+  minimum_pence?: number;
+  applies_to_free_events: boolean;
+}
 
 export interface FeeCalculation {
   bookingFeePence: number;
@@ -57,40 +67,97 @@ export interface FeeCalculation {
   applicationFeePence: number;
   providerProceedsPence: number;
   feeRuleBasis: string;
+  feeRuleSource: string; // 'plan_config' | 'default_none' | 'fee_waiver'
 }
 
+// Resolve the fee rule from the provider's subscription plan data.
+// Returns the fee rule, plan tier, and whether a fee waiver applies.
+export async function resolveFeeRule(
+  db: FirebaseFirestore.Firestore,
+  providerIdentityId: string,
+  businessId: string | null,
+): Promise<{ feeRule: FeeRule | null; planTier: string | null; hasProWaiver: boolean }> {
+  const subscriptionSnap = await db.collection('businessSubscriptions')
+    .where('business_id', '==', businessId || providerIdentityId)
+    .where('status', 'in', ['selected', 'active'])
+    .limit(1)
+    .get();
+
+  if (subscriptionSnap.empty) {
+    return { feeRule: null, planTier: null, hasProWaiver: false };
+  }
+
+  const subData = subscriptionSnap.docs[0].data();
+  const planId = subData.plan_id;
+  const planDoc = await db.collection('subscriptionPlans').doc(planId).get();
+
+  if (!planDoc.exists) {
+    return { feeRule: null, planTier: null, hasProWaiver: false };
+  }
+
+  const planData = planDoc.data()!;
+  const planTier = planData.tier || null;
+
+  // Fee waiver is a plan configuration field, not a hardcoded assumption.
+  // The authoritative Plans spec determines which plans waive fees.
+  const hasProWaiver = planData.fee_waiver === true;
+
+  // Fee rule is loaded from plan data — not hardcoded
+  const feeRule: FeeRule | null = planData.fee_rule || null;
+
+  return { feeRule, planTier, hasProWaiver };
+}
+
+// Calculate the booking fee from a data-driven FeeRule.
+// If no fee rule is configured, the booking fee is 0.
 export function calculateBookingFee(
   basePricePence: number,
-  planTier: string | null,
-  hasProWaiver: boolean,
+  feeRule: FeeRule | null,
 ): FeeCalculation {
-  let bookingFeePence: number;
-  let feeRuleBasis: string;
+  // No fee rule configured → no booking fee
+  if (!feeRule || feeRule.type === 'none') {
+    const totalPence = basePricePence;
+    return {
+      bookingFeePence: 0,
+      totalPence,
+      applicationFeePence: 0,
+      providerProceedsPence: totalPence,
+      feeRuleBasis: 'no_fee_rule',
+      feeRuleSource: feeRule ? 'plan_config' : 'default_none',
+    };
+  }
 
-  if (hasProWaiver || planTier === 'professional') {
-    bookingFeePence = 0;
-    feeRuleBasis = 'pro_waiver';
-  } else if (basePricePence === 0) {
-    // Free event — flat booking fee per spec
-    bookingFeePence = 100; // £1.00
-    feeRuleBasis = 'free_event_flat_fee';
+  // Free event — check if fee applies to free events
+  if (basePricePence === 0 && !feeRule.applies_to_free_events) {
+    return {
+      bookingFeePence: 0,
+      totalPence: 0,
+      applicationFeePence: 0,
+      providerProceedsPence: 0,
+      feeRuleBasis: 'free_event_no_fee',
+      feeRuleSource: 'plan_config',
+    };
+  }
+
+  let bookingFeePence: number;
+  if (feeRule.type === 'percentage') {
+    bookingFeePence = Math.round(basePricePence * (feeRule.value / 100));
+    if (feeRule.minimum_pence) {
+      bookingFeePence = Math.max(bookingFeePence, feeRule.minimum_pence);
+    }
   } else {
-    // Standard: 5% of base price, minimum 50p
-    bookingFeePence = Math.max(Math.round(basePricePence * 0.05), 50);
-    feeRuleBasis = planTier ? `standard_${planTier}` : 'standard';
+    // flat
+    bookingFeePence = feeRule.value;
   }
 
   const totalPence = basePricePence + bookingFeePence;
-  // Application fee = the Interactive booking fee (collected from provider)
-  const applicationFeePence = bookingFeePence;
-  const providerProceedsPence = totalPence - applicationFeePence;
-
   return {
     bookingFeePence,
     totalPence,
-    applicationFeePence,
-    providerProceedsPence,
-    feeRuleBasis,
+    applicationFeePence: bookingFeePence,
+    providerProceedsPence: totalPence - bookingFeePence,
+    feeRuleBasis: `plan_${feeRule.type}`,
+    feeRuleSource: 'plan_config',
   };
 }
 

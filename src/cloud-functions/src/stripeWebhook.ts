@@ -167,7 +167,7 @@ async function handlePaymentSuccess(paymentIntent: any) {
     return;
   }
 
-  // Transition booking to confirmed
+  // Transition booking to confirmed (all agreement steps complete — Booking V2)
   await bookingRef.update({
     booking_status: 'confirmed',
     payment_status_mirror: 'succeeded',
@@ -207,7 +207,12 @@ async function handlePaymentSuccess(paymentIntent: any) {
       _created_date: now,
       _updated_date: now,
     });
-    await bookingRef.update({ calendar_event_id: calendarRef.id });
+    // Transition to scheduled (Calendar has an active event — Booking V2)
+    await bookingRef.update({
+      calendar_event_id: calendarRef.id,
+      booking_status: 'scheduled',
+      _updated_date: now,
+    });
   }
 
   // Create receipt (idempotent — check if exists)
@@ -306,8 +311,10 @@ async function handlePaymentFailure(paymentIntent: any) {
   const bookingDoc = await bookingRef.get();
   if (!bookingDoc.exists) return;
 
+  // Transition back to awaiting_payment (allow retry — Booking V2 lifecycle)
+  // payment_status_mirror tracks the Stripe state independently
   await bookingRef.update({
-    booking_status: 'payment_failed',
+    booking_status: 'awaiting_payment',
     payment_status_mirror: 'failed',
     _updated_date: now,
   });
@@ -386,6 +393,19 @@ async function handleDispute(event: any) {
     stripe_event_references: [...(payDoc.data()!.stripe_event_references || []), event.id],
     _updated_date: now,
   });
+
+  // Transition booking to disputed state (Booking V2 lifecycle)
+  const bookingRef = db.collection('bookings').doc(payDoc.data()!.booking_id);
+  const bookingDoc = await bookingRef.get();
+  if (bookingDoc.exists) {
+    const bookingStatus = bookingDoc.data()!.booking_status;
+    if (['scheduled', 'confirmed', 'in_progress', 'completed'].includes(bookingStatus)) {
+      await bookingRef.update({
+        booking_status: 'disputed',
+        _updated_date: now,
+      });
+    }
+  }
 }
 
 // ── Account updated handler (Stripe Connect) ────────────────
