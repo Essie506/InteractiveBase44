@@ -78,42 +78,84 @@ export default function Dashboard() {
 
       {/* Activation cards */}
       <div className="grid sm:grid-cols-2 gap-4 mb-6">
-        {/* Professional activation */}
-        {!isProfessionalActive ? (
-          <Link to="/activate-professional" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
-                <Briefcase className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-stone-800 mb-1">Activate Professional</h3>
-                <p className="text-sm text-stone-500 mb-2">Offer services and build your professional brand</p>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
-              </div>
-            </div>
-          </Link>
-        ) : (
-          <button
-            onClick={async () => {
-              await userService.updateUserState({ active_context: 'professional' });
-              await refreshUser();
-              navigate('/dashboard');
-            }}
-            className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                <Briefcase className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-stone-800">Professional</h3>
-                  <span className="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium">Active</span>
+        {/* Primary context card — when operating as Professional, offer Personal instead */}
+        {activeContext === 'professional' ? (
+          profile ? (
+            <button
+              onClick={async () => {
+                await userService.updateUserState({ active_context: 'personal', active_business_id: null });
+                await refreshUser();
+                navigate('/dashboard');
+              }}
+              className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                  <UserIcon className="w-5 h-5 text-emerald-600" />
                 </div>
-                <p className="text-sm text-stone-500">Open Professional Dashboard</p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-stone-800">Personal</h3>
+                    <span className="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium">Active</span>
+                  </div>
+                  <p className="text-sm text-stone-500">Open Personal Dashboard</p>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          ) : (
+            <Link to="/onboarding" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
+                  <UserIcon className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-stone-800">Personal</h3>
+                    <span className="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-medium">Create</span>
+                  </div>
+                  <p className="text-sm text-stone-500 mb-2">Create your Personal Profile</p>
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
+                </div>
+              </div>
+            </Link>
+          )
+        ) : (
+          !isProfessionalActive ? (
+            <Link to="/activate-professional" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
+                  <Briefcase className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-stone-800 mb-1">Activate Professional</h3>
+                  <p className="text-sm text-stone-500 mb-2">Offer services and build your professional brand</p>
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
+                </div>
+              </div>
+            </Link>
+          ) : (
+            <button
+              onClick={async () => {
+                await userService.updateUserState({ active_context: 'professional' });
+                await refreshUser();
+                navigate('/dashboard');
+              }}
+              className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                  <Briefcase className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-semibold text-stone-800">Professional</h3>
+                    <span className="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium">Active</span>
+                  </div>
+                  <p className="text-sm text-stone-500">Open Professional Dashboard</p>
+                </div>
+              </div>
+            </button>
+          )
         )}
 
         {/* Business creation */}
