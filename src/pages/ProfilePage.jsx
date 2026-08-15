@@ -26,7 +26,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    getPersonalProfile(user.id).then(async p => {
+    getPersonalProfile(user.id).then(async (p) => {
       if (p) {
         setProfile(p);
         setDisplayName(p.display_name || '');
@@ -66,7 +66,7 @@ export default function ProfilePage() {
         location_id: locationId,
         avatar_url: avatarUrl,
         avatar_media_id: avatarMediaId,
-        visibility,
+        visibility
       };
       if (profile) {
         const updated = await savePersonalProfile(user.id, data);
@@ -88,8 +88,8 @@ export default function ProfilePage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
-      </div>
-    );
+      </div>);
+
   }
 
   const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
@@ -106,21 +106,21 @@ export default function ProfilePage() {
         <div className="flex items-center gap-4 mb-6">
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-stone-200 overflow-hidden flex items-center justify-center">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-2xl font-semibold text-stone-400">
+              {avatarUrl ?
+              <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> :
+
+              <span className="text-2xl font-semibold text-stone-400">
                   {(displayName || user?.email || '?')[0].toUpperCase()}
                 </span>
-              )}
+              }
             </div>
             <MediaUploadButton
               ownerId={user.id}
               sourceDomain="personal"
               visibility="public"
-              onUploaded={(asset) => { setAvatarUrl(asset.file_url); setAvatarMediaId(asset.id); }}
-              className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white"
-            >
+              onUploaded={(asset) => {setAvatarUrl(asset.file_url);setAvatarMediaId(asset.id);}}
+              className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white">
+              
               <Camera className="w-3.5 h-3.5 text-white" />
             </MediaUploadButton>
           </div>
@@ -132,20 +132,20 @@ export default function ProfilePage() {
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Display Name</label>
-            <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className={inputClass} />
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Legal Name</label>
+            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Screen Name</label>
-            <input type="text" value={screenName} onChange={e => setScreenName(e.target.value)} placeholder="@username" className={inputClass} />
+            <input type="text" value={screenName} onChange={(e) => setScreenName(e.target.value)} placeholder="@username" className={inputClass} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Headline</label>
-            <input type="text" value={headline} onChange={e => setHeadline(e.target.value)} placeholder="e.g. Fitness enthusiast" className={inputClass} />
+            <input type="text" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="e.g. Fitness enthusiast" className={inputClass} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Bio</label>
-            <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} placeholder="Tell us about yourself" className={inputClass + " resize-none"} />
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} placeholder="Tell us about yourself" className={inputClass + " resize-none"} />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
@@ -155,12 +155,12 @@ export default function ProfilePage() {
               context="profile"
               initialLocationId={locationId}
               initialLabel={locationVal}
-              onLocationSaved={(id, label) => { setLocationId(id); setLocationVal(label); }}
-            />
+              onLocationSaved={(id, label) => {setLocationId(id);setLocationVal(label);}} />
+            
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Profile Visibility</label>
-            <select value={visibility} onChange={e => setVisibility(e.target.value)} className={inputClass}>
+            <select value={visibility} onChange={(e) => setVisibility(e.target.value)} className={inputClass}>
               <option value="public">Public — visible to everyone</option>
               <option value="connections">Connections — visible to your connections</option>
               <option value="private">Private — visible only to you</option>
@@ -172,13 +172,13 @@ export default function ProfilePage() {
           <button
             onClick={handleSave}
             disabled={saving || !displayName.trim()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
             {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
           </button>
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
