@@ -126,13 +126,13 @@ export default function BusinessWorkspace() {
 
       {/* Status cards */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-stone-200 p-5">
+        <Link to={`/business/${id}/verify`} className="bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all block">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-4 h-4 text-stone-400" />
             <span className="text-xs text-stone-500 font-medium">Verification</span>
           </div>
           <div className="text-sm font-semibold text-stone-800">{verificationLabels[business.verification_state] || 'Not Verified'}</div>
-        </div>
+        </Link>
         <div className="bg-white rounded-xl border border-stone-200 p-5">
           <div className="flex items-center gap-2 mb-2">
             <CreditCard className="w-4 h-4 text-stone-400" />

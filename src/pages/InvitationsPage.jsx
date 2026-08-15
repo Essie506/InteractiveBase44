@@ -7,7 +7,7 @@ import { useFirebase } from '@/lib/backendConfig';
 import { Loader2, Mail, Check, X, Building2, ArrowRight } from 'lucide-react';
 
 export default function InvitationsPage() {
-  const { user, checkUserAuth } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);

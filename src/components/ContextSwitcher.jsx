@@ -6,7 +6,7 @@ import { User, Briefcase, Building2, ChevronDown, Check, Loader2, Plus } from 'l
 import { useNavigate } from 'react-router-dom';
 
 export default function ContextSwitcher() {
-  const { user, checkUserAuth } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -40,8 +40,13 @@ export default function ContextSwitcher() {
       const updates = { active_context: context };
       if (context === 'business' && businessId) updates.active_business_id = businessId;
       await userService.updateUserState(updates);
-      await checkUserAuth();
+      await refreshUser();
       setOpen(false);
+      if (context === 'business' && businessId) {
+        navigate(`/business/${businessId}`);
+      } else {
+        navigate('/dashboard');
+      }
     } finally {
       setSwitching(false);
     }
@@ -81,14 +86,21 @@ export default function ContextSwitcher() {
 
             {/* Professional */}
             <button
-              onClick={() => isProfessionalActive && switchTo('professional')}
-              disabled={!isProfessionalActive || switching}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 text-left ${isProfessionalActive ? 'hover:bg-slate-700' : 'opacity-40 cursor-not-allowed'}`}
+              onClick={() => {
+                if (isProfessionalActive) {
+                  switchTo('professional');
+                } else {
+                  setOpen(false);
+                  navigate('/activate-professional');
+                }
+              }}
+              disabled={switching}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-700"
             >
               <Briefcase className="w-4 h-4 text-slate-400" />
               <span className="flex-1 text-sm text-slate-200">Professional</span>
               {activeContext === 'professional' && <Check className="w-3.5 h-3.5 text-indigo-400" />}
-              {!isProfessionalActive && <span className="text-[10px] text-slate-600">Not activated</span>}
+              {!isProfessionalActive && <span className="text-[10px] text-slate-600">Activate</span>}
             </button>
 
             {/* Divider */}

@@ -4,9 +4,24 @@ import { useAuth } from '@/lib/AuthContext';
 import {
   getBusiness, getMemberships, getInvitationsForBusiness,
   createInvitation, updateInvitation, updateMembership,
-  getMembership, hasPermission,
+  getMembership, hasPermission, isOwner, getRolePermissions,
 } from '@/services/businessService';
 import { Users, Plus, X, Mail, Check, AlertCircle, ArrowLeft, Loader2, Shield } from 'lucide-react';
+
+const AVAILABLE_PERMISSIONS = [
+  { key: 'view_bookings', label: 'View Bookings' },
+  { key: 'manage_bookings', label: 'Manage Bookings' },
+  { key: 'manage_own_bookings', label: 'Manage Own Bookings' },
+  { key: 'view_calendar', label: 'View Calendar' },
+  { key: 'manage_calendar', label: 'Manage Calendar' },
+  { key: 'view_financials', label: 'View Financials' },
+  { key: 'manage_financials', label: 'Manage Financials' },
+  { key: 'view_inbox', label: 'View Inbox' },
+  { key: 'manage_inbox', label: 'Manage Inbox' },
+  { key: 'manage_promotions', label: 'Manage Promotions' },
+  { key: 'manage_business_profile', label: 'Manage Business Profile' },
+  { key: 'invite_staff', label: 'Invite Staff' },
+];
 
 export default function BusinessStaff() {
   const { id } = useParams();
@@ -22,6 +37,7 @@ export default function BusinessStaff() {
   const [inviteRole, setInviteRole] = useState('staff');
   const [inviteMsg, setInviteMsg] = useState('');
   const [sending, setSending] = useState(false);
+  const [expandedMember, setExpandedMember] = useState(null);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -77,6 +93,13 @@ export default function BusinessStaff() {
 
   const updateMemberRole = async (memberId, newRole) => {
     await updateMembership(memberId, { role: newRole });
+    await loadData();
+  };
+
+  const togglePermission = async (member, perm) => {
+    const current = member.permissions || [];
+    const updated = current.includes(perm) ? current.filter(p => p !== perm) : [...current, perm];
+    await updateMembership(member.id, { permissions: updated });
     await loadData();
   };
 
@@ -175,34 +198,68 @@ export default function BusinessStaff() {
         <h2 className="font-semibold text-stone-800 mb-3">Team Members ({members.length})</h2>
         <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
           {members.map((m, i) => (
-            <div key={m.id} className={`flex items-center justify-between p-4 ${i > 0 ? 'border-t border-stone-100' : ''}`}>
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium text-slate-600">
-                  {m.identity_id === user.id ? (user.display_name?.[0] || 'U') : '?'}
+            <div key={m.id} className={i > 0 ? 'border-t border-stone-100' : ''}>
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium text-slate-600">
+                    {m.identity_id === user.id ? (user.display_name?.[0] || 'U') : '?'}
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-stone-800">
+                      {m.identity_id === user.id ? `${user.display_name || user.email} (You)` : 'Team Member'}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-stone-500">
+                      <Shield className="w-3 h-3" />
+                      {m.role}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-medium text-stone-800">
-                    {m.identity_id === user.id ? `${user.display_name || user.email} (You)` : 'Team Member'}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-stone-500">
-                    <Shield className="w-3 h-3" />
-                    {m.role}
-                  </div>
+                <div className="flex items-center gap-2">
+                  {m.identity_id !== user.id && !isOwner(m) && hasPermission(membership, 'manage_permissions') && (
+                    <button
+                      onClick={() => setExpandedMember(expandedMember === m.id ? null : m.id)}
+                      className="text-xs px-2 py-1 text-indigo-600 hover:bg-indigo-50 rounded font-medium"
+                    >
+                      {expandedMember === m.id ? 'Hide' : 'Permissions'}
+                    </button>
+                  )}
+                  {m.identity_id !== user.id && !isOwner(m) && (
+                    <select
+                      value={m.role}
+                      onChange={e => updateMemberRole(m.id, e.target.value)}
+                      className="text-sm px-2 py-1.5 border border-stone-200 rounded-lg focus:outline-none focus:border-indigo-400"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="staff">Staff</option>
+                      <option value="member">Member</option>
+                    </select>
+                  )}
+                  {isOwner(m) && (
+                    <span className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded font-medium">Owner</span>
+                  )}
                 </div>
               </div>
-              {m.identity_id !== user.id && m.role !== 'owner' && (
-                <select
-                  value={m.role}
-                  onChange={e => updateMemberRole(m.id, e.target.value)}
-                  className="text-sm px-2 py-1.5 border border-stone-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="staff">Staff</option>
-                  <option value="member">Member</option>
-                </select>
-              )}
-              {m.role === 'owner' && (
-                <span className="text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded font-medium">Owner</span>
+              {expandedMember === m.id && !isOwner(m) && hasPermission(membership, 'manage_permissions') && (
+                <div className="px-4 pb-4 pt-2 border-t border-stone-100 bg-stone-50">
+                  <div className="text-xs font-medium text-stone-600 mb-2">Individual Permission Overrides</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {AVAILABLE_PERMISSIONS.map(perm => {
+                      const active = (m.permissions || []).includes(perm.key);
+                      return (
+                        <label key={perm.key} className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={() => togglePermission(m, perm.key)}
+                            className="w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          {perm.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-stone-400 mt-2">Role default permissions: {getRolePermissions(m.role).join(', ')}</p>
+                </div>
               )}
             </div>
           ))}

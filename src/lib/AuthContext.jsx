@@ -216,6 +216,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Firebase-safe user refresh — re-reads the user's Firestore state
+  // without touching isAuthenticated/authError. In Firebase mode,
+  // checkUserAuth() calls base44.auth.me() which fails for Firebase-
+  // authenticated users, setting authError and causing ProtectedRoute
+  // to redirect to /login. refreshUser avoids that entirely.
+  const refreshUser = async () => {
+    if (useFirebase) {
+      const identityId = getCurrentIdentityId();
+      if (!identityId) return;
+      try {
+        const userState = await userRepository.getUser(identityId);
+        if (userState) {
+          setUser(prev => ({ ...prev, ...userState, id: identityId }));
+        }
+      } catch {
+        // User doc might not exist yet
+      }
+    } else {
+      await checkUserAuth();
+    }
+  };
+
   const navigateToLogin = () => {
     if (useFirebase) {
       window.location.href = '/login';
@@ -237,6 +259,7 @@ export const AuthProvider = ({ children }) => {
       navigateToLogin,
       checkUserAuth,
       checkAppState,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>

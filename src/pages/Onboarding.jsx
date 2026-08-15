@@ -12,7 +12,7 @@ import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 
 export default function Onboarding() {
-  const { user, checkUserAuth } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [stepIndex, setStepIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,7 @@ export default function Onboarding() {
 
     // Set onboarding intent from URL if not already set (e.g. Google sign-up)
     if (urlIntent && !user.onboarding_intent) {
-      userService.updateUserState({ onboarding_intent: urlIntent }).then(() => checkUserAuth());
+      userService.updateUserState({ onboarding_intent: urlIntent }).then(() => refreshUser());
     }
 
     getOnboardingState(user.id).then(async (existing) => {

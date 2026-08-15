@@ -5,21 +5,49 @@ import { useFirebase } from '@/lib/backendConfig';
 // Role-based default permissions per Business System spec section 8
 export const ROLE_PERMISSIONS = {
   owner: [
-    'manage_staff', 'manage_services', 'manage_bookings', 'manage_settings',
-    'manage_payments', 'view_analytics', 'manage_permissions', 'transfer_ownership',
-    'manage_verification', 'manage_subscription', 'manage_profile', 'invite_staff',
-    'view_business',
+    'view_business', 'manage_profile', 'manage_business_profile', 'manage_staff',
+    'manage_permissions', 'invite_staff',
+    'view_bookings', 'manage_bookings',
+    'view_calendar', 'manage_calendar',
+    'view_financials', 'manage_financials',
+    'view_inbox', 'manage_inbox',
+    'manage_promotions', 'manage_verification', 'manage_subscription',
+    'transfer_ownership', 'view_analytics', 'manage_settings',
+    'manage_services', 'manage_payments',
   ],
   admin: [
-    'manage_staff', 'manage_services', 'manage_bookings', 'manage_settings',
-    'view_analytics', 'manage_profile', 'invite_staff', 'view_business',
+    'view_business', 'manage_profile', 'manage_business_profile', 'manage_staff',
+    'invite_staff',
+    'view_bookings', 'manage_bookings',
+    'view_calendar', 'manage_calendar',
+    'view_financials',
+    'view_inbox', 'manage_inbox',
+    'manage_promotions', 'view_analytics', 'manage_services',
   ],
-  staff: ['view_bookings', 'manage_own_bookings', 'view_business'],
+  staff: ['view_business', 'view_bookings', 'manage_own_bookings', 'view_calendar'],
   member: ['view_business'],
 };
 
 export function getRolePermissions(role) {
   return ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS.member;
+}
+
+// True ownership is determined by role, not by permission grants.
+// Even an admin with manage_permissions cannot gain protected owner
+// capabilities via the permissions array — those require role === 'owner'.
+export function isOwner(membership) {
+  return membership?.role === 'owner';
+}
+
+// Protected actions that only the owner role can perform.
+// These cannot be granted via the permissions array override.
+export const PROTECTED_OWNER_ACTIONS = [
+  'transfer_ownership',
+];
+
+export function canPerformProtectedAction(membership, action) {
+  if (!isOwner(membership)) return false;
+  return PROTECTED_OWNER_ACTIONS.includes(action);
 }
 
 export function hasPermission(membership, requiredPermission) {

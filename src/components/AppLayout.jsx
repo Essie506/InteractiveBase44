@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { LayoutDashboard, User as UserIcon, Settings, FileText, Search, LogOut, Menu, X, Briefcase, Building2, Users, Calendar, MessageSquare, Clock } from 'lucide-react';
+import { LayoutDashboard, User as UserIcon, Settings, FileText, Search, LogOut, Menu, X, Briefcase, Building2, Users, Calendar, MessageSquare, Clock, ShieldCheck } from 'lucide-react';
 import ContextSwitcher from '@/components/ContextSwitcher';
 import NotificationBell from '@/components/NotificationBell';
 
@@ -43,6 +43,7 @@ export default function AppLayout() {
       { path: '/availability', label: 'Availability', icon: Clock },
       { path: '/messages', label: 'Messages', icon: MessageSquare },
       { path: '/professional-profile', label: 'Pro Profile', icon: Briefcase },
+      { path: '/verify-professional', label: 'Verification', icon: ShieldCheck },
       { path: '/settings', label: 'Settings', icon: Settings },
       { path: '/specifications', label: 'Specs', icon: FileText },
       { path: '/search', label: 'AI Search', icon: Search },
@@ -57,6 +58,7 @@ export default function AppLayout() {
       { path: `/business/${activeBusinessId}`, label: 'Workspace', icon: Building2 },
       { path: `/business/${activeBusinessId}/staff`, label: 'Staff', icon: Users },
       { path: `/business/${activeBusinessId}/profile`, label: 'Biz Profile', icon: FileText },
+      { path: `/business/${activeBusinessId}/verify`, label: 'Verification', icon: ShieldCheck },
       { path: '/settings', label: 'Settings', icon: Settings },
       { path: '/specifications', label: 'Specs', icon: FileText },
       { path: '/search', label: 'AI Search', icon: Search },

@@ -4,7 +4,7 @@ import { useFirebase } from '@/lib/backendConfig';
 
 // Interactive Business Service — M3: routes to Firebase when configured.
 
-export { getMembership, hasPermission, checkPermission, getUserBusinesses, getRolePermissions } from '@/lib/businessPermissions';
+export { getMembership, hasPermission, checkPermission, getUserBusinesses, getRolePermissions, isOwner } from '@/lib/businessPermissions';
 
 // --- Business ---
 

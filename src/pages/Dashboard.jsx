@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { getPersonalProfile } from '@/services/profileService';
+import { getPersonalProfile, getProfessionalProfile } from '@/services/profileService';
 import { getUserSettings } from '@/services/settingsService';
 import { getInvitationsForEmail, getUserBusinesses } from '@/services/businessService';
+import * as userService from '@/services/userService';
 import { User as UserIcon, Settings, FileText, Search, Check, Briefcase, Building2, Plus, ArrowRight, Mail, ShieldCheck } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
+  const [proProfile, setProProfile] = useState(null);
   const [settings, setSettings] = useState(null);
   const [businesses, setBusinesses] = useState([]);
   const [pendingInvites, setPendingInvites] = useState(0);
@@ -18,11 +21,13 @@ export default function Dashboard() {
     if (!user) return;
     Promise.all([
       getPersonalProfile(user.id),
+      getProfessionalProfile(user.id),
       getUserSettings(user.id),
       getUserBusinesses(user.id),
       getInvitationsForEmail(user.email),
-    ]).then(([profile, userSettings, userBusinesses, invites]) => {
+    ]).then(([profile, proProfile, userSettings, userBusinesses, invites]) => {
       if (profile) setProfile(profile);
+      if (proProfile) setProProfile(proProfile);
       if (userSettings) setSettings(userSettings);
       setBusinesses(userBusinesses);
       setPendingInvites(invites.filter(i => i.status === 'sent' || i.status === 'delivered').length);
@@ -88,7 +93,14 @@ export default function Dashboard() {
             </div>
           </Link>
         ) : (
-          <Link to="/professional-profile" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+          <button
+            onClick={async () => {
+              await userService.updateUserState({ active_context: 'professional' });
+              await refreshUser();
+              navigate('/dashboard');
+            }}
+            className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
+          >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
                 <Briefcase className="w-5 h-5 text-emerald-600" />
@@ -98,10 +110,10 @@ export default function Dashboard() {
                   <h3 className="font-semibold text-stone-800">Professional</h3>
                   <span className="text-xs px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-medium">Active</span>
                 </div>
-                <p className="text-sm text-stone-500">View and edit your professional profile</p>
+                <p className="text-sm text-stone-500">Open Professional Dashboard</p>
               </div>
             </div>
-          </Link>
+          </button>
         )}
 
         {/* Business creation */}
@@ -133,13 +145,50 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Verification status (Professional context) */}
+      {activeContext === 'professional' && isProfessionalActive && (
+        <Link to="/verify-professional" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all mb-6 block">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
+              <ShieldCheck className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-semibold text-stone-800">Verification</h3>
+                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                  proProfile?.verification_state === 'verified' ? 'bg-emerald-50 text-emerald-700' :
+                  proProfile?.verification_state === 'pending_review' ? 'bg-amber-50 text-amber-700' :
+                  proProfile?.verification_state === 'additional_info_required' ? 'bg-red-50 text-red-700' :
+                  'bg-stone-100 text-stone-600'
+                }`}>
+                  {proProfile?.verification_state === 'verified' ? 'Verified' :
+                   proProfile?.verification_state === 'pending_review' ? 'Pending' :
+                   proProfile?.verification_state === 'additional_info_required' ? 'Action Required' :
+                   'Not Verified'}
+                </span>
+              </div>
+              <p className="text-sm text-stone-500">Manage your professional verification</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-indigo-600 shrink-0" />
+          </div>
+        </Link>
+      )}
+
       {/* Business cards */}
       {businesses.length > 0 && (
         <div className="mb-6">
           <h2 className="font-semibold text-stone-800 mb-3">Your Businesses</h2>
           <div className="grid sm:grid-cols-2 gap-4">
             {businesses.map(biz => (
-              <Link key={biz.id} to={`/business/${biz.id}`} className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+              <button
+                key={biz.id}
+                onClick={async () => {
+                  await userService.updateUserState({ active_context: 'business', active_business_id: biz.id });
+                  await refreshUser();
+                  navigate(`/business/${biz.id}`);
+                }}
+                className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
+              >
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
                     <Building2 className="w-5 h-5 text-indigo-600" />
@@ -155,7 +204,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         </div>

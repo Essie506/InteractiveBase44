@@ -10,7 +10,7 @@ import TrustBadge from '@/components/TrustBadge';
 import { getVerificationRequest } from '@/lib/trust';
 
 export default function ProfessionalProfilePage() {
-  const { user, checkUserAuth } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -109,7 +109,7 @@ export default function ProfessionalProfilePage() {
         setProfile(created);
       }
       await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
-      await checkUserAuth();
+      await refreshUser();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } finally {
