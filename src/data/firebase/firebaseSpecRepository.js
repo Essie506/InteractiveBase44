@@ -12,7 +12,7 @@
 import { db } from '@/firebase/firebaseClient';
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
-  query, where, orderBy, limit,
+  query, where, orderBy, limit, serverTimestamp,
 } from 'firebase/firestore';
 import { toFirestoreDoc, fromFirestoreDoc } from './mappers';
 
@@ -30,8 +30,10 @@ export async function getProject(id) {
 
 export async function createProject(data) {
   const ref = doc(collection(db, 'projects'));
-  await setDoc(ref, toFirestoreDoc(data));
-  return { id: ref.id, ...data };
+  const docData = toFirestoreDoc(data);
+  if (!docData._created_date) docData._created_date = serverTimestamp();
+  await setDoc(ref, docData);
+  return { id: ref.id, ...data, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
 }
 
 export async function updateProject(id, data) {
@@ -73,8 +75,10 @@ export async function getSpecification(id) {
 
 export async function createSpecification(data) {
   const ref = doc(collection(db, 'specifications'));
-  await setDoc(ref, toFirestoreDoc(data));
-  return { id: ref.id, ...data };
+  const docData = toFirestoreDoc(data);
+  if (!docData._created_date) docData._created_date = serverTimestamp();
+  await setDoc(ref, docData);
+  return { id: ref.id, ...data, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
 }
 
 export async function updateSpecification(id, data) {
@@ -90,10 +94,11 @@ export async function deleteSpecification(id) {
 // ── Spec Versions ───────────────────────────────────────────
 
 export async function listSpecVersions(specificationId) {
+  // orderBy omitted — SpecificationDetail.jsx sorts client-side by created_date.
+  // This avoids a composite-index dependency for the version history query.
   const q = query(
     collection(db, 'specVersions'),
     where('specification_id', '==', specificationId),
-    orderBy('_created_date', 'desc'),
   );
   const snap = await getDocs(q);
   return snap.docs.map(fromFirestoreDoc);
@@ -101,8 +106,10 @@ export async function listSpecVersions(specificationId) {
 
 export async function createSpecVersion(data) {
   const ref = doc(collection(db, 'specVersions'));
-  await setDoc(ref, toFirestoreDoc(data));
-  return { id: ref.id, ...data };
+  const docData = toFirestoreDoc(data);
+  if (!docData._created_date) docData._created_date = serverTimestamp();
+  await setDoc(ref, docData);
+  return { id: ref.id, ...data, created_date: new Date().toISOString(), updated_date: new Date().toISOString() };
 }
 
 export async function deleteSpecVersions(specificationId) {
