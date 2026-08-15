@@ -28,6 +28,7 @@ export default function ProfessionalActivation() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [visibility, setVisibility] = useState('public');
+  const [screenName, setScreenName] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -56,6 +57,7 @@ export default function ProfessionalActivation() {
         setContactEmail(p.contact_email || user.email || '');
         setContactPhone(p.contact_phone || '');
         setVisibility(p.visibility || 'public');
+        setScreenName(p.screen_name || '');
       }
       setIniting(false);
     });
@@ -107,6 +109,7 @@ export default function ProfessionalActivation() {
         location,
         contact_email: contactEmail,
         contact_phone: contactPhone,
+        screen_name: screenName.toLowerCase().trim() || null,
         visibility,
         onboarding_status: 'awaiting_verification',
         verification_state: 'pending_review',
@@ -314,6 +317,14 @@ export default function ProfessionalActivation() {
               <h1 className="text-2xl font-bold text-stone-800 mb-2">Professional Settings</h1>
               <p className="text-stone-500 mb-6">Control your professional profile visibility.</p>
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Screen Name <span className="text-xs font-normal text-stone-400">(public handle)</span></label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-stone-400 text-sm">@</span>
+                    <input type="text" value={screenName} onChange={e => setScreenName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="estherfitness" maxLength={20} className={inputClass} />
+                  </div>
+                  <p className="text-xs text-stone-400 mt-1">3-20 characters. Your public profile: /p/{screenName || 'handle'}</p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">Profile Visibility</label>
                   <select value={visibility} onChange={e => setVisibility(e.target.value)} className={inputClass}>

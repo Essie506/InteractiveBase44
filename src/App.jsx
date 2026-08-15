@@ -36,6 +36,8 @@ import Specifications from '@/pages/Specifications';
 import SpecificationDetail from '@/pages/SpecificationDetail';
 import UploadPage from '@/pages/Upload';
 import SearchPage from '@/pages/Search';
+import PublicProfile from '@/pages/PublicProfile';
+import BookingPage from '@/pages/BookingPage';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -69,6 +71,7 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/p/:screenName" element={<PublicProfile />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/activate-professional" element={<ProfessionalActivation />} />
@@ -94,6 +97,7 @@ const AuthenticatedApp = () => {
           <Route path="/specifications/:id" element={<SpecificationDetail />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/book/:screenName" element={<BookingPage />} />
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />

@@ -21,3 +21,6 @@ export { createConnectAccount, getConnectAccountStatus, getStripeConfig } from '
 export { createBookingDraft, createPaymentIntent, confirmFreeBooking } from './bookingPayment';
 export { stripeWebhook } from './stripeWebhook';
 export { cancelBooking, rescheduleBooking, reportNoShow, completeBooking } from './bookingLifecycle';
+
+// Professional Profile — public projection + screen name uniqueness
+export { saveProfessionalProfile, validateScreenName } from './professionalProfile';

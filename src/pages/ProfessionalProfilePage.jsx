@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
+import { getProfessionalProfile, saveProfessionalProfile, validateScreenName } from '@/services/profileService';
 import { updateProfile } from '@/services/authService';
 import { getMedia, getMediaUrl } from '@/lib/media';
-import { Loader2, Camera, Save, Check, ShieldCheck, Plus, X } from 'lucide-react';
+import { Loader2, Camera, Save, Check, ShieldCheck, Plus, X, ImageIcon, AlertCircle } from 'lucide-react';
 import MediaUploadButton from '@/components/MediaUploadButton';
+import ImagePositioner from '@/components/ImagePositioner';
 import LocationPicker from '@/components/LocationPicker';
 import TrustBadge from '@/components/TrustBadge';
 import { getVerificationRequest } from '@/lib/trust';
@@ -15,8 +16,14 @@ export default function ProfessionalProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
+  const [legalName, setLegalName] = useState('');
+  const [businessName, setBusinessName] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [screenName, setScreenName] = useState('');
+  const [screenNameStatus, setScreenNameStatus] = useState(null); // { available, reason? } | null
+  const [screenNameChecking, setScreenNameChecking] = useState(false);
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
   const [category, setCategory] = useState('');
@@ -30,6 +37,10 @@ export default function ProfessionalProfilePage() {
   const [contactPhone, setContactPhone] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarMediaId, setAvatarMediaId] = useState('');
+  const [avatarPos, setAvatarPos] = useState({ x: 0.5, y: 0.5, zoom: 1 });
+  const [coverUrl, setCoverUrl] = useState('');
+  const [coverMediaId, setCoverMediaId] = useState('');
+  const [coverPos, setCoverPos] = useState({ x: 0.5, y: 0.5, zoom: 1 });
   const [visibility, setVisibility] = useState('public');
   const [verificationRequest, setVerificationRequest] = useState(null);
 
@@ -41,7 +52,10 @@ export default function ProfessionalProfilePage() {
     ]).then(async ([p, req]) => {
       if (p) {
         setProfile(p);
+        setLegalName(p.legal_name || '');
+        setBusinessName(p.business_name || '');
         setDisplayName(p.display_name || '');
+        setScreenName(p.screen_name || '');
         setHeadline(p.headline || '');
         setBio(p.bio || '');
         setCategory(p.professional_category || p.profession || '');
@@ -54,13 +68,23 @@ export default function ProfessionalProfilePage() {
         setContactPhone(p.contact_phone || '');
         setAvatarUrl(p.avatar_url || '');
         setAvatarMediaId(p.avatar_media_id || '');
+        setAvatarPos({ x: p.avatar_position_x ?? 0.5, y: p.avatar_position_y ?? 0.5, zoom: p.avatar_zoom ?? 1 });
+        setCoverUrl(p.cover_url || '');
+        setCoverMediaId(p.cover_media_id || '');
+        setCoverPos({ x: p.cover_position_x ?? 0.5, y: p.cover_position_y ?? 0.5, zoom: p.cover_zoom ?? 1 });
         setVisibility(p.visibility || 'public');
-        // Resolve avatar URL from MediaAsset via canonical getMediaUrl path
         if (p.avatar_media_id) {
           const asset = await getMedia(p.avatar_media_id);
           if (asset) {
             const resolvedUrl = await getMediaUrl(asset);
             if (resolvedUrl) setAvatarUrl(resolvedUrl);
+          }
+        }
+        if (p.cover_media_id) {
+          const asset = await getMedia(p.cover_media_id);
+          if (asset) {
+            const resolvedUrl = await getMediaUrl(asset);
+            if (resolvedUrl) setCoverUrl(resolvedUrl);
           }
         }
       } else {
@@ -80,38 +104,61 @@ export default function ProfessionalProfilePage() {
     }
   };
 
+  const checkScreenName = async (value) => {
+    const trimmed = value.toLowerCase().trim();
+    if (!trimmed) { setScreenNameStatus(null); return; }
+    setScreenNameChecking(true);
+    try {
+      const result = await validateScreenName(trimmed, profile?.screen_name || null);
+      setScreenNameStatus(result);
+    } catch {
+      setScreenNameStatus({ available: false, reason: 'Could not verify' });
+    } finally {
+      setScreenNameChecking(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
+    setSaveError('');
     try {
       const data = {
+        legal_name: legalName,
+        business_name: businessName,
         display_name: displayName,
+        screen_name: screenName.toLowerCase().trim() || null,
         headline,
         bio,
         profession: category,
         professional_category: category,
         services,
         service_area: serviceArea,
-        service_area_location_id: serviceAreaLocationId,
+        service_area_location_id: serviceAreaLocationId || null,
         location,
-        location_id: locationId,
+        location_id: locationId || null,
         contact_email: contactEmail,
         contact_phone: contactPhone,
         avatar_url: avatarUrl,
-        avatar_media_id: avatarMediaId,
+        avatar_media_id: avatarMediaId || null,
+        avatar_position_x: avatarPos.x,
+        avatar_position_y: avatarPos.y,
+        avatar_zoom: avatarPos.zoom,
+        cover_media_id: coverMediaId || null,
+        cover_url: coverUrl,
+        cover_position_x: coverPos.x,
+        cover_position_y: coverPos.y,
+        cover_zoom: coverPos.zoom,
         visibility,
       };
-      if (profile) {
-        const updated = await saveProfessionalProfile(user.id, data);
-        setProfile(updated);
-      } else {
-        const created = await saveProfessionalProfile(user.id, { ...data, lifecycle_state: 'active', onboarding_status: 'active' });
-        setProfile(created);
-      }
+      const savedProfile = await saveProfessionalProfile(user.id, data);
+      setProfile(savedProfile);
       await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
       await refreshUser();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setSaveError(err.message || 'Could not save profile');
     } finally {
       setSaving(false);
     }
@@ -134,7 +181,7 @@ export default function ProfessionalProfilePage() {
         <p className="text-stone-500">Your professional identity across Interactive</p>
       </div>
 
-      {/* Trust & Reputation — verification status */}
+      {/* Verification status */}
       <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -155,17 +202,55 @@ export default function ProfessionalProfilePage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8">
+      {/* Cover image */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8 mb-6">
+        <h2 className="font-semibold text-stone-800 mb-4 flex items-center gap-2"><ImageIcon className="w-4 h-4 text-stone-500" /> Cover Image</h2>
+        <div className="w-full h-32 rounded-xl overflow-hidden bg-stone-100 mb-3 border border-stone-200">
+          {coverUrl ? (
+            <img src={coverUrl} alt="" className="w-full h-full" style={{ objectFit: 'cover', transform: `scale(${coverPos.zoom})`, transformOrigin: `${coverPos.x * 100}% ${coverPos.y * 100}%` }} />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-stone-400 text-sm">No cover image</div>
+          )}
+        </div>
+        <div className="flex items-center gap-3 mb-4">
+          <MediaUploadButton
+            ownerId={user.id}
+            sourceDomain="professional"
+            visibility="public"
+            onUploaded={(asset) => { setCoverUrl(asset.file_url); setCoverMediaId(asset.id); setCoverPos({ x: 0.5, y: 0.5, zoom: 1 }); }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-200 cursor-pointer"
+          >
+            <Camera className="w-4 h-4" /> {coverUrl ? 'Change cover' : 'Upload cover'}
+          </MediaUploadButton>
+          {coverUrl && (
+            <button onClick={() => { setCoverUrl(''); setCoverMediaId(''); }} className="text-sm text-stone-500 hover:text-red-500">Remove</button>
+          )}
+        </div>
+        {coverUrl && (
+          <ImagePositioner
+            imageUrl={coverUrl}
+            value={coverPos}
+            onChange={setCoverPos}
+            shape="rect"
+            aspect="16 / 5"
+            label="Reposition cover"
+            preview={{ width: 120, label: 'Mobile preview' }}
+          />
+        )}
+      </div>
+
+      {/* Identity + avatar */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8 mb-6">
         <div className="flex items-center gap-4 mb-6">
           <div className="relative">
             <div className="w-20 h-20 rounded-full bg-stone-200 overflow-hidden flex items-center justify-center">
-              {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-2xl font-semibold text-stone-400">{(displayName || '?')[0].toUpperCase()}</span>}
+              {avatarUrl ? <img src={avatarUrl} alt="" className="w-full h-full" style={{ objectFit: 'cover', transform: `scale(${avatarPos.zoom})`, transformOrigin: `${avatarPos.x * 100}% ${avatarPos.y * 100}%` }} /> : <span className="text-2xl font-semibold text-stone-400">{(displayName || '?')[0].toUpperCase()}</span>}
             </div>
             <MediaUploadButton
               ownerId={user.id}
               sourceDomain="professional"
               visibility="public"
-              onUploaded={(asset) => { setAvatarUrl(asset.file_url); setAvatarMediaId(asset.id); }}
+              onUploaded={(asset) => { setAvatarUrl(asset.file_url); setAvatarMediaId(asset.id); setAvatarPos({ x: 0.5, y: 0.5, zoom: 1 }); }}
               className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white"
             >
               <Camera className="w-3.5 h-3.5 text-white" />
@@ -177,10 +262,54 @@ export default function ProfessionalProfilePage() {
           </div>
         </div>
 
+        {avatarUrl && (
+          <div className="mb-6">
+            <ImagePositioner
+              imageUrl={avatarUrl}
+              value={avatarPos}
+              onChange={setAvatarPos}
+              shape="circle"
+              label="Reposition profile photo"
+            />
+          </div>
+        )}
+
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Legal Name <span className="text-xs font-normal text-stone-400">(private — used for verification only)</span></label>
+            <input type="text" value={legalName} onChange={e => setLegalName(e.target.value)} placeholder="Your real/legal name" className={inputClass} />
+            <p className="text-xs text-stone-400 mt-1">Never shown on your public profile.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Business / Trading Name <span className="text-xs font-normal text-stone-400">(optional)</span></label>
+            <input type="text" value={businessName} onChange={e => setBusinessName(e.target.value)} placeholder="e.g. Esther Fitness Ltd" className={inputClass} />
+          </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Display Name</label>
             <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Screen Name <span className="text-xs font-normal text-stone-400">(public handle)</span></label>
+            <div className="flex items-center gap-2">
+              <span className="text-stone-400 text-sm">@</span>
+              <input
+                type="text"
+                value={screenName}
+                onChange={e => setScreenName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                onBlur={e => checkScreenName(e.target.value)}
+                placeholder="estherfitness"
+                className={inputClass}
+                maxLength={20}
+              />
+              {screenNameChecking && <Loader2 className="w-4 h-4 text-stone-400 animate-spin shrink-0" />}
+            </div>
+            {screenNameStatus && !screenNameChecking && (
+              <p className={`text-xs mt-1 flex items-center gap-1 ${screenNameStatus.available ? 'text-emerald-600' : 'text-red-500'}`}>
+                {screenNameStatus.available ? <Check className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                {screenNameStatus.available ? 'Available' : screenNameStatus.reason || 'Not available'}
+              </p>
+            )}
+            <p className="text-xs text-stone-400 mt-1">3-20 characters: lowercase letters, numbers, underscores. Your public profile will be at /p/{screenName || 'handle'}.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Headline</label>
@@ -220,7 +349,7 @@ export default function ProfessionalProfilePage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Primary Location</label>
             <LocationPicker
               ownerId={user.id}
               ownerType="professional"
@@ -228,6 +357,18 @@ export default function ProfessionalProfilePage() {
               initialLocationId={locationId}
               initialLabel={location}
               onLocationSaved={(id, label) => { setLocationId(id); setLocation(label); }}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Service Area</label>
+            <input type="text" value={serviceArea} onChange={e => setServiceArea(e.target.value)} placeholder="e.g. Central London, Online" className={inputClass + " mb-3"} />
+            <LocationPicker
+              ownerId={user.id}
+              ownerType="professional"
+              context="service_area"
+              initialLocationId={serviceAreaLocationId}
+              initialLabel={serviceArea}
+              onLocationSaved={(id, label) => { setServiceAreaLocationId(id); setServiceArea(label); }}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -249,6 +390,10 @@ export default function ProfessionalProfilePage() {
             </select>
           </div>
         </div>
+
+        {saveError && (
+          <p className="text-sm text-red-500 mt-4 flex items-center gap-1"><AlertCircle className="w-4 h-4" /> {saveError}</p>
+        )}
 
         <div className="flex items-center gap-3 mt-6">
           <button onClick={handleSave} disabled={saving || !displayName.trim()} className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">

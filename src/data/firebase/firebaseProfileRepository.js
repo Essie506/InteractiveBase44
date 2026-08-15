@@ -70,6 +70,16 @@ export async function saveProfessionalProfile(data) {
   return createProfessionalProfile(data);
 }
 
+// ── Public Projection ───────────────────────────────────────
+// professionalProfilesPublic/{screenName} — doc ID == lowercased screen_name.
+// Public fields only; readable by anyone (including guests).
+
+export async function getPublicProfessionalProfile(screenName) {
+  if (!screenName) return null;
+  const snap = await getDoc(doc(db, PROFESSIONAL + 'Public', String(screenName).toLowerCase()));
+  return snap.exists() ? fromFirestoreDoc(snap) : null;
+}
+
 // ── Context Resolution ─────────────────────────────────────
 
 export async function resolveProfileForContext(identityId, context) {

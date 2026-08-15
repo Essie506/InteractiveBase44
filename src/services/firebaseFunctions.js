@@ -138,3 +138,14 @@ export async function callCompleteBooking(data) {
   const result = await callable('completeBooking')(data);
   return result.data;
 }
+
+// ── Professional Profile (public projection + screen_name uniqueness) ──
+export async function callSaveProfessionalProfile(data) {
+  const result = await callable('saveProfessionalProfile')(data);
+  return result.data;
+}
+
+export async function callValidateScreenName(data) {
+  const result = await callable('validateScreenName')(data);
+  return result.data;
+}

@@ -7,13 +7,25 @@
       "title": "Identity ID",
       "description": "Stable reference to the authenticated Interactive identity (User)"
     },
+    "legal_name": {
+      "type": "string",
+      "title": "Legal Name",
+      "description": "Professional's real/legal identity. Used for account/verification purposes only. Never copied into the public projection unless explicitly required by a future policy."
+    },
+    "business_name": {
+      "type": "string",
+      "title": "Business / Trading Name",
+      "description": "Optional trading identity. May be publicly displayed."
+    },
     "display_name": {
       "type": "string",
-      "title": "Display Name"
+      "title": "Display Name",
+      "description": "Primary public-facing name presented on the Professional Profile"
     },
     "screen_name": {
       "type": "string",
-      "title": "Screen Name"
+      "title": "Screen Name",
+      "description": "Public handle for the /p/:screenName route. Uniqueness enforced server-side. Lowercase, 3-20 chars, alphanumeric + underscore."
     },
     "avatar_url": {
       "type": "string",
@@ -23,6 +35,61 @@
       "type": "string",
       "title": "Avatar Media ID",
       "description": "Stable reference to the MediaAsset used as the professional profile image"
+    },
+    "avatar_position_x": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Avatar Focal Point X",
+      "description": "Horizontal focal point (0-1) for avatar rendering"
+    },
+    "avatar_position_y": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Avatar Focal Point Y",
+      "description": "Vertical focal point (0-1) for avatar rendering"
+    },
+    "avatar_zoom": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 4,
+      "default": 1,
+      "title": "Avatar Zoom",
+      "description": "Zoom factor for avatar rendering"
+    },
+    "cover_media_id": {
+      "type": "string",
+      "title": "Cover Media ID",
+      "description": "Stable reference to the MediaAsset used as the cover/header image"
+    },
+    "cover_url": {
+      "type": "string",
+      "title": "Cover URL",
+      "description": "Display URL for the cover image (resolved from MediaAsset)"
+    },
+    "cover_position_x": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Cover Focal Point X"
+    },
+    "cover_position_y": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Cover Focal Point Y"
+    },
+    "cover_zoom": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 4,
+      "default": 1,
+      "title": "Cover Zoom"
     },
     "bio": {
       "type": "string",
