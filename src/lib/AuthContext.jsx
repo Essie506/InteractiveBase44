@@ -4,7 +4,7 @@ import { appParams } from '@/lib/app-params';
 import { createAxiosClient } from '@base44/sdk/dist/utils/axios-client';
 import { useFirebase } from '@/lib/backendConfig';
 import { userRepository } from '@/data/firebase';
-import { setCurrentIdentityId } from '@/lib/currentIdentity';
+import { setCurrentIdentityId, getCurrentIdentityId } from '@/lib/currentIdentity';
 import { firebaseAuthService as fbAuth } from '@/services/firebaseAuthService';
 import { resolveIdentity, storeIdentityId, getStoredIdentityId, clearStoredIdentityId } from '@/services/identityService';
 
