@@ -140,6 +140,11 @@
       "type": "string",
       "title": "Contact Phone"
     },
+    "website": {
+      "type": "string",
+      "title": "Website",
+      "description": "Optional public website URL"
+    },
     "visibility": {
       "type": "string",
       "enum": [

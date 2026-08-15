@@ -56,6 +56,7 @@ function buildPublicProjection(identityId: string, profileId: string, data: any)
     services: Array.isArray(data.services) ? data.services : [],
     service_area: data.service_area || null,
     location: data.location || null,
+    website: data.website || null,
     verification_state: data.verification_state || 'not_verified',
     visibility: data.visibility || 'public',
     lifecycle_state: data.lifecycle_state || 'draft',

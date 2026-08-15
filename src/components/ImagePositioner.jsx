@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState } from 'react';
 import { ZoomIn, RotateCcw, Move } from 'lucide-react';
 
 /**
@@ -7,18 +7,13 @@ import { ZoomIn, RotateCcw, Move } from 'lucide-react';
  * Stores presentation metadata (focal point x/y + zoom) separately from
  * the source MediaAsset. The original upload is never modified.
  *
- * Rendering uses object-fit: cover + transform: scale(zoom) with
- * transform-origin at the focal point, so the focal point stays centred
- * when zooming and panning.
+ * Interaction model:
+ *   - Drag (mouse or touch) anywhere on the image to set the focal point
+ *     to the pointer position. Works at any zoom level.
+ *   - Zoom slider scales the image around the focal point.
  *
  * Props:
- *   imageUrl   — source image URL
- *   value      — { x, y, zoom }  (x,y in 0..1, zoom >= 1)
- *   onChange   — (value) => void
- *   shape      — 'circle' | 'rect'
- *   aspect     — CSS aspect ratio for rect (e.g. '16 / 5')
- *   label      — heading text
- *   preview    — optional { width, label } mobile preview for rect mode
+ *   imageUrl, value { x, y, zoom }, onChange, shape, aspect, label, preview
  */
 export default function ImagePositioner({
   imageUrl,
@@ -30,46 +25,52 @@ export default function ImagePositioner({
   preview = null,
 }) {
   const containerRef = useRef(null);
+  // Ref mirror of latest value + onChange so pointer handlers never read
+  // stale closures between rapid move events.
+  const stateRef = useRef(null);
   const [dragging, setDragging] = useState(false);
   const v = { x: 0.5, y: 0.5, zoom: 1, ...value };
+  stateRef.current = { v, onChange };
 
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
-  const handlePointerDown = (e) => {
-    if (v.zoom <= 1) return;
-    setDragging(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = useCallback((e) => {
-    if (!dragging || v.zoom <= 1) return;
+  const setFocalFromPointer = (e) => {
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    // Pan range scales with zoom overflow.
-    const range = v.zoom - 1;
-    const dx = e.movementX / (rect.width * range);
-    const dy = e.movementY / (rect.height * range);
-    onChange({
-      ...v,
-      x: clamp(v.x - dx, 0, 1),
-      y: clamp(v.y - dy, 0, 1),
-    });
-  }, [dragging, v, onChange]);
+    const { v, onChange } = stateRef.current;
+    const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+    const y = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+    onChange({ ...v, x, y });
+  };
 
-  const handlePointerUp = () => setDragging(false);
+  const handlePointerDown = (e) => {
+    e.preventDefault();
+    setDragging(true);
+    setFocalFromPointer(e);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  };
+
+  const handlePointerMove = (e) => {
+    if (!dragging) return;
+    setFocalFromPointer(e);
+  };
+
+  const handlePointerUp = (e) => {
+    setDragging(false);
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+  };
 
   const setZoom = (z) => onChange({ ...v, zoom: clamp(z, 1, 4) });
-  const reset = () => onChange({ ...v, x: 0.5, y: 0.5, zoom: 1 });
+  const reset = () => onChange({ x: 0.5, y: 0.5, zoom: 1 });
 
   const containerStyle = shape === 'circle'
-    ? { width: 160, height: 160, borderRadius: '9999px' }
+    ? { width: 180, height: 180, borderRadius: '9999px' }
     : { width: '100%', aspectRatio: aspect, borderRadius: 16 };
 
   const imgStyle = {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    objectPosition: '50% 50%',
     transform: `scale(${v.zoom})`,
     transformOrigin: `${v.x * 100}% ${v.y * 100}%`,
     userSelect: 'none',
@@ -88,8 +89,7 @@ export default function ImagePositioner({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
-          className={`relative overflow-hidden bg-stone-100 border border-stone-200 shrink-0 ${v.zoom > 1 ? 'cursor-grab' : ''} ${dragging ? 'cursor-grabbing' : ''}`}
+          className={`relative overflow-hidden bg-stone-100 border border-stone-200 shrink-0 cursor-grab ${dragging ? 'cursor-grabbing' : ''} touch-none`}
           style={containerStyle}
         >
           {imageUrl ? (
@@ -125,9 +125,7 @@ export default function ImagePositioner({
           <RotateCcw className="w-3 h-3" /> Reset
         </button>
       </div>
-      {v.zoom <= 1 && (
-        <p className="text-xs text-stone-400">Zoom in to reposition the image.</p>
-      )}
+      <p className="text-xs text-stone-400">Drag on the image to set the focal point. Use the slider to zoom.</p>
     </div>
   );
 }
