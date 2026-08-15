@@ -41,6 +41,10 @@ const COLLECTION_MAP: Record<string, string> = {
   messages: 'Message',
   blockRecords: 'BlockRecord',
   identityMappings: 'IdentityMapping',
+  // SpecVault
+  projects: 'Project',
+  specifications: 'Specification',
+  specVersions: 'SpecVersion',
 };
 
 export default async function(req: Request): Promise<Response> {

@@ -185,6 +185,22 @@ const COLLECTION_CONFIG: Record<string, CollectionConfig> = {
     idField: 'auth_uid',
     extraFields: { auth_provider: 'firebase' },
   },
+  // ── SpecVault (copy migration — Base44 source untouched) ──
+  projects: {
+    entity: 'Project',
+    collection: 'projects',
+    idStrategy: 'preserve',
+  },
+  specifications: {
+    entity: 'Specification',
+    collection: 'specifications',
+    idStrategy: 'preserve',
+  },
+  specVersions: {
+    entity: 'SpecVersion',
+    collection: 'specVersions',
+    idStrategy: 'preserve',
+  },
 };
 
 // Messages are a subcollection: conversations/{convId}/messages/{msgId}
