@@ -3,82 +3,90 @@ import { useAuth } from '@/lib/AuthContext';
 import { getPersonalProfile, savePersonalProfile } from '@/services/profileService';
 import { updateProfile } from '@/services/authService';
 import { getMedia, getMediaUrl } from '@/lib/media';
-import { Loader2, Camera, Save, Check } from 'lucide-react';
-import MediaUploadButton from '@/components/MediaUploadButton';
-import LocationPicker from '@/components/LocationPicker';
+import { Loader2 } from 'lucide-react';
+import PersonalProfileView from '@/components/profile/PersonalProfileView';
+import ProfileEditDialog from '@/components/profile/ProfileEditDialog';
+import ImageEditDialog from '@/components/profile/ImageEditDialog';
+import TagListEditDialog from '@/components/profile/TagListEditDialog';
+import LocationEditDialog from '@/components/profile/LocationEditDialog';
+import PersonalDetailsSheet from '@/components/profile/PersonalDetailsSheet';
+
+const FIELD_CONFIG = {
+  display_name: { label: 'Display name', multiline: false },
+  headline: { label: 'Headline', multiline: false },
+  bio: { label: 'About', multiline: true },
+};
+
+function toPayload(p) {
+  return {
+    display_name: p.display_name,
+    screen_name: p.screen_name,
+    headline: p.headline,
+    bio: p.bio,
+    interests: p.interests,
+    location: p.location,
+    location_id: p.location_id,
+    avatar_url: p.avatar_url,
+    avatar_media_id: p.avatar_media_id,
+    avatar_position_x: p.avatar_position_x,
+    avatar_position_y: p.avatar_position_y,
+    avatar_zoom: p.avatar_zoom,
+    cover_media_id: p.cover_media_id,
+    cover_url: p.cover_url,
+    cover_position_x: p.cover_position_x,
+    cover_position_y: p.cover_position_y,
+    cover_zoom: p.cover_zoom,
+    visibility: p.visibility,
+  };
+}
 
 export default function ProfilePage() {
-  const { user, checkUserAuth } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const [displayName, setDisplayName] = useState('');
-  const [screenName, setScreenName] = useState('');
-  const [headline, setHeadline] = useState('');
-  const [bio, setBio] = useState('');
-  const [locationVal, setLocationVal] = useState('');
-  const [locationId, setLocationId] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [avatarMediaId, setAvatarMediaId] = useState('');
-  const [visibility, setVisibility] = useState('public');
+  const [error, setError] = useState('');
+  const [dialog, setDialog] = useState(null);
 
   useEffect(() => {
     if (!user) return;
     getPersonalProfile(user.id).then(async (p) => {
       if (p) {
-        setProfile(p);
-        setDisplayName(p.display_name || '');
-        setScreenName(p.screen_name || '');
-        setHeadline(p.headline || '');
-        setBio(p.bio || '');
-        setLocationVal(p.location || '');
-        setLocationId(p.location_id || '');
-        setAvatarUrl(p.avatar_url || '');
-        setAvatarMediaId(p.avatar_media_id || '');
-        setVisibility(p.visibility || 'public');
-        // Resolve avatar URL from MediaAsset via canonical getMediaUrl path
         if (p.avatar_media_id) {
-          const asset = await getMedia(p.avatar_media_id);
-          if (asset) {
-            const resolvedUrl = await getMediaUrl(asset);
-            if (resolvedUrl) setAvatarUrl(resolvedUrl);
-          }
+          const a = await getMedia(p.avatar_media_id);
+          if (a) { const u = await getMediaUrl(a); if (u) p.avatar_url = u; }
         }
+        if (p.cover_media_id) {
+          const a = await getMedia(p.cover_media_id);
+          if (a) { const u = await getMediaUrl(a); if (u) p.cover_url = u; }
+        }
+        setProfile(p);
       } else {
-        setDisplayName(user.display_name || '');
+        setProfile({
+          identity_id: user.id,
+          display_name: user.display_name || '',
+          interests: [],
+          visibility: 'public',
+        });
       }
       setLoading(false);
     });
   }, [user]);
 
-  const handleSave = async () => {
+  const persist = async (partial) => {
+    const next = { ...profile, ...partial };
+    setProfile(next);
     setSaving(true);
-    setSaved(false);
+    setError('');
     try {
-      const data = {
-        display_name: displayName,
-        screen_name: screenName,
-        headline,
-        bio,
-        location: locationVal,
-        location_id: locationId,
-        avatar_url: avatarUrl,
-        avatar_media_id: avatarMediaId,
-        visibility
-      };
-      if (profile) {
-        const updated = await savePersonalProfile(user.id, data);
-        setProfile(updated);
-      } else {
-        const created = await savePersonalProfile(user.id, data);
-        setProfile(created);
+      const saved = await savePersonalProfile(user.id, toPayload(next));
+      setProfile(saved);
+      if (partial.display_name !== undefined) {
+        await updateProfile({ display_name: partial.display_name, avatar_url: next.avatar_url });
+        await refreshUser();
       }
-      await updateProfile({ display_name: displayName, avatar_url: avatarUrl });
-      await checkUserAuth();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setError(err.message || 'Could not save');
     } finally {
       setSaving(false);
     }
@@ -88,97 +96,117 @@ export default function ProfilePage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
-      </div>);
-
+      </div>
+    );
   }
 
-  const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
-
   return (
-    <div className="p-6 md:p-10 max-w-2xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-stone-800 mb-1">Personal Profile</h1>
-        <p className="text-stone-500">How you appear across Interactive</p>
-      </div>
+    <div className="min-h-screen bg-stone-50 relative">
+      <PersonalProfileView
+        profile={profile}
+        editable
+        onEditCover={() => setDialog('cover')}
+        onEditAvatar={() => setDialog('avatar')}
+        onEditField={(f) => setDialog(f)}
+        onEditInterests={() => setDialog('interests')}
+        onEditLocation={() => setDialog('location')}
+        onOpenPrivateDetails={() => setDialog('private')}
+      />
 
-      <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8">
-        {/* Avatar — uses Media system */}
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full bg-stone-200 overflow-hidden flex items-center justify-center">
-              {avatarUrl ?
-              <img src={avatarUrl} alt="" className="w-full h-full object-cover" /> :
-
-              <span className="text-2xl font-semibold text-stone-400">
-                  {(displayName || user?.email || '?')[0].toUpperCase()}
-                </span>
-              }
-            </div>
-            <MediaUploadButton
-              ownerId={user.id}
-              sourceDomain="personal"
-              visibility="public"
-              onUploaded={(asset) => {setAvatarUrl(asset.file_url);setAvatarMediaId(asset.id);}}
-              className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white">
-              
-              <Camera className="w-3.5 h-3.5 text-white" />
-            </MediaUploadButton>
-          </div>
-          <div>
-            <h2 className="font-semibold text-stone-800">{displayName || 'Your name'}</h2>
-            <p className="text-sm text-stone-500">{user?.email}</p>
-          </div>
+      {saving && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full text-sm shadow-lg z-50">
+          <Loader2 className="w-4 h-4 animate-spin" /> Saving…
         </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Legal Name</label>
-            <input type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Screen Name</label>
-            <input type="text" value={screenName} onChange={(e) => setScreenName(e.target.value)} placeholder="@username" className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Headline</label>
-            <input type="text" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="e.g. Fitness enthusiast" className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Bio</label>
-            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3} placeholder="Tell us about yourself" className={inputClass + " resize-none"} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
-            <LocationPicker
-              ownerId={user.id}
-              ownerType="identity"
-              context="profile"
-              initialLocationId={locationId}
-              initialLabel={locationVal}
-              onLocationSaved={(id, label) => {setLocationId(id);setLocationVal(label);}} />
-            
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Profile Visibility</label>
-            <select value={visibility} onChange={(e) => setVisibility(e.target.value)} className={inputClass}>
-              <option value="public">Public — visible to everyone</option>
-              <option value="connections">Connections — visible to your connections</option>
-              <option value="private">Private — visible only to you</option>
-            </select>
-          </div>
+      )}
+      {error && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-red-600 text-white rounded-full text-sm shadow-lg z-50">
+          {error}
         </div>
+      )}
 
-        <div className="flex items-center gap-3 mt-6">
-          <button
-            onClick={handleSave}
-            disabled={saving || !displayName.trim()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-            
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
-    </div>);
-
+      {dialog && FIELD_CONFIG[dialog] && (
+        <ProfileEditDialog
+          open
+          onClose={() => setDialog(null)}
+          field={dialog}
+          label={FIELD_CONFIG[dialog].label}
+          value={profile[dialog]}
+          multiline={FIELD_CONFIG[dialog].multiline}
+          onSave={(field, val) => persist({ [field]: val })}
+        />
+      )}
+      {dialog === 'avatar' && (
+        <ImageEditDialog
+          open
+          kind="avatar"
+          ownerId={user.id}
+          sourceDomain="personal"
+          onClose={() => setDialog(null)}
+          imageUrl={profile.avatar_url}
+          mediaId={profile.avatar_media_id}
+          position={{ x: profile.avatar_position_x, y: profile.avatar_position_y, zoom: profile.avatar_zoom }}
+          onSave={({ url, mediaId, position }) =>
+            persist({
+              avatar_url: url,
+              avatar_media_id: mediaId,
+              avatar_position_x: position.x,
+              avatar_position_y: position.y,
+              avatar_zoom: position.zoom,
+            })
+          }
+        />
+      )}
+      {dialog === 'cover' && (
+        <ImageEditDialog
+          open
+          kind="cover"
+          ownerId={user.id}
+          sourceDomain="personal"
+          onClose={() => setDialog(null)}
+          imageUrl={profile.cover_url}
+          mediaId={profile.cover_media_id}
+          position={{ x: profile.cover_position_x, y: profile.cover_position_y, zoom: profile.cover_zoom }}
+          onSave={({ url, mediaId, position }) =>
+            persist({
+              cover_url: url,
+              cover_media_id: mediaId,
+              cover_position_x: position.x,
+              cover_position_y: position.y,
+              cover_zoom: position.zoom,
+            })
+          }
+        />
+      )}
+      {dialog === 'interests' && (
+        <TagListEditDialog
+          open
+          onClose={() => setDialog(null)}
+          title="Edit interests"
+          items={profile.interests}
+          placeholder="Add an interest"
+          onSave={(interests) => persist({ interests })}
+        />
+      )}
+      {dialog === 'location' && (
+        <LocationEditDialog
+          open
+          onClose={() => setDialog(null)}
+          ownerId={user.id}
+          ownerType="identity"
+          context="profile"
+          initialLocationId={profile.location_id}
+          initialLabel={profile.location}
+          onSave={(data) => persist(data)}
+        />
+      )}
+      {dialog === 'private' && (
+        <PersonalDetailsSheet
+          open
+          onClose={() => setDialog(null)}
+          profile={profile}
+          onSave={(data) => persist(data)}
+        />
+      )}
+    </div>
+  );
 }

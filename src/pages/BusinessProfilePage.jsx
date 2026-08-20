@@ -1,134 +1,144 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   getBusiness, updateBusiness, getBusinessProfile, saveBusinessProfile,
   getMembership, hasPermission,
 } from '@/services/businessService';
-import { getVerificationRequest } from '@/lib/trust';
 import { getMedia, getMediaUrl } from '@/lib/media';
-import { Loader2, Save, Check, Camera, ArrowLeft, AlertCircle, Plus, X, ShieldCheck } from 'lucide-react';
-import MediaUploadButton from '@/components/MediaUploadButton';
-import LocationPicker from '@/components/LocationPicker';
-import TrustBadge from '@/components/TrustBadge';
+import { createOrGetConversation } from '@/lib/messaging';
+import { Loader2, MessageSquare, Pencil, AlertCircle } from 'lucide-react';
+import BusinessProfileView from '@/components/profile/BusinessProfileView';
+import ProfileEditDialog from '@/components/profile/ProfileEditDialog';
+import ImageEditDialog from '@/components/profile/ImageEditDialog';
+import TagListEditDialog from '@/components/profile/TagListEditDialog';
+import BusinessContactEditDialog from '@/components/profile/BusinessContactEditDialog';
+import BusinessDetailsSheet from '@/components/profile/BusinessDetailsSheet';
+import ProfessionalsEditDialog from '@/components/profile/ProfessionalsEditDialog';
+
+const FIELD_CONFIG = {
+  name: { label: 'Business name', multiline: false },
+  description: { label: 'About', multiline: true },
+};
+
+function toPayload(p) {
+  return {
+    business_id: p.business_id,
+    name: p.name,
+    description: p.description,
+    logo_url: p.logo_url,
+    logo_media_id: p.logo_media_id,
+    logo_position_x: p.logo_position_x,
+    logo_position_y: p.logo_position_y,
+    logo_zoom: p.logo_zoom,
+    cover_media_id: p.cover_media_id,
+    cover_url: p.cover_url,
+    cover_position_x: p.cover_position_x,
+    cover_position_y: p.cover_position_y,
+    cover_zoom: p.cover_zoom,
+    location: p.location,
+    location_id: p.location_id,
+    category: p.category,
+    services: p.services,
+    professionals: p.professionals,
+    contact_email: p.contact_email,
+    contact_phone: p.contact_phone,
+    website: p.website,
+    operating_hours: p.operating_hours,
+    visibility: p.visibility,
+  };
+}
 
 export default function BusinessProfilePage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [business, setBusiness] = useState(null);
   const [profile, setProfile] = useState(null);
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [accessDenied, setAccessDenied] = useState(false);
-  const [verificationRequest, setVerificationRequest] = useState(null);
-
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [logoUrl, setLogoUrl] = useState('');
-  const [logoMediaId, setLogoMediaId] = useState('');
-  const [locationVal, setLocationVal] = useState('');
-  const [locationId, setLocationId] = useState('');
-  const [category, setCategory] = useState('');
-  const [services, setServices] = useState([]);
-  const [serviceInput, setServiceInput] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [website, setWebsite] = useState('');
-  const [operatingHours, setOperatingHours] = useState('');
-  const [visibility, setVisibility] = useState('public');
+  const [error, setError] = useState('');
+  const [dialog, setDialog] = useState(null);
+  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     if (!user || !id) return;
     (async () => {
       const biz = await getBusiness(id);
       setBusiness(biz);
-      const m = await getMembership(id, user.id);
-      if (!m || !hasPermission(m, 'manage_profile')) { setAccessDenied(true); setLoading(false); return; }
-      setMembership(m);
-      const [profile, req] = await Promise.all([
-        getBusinessProfile(id),
-        getVerificationRequest('business', id),
-      ]);
-      if (profile) {
-        const p = profile;
-        setProfile(p);
-        setName(p.name || '');
-        setDescription(p.description || '');
-        setLogoUrl(p.logo_url || '');
-        setLogoMediaId(p.logo_media_id || '');
-        setLocationVal(p.location || '');
-        setLocationId(p.location_id || '');
-        setCategory(p.category || '');
-        setServices(p.services || []);
-        setContactEmail(p.contact_email || '');
-        setContactPhone(p.contact_phone || '');
-        setWebsite(p.website || '');
-        setOperatingHours(p.operating_hours || '');
-        setVisibility(p.visibility || 'public');
-        // Resolve logo URL from MediaAsset via canonical getMediaUrl path
+      let editable = false;
+      try {
+        const m = await getMembership(id, user.id);
+        if (m && hasPermission(m, 'manage_business_profile')) {
+          setMembership(m);
+          editable = true;
+        }
+      } catch { /* non-member — public view */ }
+      const bp = await getBusinessProfile(id);
+      let p;
+      if (bp) {
+        p = bp;
         if (p.logo_media_id) {
-          const asset = await getMedia(p.logo_media_id);
-          if (asset) {
-            const resolvedUrl = await getMediaUrl(asset);
-            if (resolvedUrl) setLogoUrl(resolvedUrl);
-          }
+          const a = await getMedia(p.logo_media_id);
+          if (a) { const u = await getMediaUrl(a); if (u) p.logo_url = u; }
+        }
+        if (p.cover_media_id) {
+          const a = await getMedia(p.cover_media_id);
+          if (a) { const u = await getMediaUrl(a); if (u) p.cover_url = u; }
         }
       } else {
-        setName(biz.name || '');
-        setContactEmail(biz.contact_email || '');
-        setContactPhone(biz.contact_phone || '');
-        setWebsite(biz.website || '');
+        p = {
+          business_id: id,
+          name: biz?.name || '',
+          services: [],
+          professionals: [],
+          visibility: 'public',
+          lifecycle_state: editable ? 'draft' : 'active',
+        };
       }
-      setVerificationRequest(req);
+      setProfile(p);
       setLoading(false);
     })();
   }, [user, id]);
 
-  const addService = () => {
-    const s = serviceInput.trim();
-    if (s && !services.includes(s)) {
-      setServices([...services, s]);
-      setServiceInput('');
+  const editable = !!membership;
+
+  const persist = async (partial) => {
+    if (!editable) return;
+    const next = { ...profile, ...partial };
+    setProfile(next);
+    setSaving(true);
+    setError('');
+    try {
+      const saved = await saveBusinessProfile(id, toPayload(next));
+      setProfile(saved);
+      if (partial.name !== undefined && partial.name !== business.name) {
+        await updateBusiness(id, { name: partial.name });
+        setBusiness({ ...business, name: partial.name });
+      }
+    } catch (err) {
+      setError(err.message || 'Could not save');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    setSaved(false);
+  const handleConnect = async () => {
+    if (!user) return;
+    setConnecting(true);
     try {
-      const data = {
-        business_id: id,
-        name,
-        description,
-        logo_url: logoUrl,
-        logo_media_id: logoMediaId,
-        location: locationVal,
-        location_id: locationId,
-        category,
-        services,
-        contact_email: contactEmail,
-        contact_phone: contactPhone,
-        website,
-        operating_hours: operatingHours,
-        visibility,
-      };
-      if (profile) {
-        const updated = await saveBusinessProfile(id, data);
-        setProfile(updated);
-      } else {
-        const created = await saveBusinessProfile(id, { ...data, lifecycle_state: 'active' });
-        setProfile(created);
-      }
-      if (name !== business.name) {
-        await updateBusiness(id, { name, contact_email: contactEmail, contact_phone: contactPhone, website });
-        setBusiness({ ...business, name, contact_email: contactEmail, contact_phone: contactPhone, website });
-      }
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      const result = await createOrGetConversation(
+        [user.id, business.owner_id],
+        user.id,
+        'personal',
+        { businessId: id, conversationType: 'business' },
+      );
+      navigate(`/messages/${result.conversation.id}`);
+    } catch (err) {
+      setError(err.message || 'Could not start conversation');
     } finally {
-      setSaving(false);
+      setConnecting(false);
     }
   };
 
@@ -140,152 +150,153 @@ export default function BusinessProfilePage() {
     );
   }
 
-  if (accessDenied) {
+  if (!business) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6">
         <AlertCircle className="w-10 h-10 text-stone-400 mb-3" />
-        <h2 className="text-xl font-semibold text-stone-800 mb-1">Access Denied</h2>
-        <p className="text-stone-500 mb-4">You need profile management permission.</p>
-        <Link to={`/business/${id}`} className="text-indigo-600 font-medium">Back to Business</Link>
+        <h2 className="text-xl font-semibold text-stone-800 mb-1">Business not found</h2>
+        <Link to="/dashboard" className="text-indigo-600 font-medium">Back to dashboard</Link>
       </div>
     );
   }
 
-  const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
+  const visitorActions = (
+    <div className="flex gap-2">
+      <button
+        onClick={handleConnect}
+        disabled={connecting}
+        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-800 rounded-lg text-sm font-medium hover:bg-stone-50 disabled:opacity-50"
+      >
+        {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+        Connect
+      </button>
+    </div>
+  );
 
   return (
-    <div className="p-6 md:p-10 max-w-2xl mx-auto">
-      <Link to={`/business/${id}`} className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-700 mb-4">
-        <ArrowLeft className="w-4 h-4" /> {business.name}
-      </Link>
-
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-stone-800 mb-1">Business Profile</h1>
-        <p className="text-stone-500">Public information for {business.name}</p>
-      </div>
-
-      {/* Trust & Reputation — verification status */}
-      <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="w-5 h-5 text-stone-500" />
-            <div>
-              <div className="text-sm font-medium text-stone-700">Verification Status</div>
-              <div className="mt-1"><TrustBadge targetType="business" targetId={id} /></div>
-            </div>
-          </div>
-          {verificationRequest?.decision !== 'pending' && verificationRequest?.decision !== 'approved' && (
-            <Link to={`/business/${id}/verify`} className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
-              Get Verified
-            </Link>
-          )}
-          {verificationRequest?.decision === 'pending' && (
-            <span className="text-xs text-amber-600 font-medium">Under review</span>
-          )}
+    <div className="min-h-screen bg-stone-50 relative">
+      {editable && (
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-4">
+          <Link to={`/business/${id}`} className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-700">
+            ← {business.name} Dashboard
+          </Link>
         </div>
-      </div>
+      )}
+      <BusinessProfileView
+        profile={profile}
+        business={business}
+        editable={editable}
+        onEditCover={() => setDialog('cover')}
+        onEditLogo={() => setDialog('logo')}
+        onEditName={() => setDialog('name')}
+        onEditField={(f) => setDialog(f)}
+        onEditServices={() => setDialog('services')}
+        onEditContact={() => setDialog('contact')}
+        onEditProfessionals={() => setDialog('professionals')}
+        onOpenPrivateDetails={() => setDialog('private')}
+        actions={visitorActions}
+      />
 
-      <div className="bg-white rounded-xl border border-stone-200 p-6 md:p-8">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-xl bg-stone-200 overflow-hidden flex items-center justify-center">
-              {logoUrl ? <img src={logoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-2xl font-semibold text-stone-400">{(name || '?')[0].toUpperCase()}</span>}
-            </div>
-            <MediaUploadButton
-              ownerId={user.id}
-              sourceDomain="business"
-              visibility="public"
-              onUploaded={(asset) => { setLogoUrl(asset.file_url); setLogoMediaId(asset.id); }}
-              className="absolute bottom-0 right-0 w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-white"
-            >
-              <Camera className="w-3.5 h-3.5 text-white" />
-            </MediaUploadButton>
-          </div>
-          <div>
-            <h2 className="font-semibold text-stone-800">{name || 'Business name'}</h2>
-            <p className="text-sm text-stone-500 capitalize">{business.type}</p>
-          </div>
+      {saving && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full text-sm shadow-lg z-50">
+          <Loader2 className="w-4 h-4 animate-spin" /> Saving…
         </div>
+      )}
+      {error && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-red-600 text-white rounded-full text-sm shadow-lg z-50">
+          {error}
+        </div>
+      )}
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Business Name</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Description</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="What does your business do?" className={inputClass + " resize-none"} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">Category</label>
-              <input type="text" value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. Fitness" className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
-              <input type="text" value={locationVal} onChange={e => setLocationVal(e.target.value)} placeholder="City, Country" className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Business Location</label>
-            <LocationPicker
-              ownerId={id}
-              ownerType="business"
-              context="business"
-              initialLocationId={locationId}
-              initialLabel={locationVal}
-              onLocationSaved={(locId, label) => { setLocationId(locId); setLocationVal(label); }}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Services</label>
-            <div className="flex gap-2 mb-2">
-              <input type="text" value={serviceInput} onChange={e => setServiceInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addService())} placeholder="Add a service" className={inputClass} />
-              <button onClick={addService} className="px-3 py-2.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors"><Plus className="w-4 h-4" /></button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {services.map(s => (
-                <span key={s} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm">
-                  {s}
-                  <button onClick={() => setServices(services.filter(x => x !== s))}><X className="w-3 h-3" /></button>
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">Contact Email</label>
-              <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1.5">Contact Phone</label>
-              <input type="tel" value={contactPhone} onChange={e => setContactPhone(e.target.value)} className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Website</label>
-            <input type="url" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://..." className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Operating Hours</label>
-            <input type="text" value={operatingHours} onChange={e => setOperatingHours(e.target.value)} placeholder="e.g. Mon-Fri 6am-10pm, Sat 8am-6pm" className={inputClass} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Visibility</label>
-            <select value={visibility} onChange={e => setVisibility(e.target.value)} className={inputClass}>
-              <option value="public">Public — visible to everyone</option>
-              <option value="private">Private — visible only to workspace</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 mt-6">
-          <button onClick={handleSave} disabled={saving || !name.trim()} className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {saving ? 'Saving...' : saved ? 'Saved' : 'Save Changes'}
-          </button>
-        </div>
-      </div>
+      {dialog && FIELD_CONFIG[dialog] && (
+        <ProfileEditDialog
+          open
+          onClose={() => setDialog(null)}
+          field={dialog}
+          label={FIELD_CONFIG[dialog].label}
+          value={profile[dialog]}
+          multiline={FIELD_CONFIG[dialog].multiline}
+          onSave={(field, val) => persist({ [field]: val })}
+        />
+      )}
+      {dialog === 'logo' && (
+        <ImageEditDialog
+          open
+          kind="avatar"
+          ownerId={user.id}
+          sourceDomain="business"
+          avatarShape="rounded"
+          onClose={() => setDialog(null)}
+          imageUrl={profile.logo_url}
+          mediaId={profile.logo_media_id}
+          position={{ x: profile.logo_position_x, y: profile.logo_position_y, zoom: profile.logo_zoom }}
+          onSave={({ url, mediaId, position }) =>
+            persist({
+              logo_url: url,
+              logo_media_id: mediaId,
+              logo_position_x: position.x,
+              logo_position_y: position.y,
+              logo_zoom: position.zoom,
+            })
+          }
+        />
+      )}
+      {dialog === 'cover' && (
+        <ImageEditDialog
+          open
+          kind="cover"
+          ownerId={user.id}
+          sourceDomain="business"
+          onClose={() => setDialog(null)}
+          imageUrl={profile.cover_url}
+          mediaId={profile.cover_media_id}
+          position={{ x: profile.cover_position_x, y: profile.cover_position_y, zoom: profile.cover_zoom }}
+          onSave={({ url, mediaId, position }) =>
+            persist({
+              cover_url: url,
+              cover_media_id: mediaId,
+              cover_position_x: position.x,
+              cover_position_y: position.y,
+              cover_zoom: position.zoom,
+            })
+          }
+        />
+      )}
+      {dialog === 'services' && (
+        <TagListEditDialog
+          open
+          onClose={() => setDialog(null)}
+          title="Edit services"
+          items={profile.services}
+          placeholder="Add a service"
+          onSave={(services) => persist({ services })}
+        />
+      )}
+      {dialog === 'contact' && (
+        <BusinessContactEditDialog
+          open
+          onClose={() => setDialog(null)}
+          ownerId={id}
+          profile={profile}
+          onSave={(data) => persist(data)}
+        />
+      )}
+      {dialog === 'professionals' && (
+        <ProfessionalsEditDialog
+          open
+          onClose={() => setDialog(null)}
+          professionals={profile.professionals}
+          onSave={(professionals) => persist({ professionals })}
+        />
+      )}
+      {dialog === 'private' && (
+        <BusinessDetailsSheet
+          open
+          onClose={() => setDialog(null)}
+          profile={profile}
+          onSave={(data) => persist(data)}
+        />
+      )}
     </div>
   );
 }
