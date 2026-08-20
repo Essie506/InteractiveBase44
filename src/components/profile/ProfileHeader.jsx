@@ -10,10 +10,10 @@ import { EditPencil } from './EditPencil';
  * adapting the avatar shape and identity fields per type.
  *
  * Responsive behaviour:
- *   Mobile  — flex-col: avatar overlaps cover, identity below, actions below identity.
- *   Tablet+ — flex-row: avatar overlaps cover (self-start, -mt-20), identity and
- *             actions sit to the RIGHT of the avatar with sm:pt-8 so the name
- *             never renders underneath the avatar and never overlaps the cover.
+ *   Mobile  — single-column grid: avatar overlaps cover, identity below, actions below.
+ *   Tablet+ — 3-column grid [9rem 1fr auto]: avatar column overlaps cover (-mt-20),
+ *             identity column has its own guaranteed horizontal space (1fr) so the
+ *             name never sits behind the avatar, actions column sits to the far right.
  *
  * Props:
  *  - avatarShape: 'circle' (personal/professional) | 'rounded' (business logo)
@@ -64,11 +64,11 @@ export default function ProfileHeader({
         )}
       </div>
 
-      {/* Identity row */}
+      {/* Identity row — grid gives each block its own column on tablet+ */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:gap-6 gap-4">
-          {/* Avatar / logo — overlaps cover bottom */}
-          <div className="relative shrink-0 self-start -mt-16 sm:-mt-20">
+        <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr_auto] sm:gap-8 gap-4 sm:items-start">
+          {/* Avatar / logo column — overlaps cover bottom */}
+          <div className="relative -mt-16 sm:-mt-20">
             <div className={`w-32 h-32 sm:w-36 sm:h-36 ${avatarRoundedClass} ring-4 ring-stone-50 bg-stone-200 overflow-hidden`}>
               {avatarUrl ? (
                 <img src={avatarUrl} alt={displayName} className="w-full h-full" style={mediaStyle(avatarPos)} />
@@ -89,8 +89,8 @@ export default function ProfileHeader({
             )}
           </div>
 
-          {/* Identity block — right of avatar on sm+, below cover */}
-          <div className="flex-1 sm:pt-8">
+          {/* Identity column — guaranteed horizontal space, right of avatar */}
+          <div className="sm:pt-8 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-stone-900">
                 {displayName || (editable ? 'Your name' : '—')}
@@ -116,7 +116,7 @@ export default function ProfileHeader({
             )}
           </div>
 
-          {/* Actions — right of identity on sm+, below on mobile */}
+          {/* Actions column — right of identity on sm+, below on mobile */}
           {actions && <div className="sm:pt-8">{actions}</div>}
         </div>
       </div>
