@@ -14,6 +14,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId } from './shared';
+import { buildPersonalPublicProjection } from './personalProfileProjection';
 
 const PROFILES = 'personalProfiles';
 const PUBLIC = 'personalProfilesPublic';
@@ -34,32 +35,7 @@ function validateScreenNameFormat(s: string): string | null {
   return null;
 }
 
-// Public-field allowlist for the projection.
-function buildPublicProjection(identityId: string, profileId: string, data: any): Record<string, any> {
-  return {
-    identity_id: identityId,
-    profile_id: profileId,
-    display_name: data.display_name || null,
-    screen_name: data.screen_name || null,
-    avatar_url: data.avatar_url || null,
-    avatar_media_id: data.avatar_media_id || null,
-    avatar_position_x: data.avatar_position_x ?? 0.5,
-    avatar_position_y: data.avatar_position_y ?? 0.5,
-    avatar_zoom: data.avatar_zoom ?? 1,
-    cover_media_id: data.cover_media_id || null,
-    cover_url: data.cover_url || null,
-    cover_position_x: data.cover_position_x ?? 0.5,
-    cover_position_y: data.cover_position_y ?? 0.5,
-    cover_zoom: data.cover_zoom ?? 1,
-    headline: data.headline || null,
-    bio: data.bio || null,
-    interests: Array.isArray(data.interests) ? data.interests : [],
-    location: data.location || null,
-    visibility: data.visibility || 'public',
-    lifecycle_state: data.lifecycle_state || 'draft',
-    _updated_date: new Date().toISOString(),
-  };
-}
+// Projection logic extracted to ./personalProfileProjection — shared with backfillProfiles.
 
 // ── savePersonalProfile ──────────────────────────────────────
 // Request: { data: { ...profile fields, identity_id } }
@@ -125,7 +101,7 @@ export const savePersonalProfile = onCall(
       && !!screenName;
 
     if (isPubliclyListable) {
-      const projection = buildPublicProjection(identityId, profileId, merged);
+      const projection = buildPersonalPublicProjection(identityId, profileId, merged);
       const projRef = db.collection(PUBLIC).doc(screenName!);
       // Transaction: re-check uniqueness atomically with the write
       await db.runTransaction(async (tx) => {

@@ -30,3 +30,6 @@ export { savePersonalProfile, validatePersonalScreenName } from './personalProfi
 
 // Business Profile — public projection
 export { saveBusinessProfile } from './businessProfile';
+
+// Backfill — one-time population of public projections
+export { backfillPublicProfiles } from './backfillProfiles';
