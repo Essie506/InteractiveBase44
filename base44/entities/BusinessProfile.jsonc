@@ -23,10 +23,60 @@
       "title": "Logo Media ID",
       "description": "Stable reference to the MediaAsset used as the business logo"
     },
+    "logo_position_x": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Logo Focal Point X",
+      "description": "Horizontal focal point (0-1) for logo rendering"
+    },
+    "logo_position_y": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Logo Focal Point Y",
+      "description": "Vertical focal point (0-1) for logo rendering"
+    },
+    "logo_zoom": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 4,
+      "default": 1,
+      "title": "Logo Zoom",
+      "description": "Zoom factor for logo rendering"
+    },
     "cover_media_id": {
       "type": "string",
       "title": "Cover Media ID",
       "description": "Stable reference to the MediaAsset used as the cover image"
+    },
+    "cover_url": {
+      "type": "string",
+      "title": "Cover URL",
+      "description": "Display URL for the cover image (resolved from MediaAsset)"
+    },
+    "cover_position_x": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Cover Focal Point X"
+    },
+    "cover_position_y": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "default": 0.5,
+      "title": "Cover Focal Point Y"
+    },
+    "cover_zoom": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 4,
+      "default": 1,
+      "title": "Cover Zoom"
     },
     "gallery_media_ids": {
       "type": "array",
@@ -55,6 +105,33 @@
         "type": "string"
       },
       "title": "Services"
+    },
+    "professionals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "avatar_url": {
+            "type": "string",
+            "title": "Avatar URL"
+          },
+          "screen_name": {
+            "type": "string",
+            "title": "Screen Name",
+            "description": "Optional public handle for linking to the professional's public profile"
+          }
+        }
+      },
+      "title": "Professionals",
+      "description": "Denormalized public display info for professionals associated with this business. Curated by business admins; shown on the public Business Profile."
     },
     "contact_email": {
       "type": "string",
