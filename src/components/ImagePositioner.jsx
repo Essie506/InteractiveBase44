@@ -65,6 +65,8 @@ export default function ImagePositioner({
 
   const containerStyle = shape === 'circle'
     ? { width: 180, height: 180, borderRadius: '9999px' }
+    : shape === 'rounded'
+    ? { width: 180, height: 180, borderRadius: 16 }
     : { width: '100%', aspectRatio: aspect, borderRadius: 16 };
 
   const imgStyle = {

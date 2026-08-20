@@ -81,8 +81,8 @@ export default function ProfilePage() {
     try {
       const saved = await savePersonalProfile(user.id, toPayload(next));
       setProfile(saved);
-      if (partial.display_name !== undefined) {
-        await updateProfile({ display_name: partial.display_name, avatar_url: next.avatar_url });
+      if (partial.display_name !== undefined || partial.avatar_url !== undefined) {
+        await updateProfile({ display_name: next.display_name, avatar_url: next.avatar_url });
         await refreshUser();
       }
     } catch (err) {

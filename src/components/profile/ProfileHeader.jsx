@@ -41,7 +41,6 @@ export default function ProfileHeader({
   actions = null,
 }) {
   const avatarRoundedClass = avatarShape === 'circle' ? 'rounded-full' : 'rounded-xl';
-  const avatarLabel = avatarShape === 'rounded' ? 'logo' : 'profile photo';
 
   return (
     <div>

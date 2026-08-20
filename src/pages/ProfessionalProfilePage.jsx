@@ -4,9 +4,9 @@ import { getProfessionalProfile, saveProfessionalProfile } from '@/services/prof
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { Loader2 } from 'lucide-react';
 import ProfessionalProfileView from '@/components/professional/ProfessionalProfileView';
-import ProfileEditDialog from '@/components/professional/ProfileEditDialog';
-import ImageEditDialog from '@/components/professional/ImageEditDialog';
-import ServicesEditDialog from '@/components/professional/ServicesEditDialog';
+import ProfileEditDialog from '@/components/profile/ProfileEditDialog';
+import ImageEditDialog from '@/components/profile/ImageEditDialog';
+import TagListEditDialog from '@/components/profile/TagListEditDialog';
 import ContactLocationEditDialog from '@/components/professional/ContactLocationEditDialog';
 import PrivateDetailsSheet from '@/components/professional/PrivateDetailsSheet';
 
@@ -146,6 +146,7 @@ export default function ProfessionalProfilePage() {
           open
           kind="avatar"
           ownerId={user.id}
+          sourceDomain="professional"
           onClose={() => setDialog(null)}
           imageUrl={profile.avatar_url}
           mediaId={profile.avatar_media_id}
@@ -166,6 +167,7 @@ export default function ProfessionalProfilePage() {
           open
           kind="cover"
           ownerId={user.id}
+          sourceDomain="professional"
           onClose={() => setDialog(null)}
           imageUrl={profile.cover_url}
           mediaId={profile.cover_media_id}
@@ -182,10 +184,12 @@ export default function ProfessionalProfilePage() {
         />
       )}
       {dialog === 'services' && (
-        <ServicesEditDialog
+        <TagListEditDialog
           open
           onClose={() => setDialog(null)}
-          services={profile.services}
+          title="Edit services"
+          items={profile.services}
+          placeholder="Add a service"
           onSave={(services) => persist({ services })}
         />
       )}

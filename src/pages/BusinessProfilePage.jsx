@@ -7,7 +7,7 @@ import {
 } from '@/services/businessService';
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { createOrGetConversation } from '@/lib/messaging';
-import { Loader2, MessageSquare, Pencil, AlertCircle } from 'lucide-react';
+import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
 import BusinessProfileView from '@/components/profile/BusinessProfileView';
 import ProfileEditDialog from '@/components/profile/ProfileEditDialog';
 import ImageEditDialog from '@/components/profile/ImageEditDialog';
@@ -94,7 +94,7 @@ export default function BusinessProfilePage() {
           services: [],
           professionals: [],
           visibility: 'public',
-          lifecycle_state: editable ? 'draft' : 'active',
+          lifecycle_state: 'active',
         };
       }
       setProfile(p);

@@ -19,6 +19,7 @@ export default function PersonalProfileView({
   onEditAvatar,
   onEditField,
   onEditInterests,
+  onEditLocation,
   onOpenPrivateDetails,
   actions = null,
 }) {
@@ -81,12 +82,16 @@ export default function PersonalProfileView({
         </ProfileSection>
 
         {/* Location */}
-        {profile.location && (
-          <ProfileSection title="Location">
-            <div className="flex items-center gap-3 bg-white rounded-xl border border-stone-200 p-4">
-              <MapPin className="w-4 h-4 text-stone-400 shrink-0" />
-              <span className="text-stone-800 text-sm">{profile.location}</span>
-            </div>
+        {(profile.location || editable) && (
+          <ProfileSection title="Location" onEdit={editable ? onEditLocation : null}>
+            {profile.location ? (
+              <div className="flex items-center gap-3 bg-white rounded-xl border border-stone-200 p-4">
+                <MapPin className="w-4 h-4 text-stone-400 shrink-0" />
+                <span className="text-stone-800 text-sm">{profile.location}</span>
+              </div>
+            ) : (
+              <p className="text-stone-400 text-sm">Add your location…</p>
+            )}
           </ProfileSection>
         )}
 
