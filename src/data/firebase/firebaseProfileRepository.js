@@ -80,6 +80,12 @@ export async function getPublicProfessionalProfile(screenName) {
   return snap.exists() ? fromFirestoreDoc(snap) : null;
 }
 
+export async function getPublicPersonalProfile(screenName) {
+  if (!screenName) return null;
+  const snap = await getDoc(doc(db, PERSONAL + 'Public', String(screenName).toLowerCase()));
+  return snap.exists() ? fromFirestoreDoc(snap) : null;
+}
+
 // ── Context Resolution ─────────────────────────────────────
 
 export async function resolveProfileForContext(identityId, context) {

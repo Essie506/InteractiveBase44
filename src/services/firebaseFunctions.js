@@ -149,3 +149,20 @@ export async function callValidateScreenName(data) {
   const result = await callable('validateScreenName')(data);
   return result.data;
 }
+
+// ── Personal Profile (public projection + screen_name uniqueness) ──
+export async function callSavePersonalProfile(data) {
+  const result = await callable('savePersonalProfile')(data);
+  return result.data;
+}
+
+export async function callValidatePersonalScreenName(data) {
+  const result = await callable('validatePersonalScreenName')(data);
+  return result.data;
+}
+
+// ── Business Profile (public projection) ──
+export async function callSaveBusinessProfile(data) {
+  const result = await callable('saveBusinessProfile')(data);
+  return result.data;
+}

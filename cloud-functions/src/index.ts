@@ -24,3 +24,9 @@ export { cancelBooking, rescheduleBooking, reportNoShow, completeBooking } from 
 
 // Professional Profile — public projection + screen name uniqueness
 export { saveProfessionalProfile, validateScreenName } from './professionalProfile';
+
+// Personal Profile — public projection + screen name uniqueness
+export { savePersonalProfile, validatePersonalScreenName } from './personalProfile';
+
+// Business Profile — public projection
+export { saveBusinessProfile } from './businessProfile';

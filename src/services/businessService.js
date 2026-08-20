@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { businessRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
+import { callSaveBusinessProfile } from '@/services/firebaseFunctions';
 
 // Interactive Business Service — M3: routes to Firebase when configured.
 
@@ -43,13 +44,22 @@ export async function updateBusinessProfile(profileId, data) {
 
 export async function saveBusinessProfile(businessId, data) {
   if (useFirebase) {
-    return businessRepository.saveBusinessProfile({ ...data, business_id: businessId });
+    // Authoritative server-side save: writes the private profile,
+    // verifies admin permission, and maintains the
+    // businessProfilesPublic projection (public fields only).
+    return callSaveBusinessProfile({ ...data, business_id: businessId });
   }
   const existing = await getBusinessProfile(businessId);
   if (existing) {
     return base44.entities.BusinessProfile.update(existing.id, data);
   }
   return base44.entities.BusinessProfile.create({ ...data, lifecycle_state: data.lifecycle_state || 'active' });
+}
+
+// Public projection read — used by the /b/:businessId route.
+export async function getPublicBusinessProfile(businessId) {
+  if (useFirebase) return businessRepository.getPublicBusinessProfile(businessId);
+  return null;
 }
 
 // --- Business Membership ---

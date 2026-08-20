@@ -1,7 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { profileRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
-import { callSaveProfessionalProfile, callValidateScreenName } from '@/services/firebaseFunctions';
+import { callSaveProfessionalProfile, callValidateScreenName, callSavePersonalProfile, callValidatePersonalScreenName } from '@/services/firebaseFunctions';
 
 // Interactive Profile Service — M3: routes to Firebase when configured.
 
@@ -25,7 +25,10 @@ export async function updatePersonalProfile(profileId, data) {
 
 export async function savePersonalProfile(identityId, data) {
   if (useFirebase) {
-    return profileRepository.savePersonalProfile({ ...data, identity_id: identityId });
+    // Authoritative server-side save: writes the private profile,
+    // enforces screen_name uniqueness, and maintains the
+    // personalProfilesPublic projection (public fields only).
+    return callSavePersonalProfile({ ...data, identity_id: identityId });
   }
   const existing = await getPersonalProfile(identityId);
   if (existing) {
@@ -80,10 +83,23 @@ export async function getPublicProfessionalProfile(screenName) {
   return null;
 }
 
+// Public projection read for Personal — used by the /u/:screenName route.
+export async function getPublicPersonalProfile(screenName) {
+  if (useFirebase) return profileRepository.getPublicPersonalProfile(screenName);
+  return null;
+}
+
 // Live screen-name validation (format + server-side uniqueness).
 export async function validateScreenName(screenName, currentScreenName) {
   if (useFirebase) {
     return callValidateScreenName({ screen_name: screenName, current_screen_name: currentScreenName });
+  }
+  return { available: true };
+}
+
+export async function validatePersonalScreenName(screenName, currentScreenName) {
+  if (useFirebase) {
+    return callValidatePersonalScreenName({ screen_name: screenName, current_screen_name: currentScreenName });
   }
   return { available: true };
 }

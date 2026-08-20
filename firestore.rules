@@ -166,12 +166,22 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════
 
     match /personalProfiles/{profileId} {
+      // Private collection — owner and admin only. Public reads use
+      // the personalProfilesPublic projection.
       allow read: if isOwner(resource.data.identity_id)
-        || isPubliclyVisible(resource)
         || isAdmin();
       allow create: if isOwner(request.resource.data.identity_id);
       allow update: if isOwner(resource.data.identity_id);
       allow delete: if isOwner(resource.data.identity_id) || isAdmin();
+    }
+
+    match /personalProfilesPublic/{screenName} {
+      // Public projection — public fields only. Doc ID == lowercased
+      // screen_name. Readable by anyone (including unauthenticated guests)
+      // so public profiles can be viewed at /u/:screenName.
+      // Maintained by the savePersonalProfile Cloud Function (server-only).
+      allow read: if true;
+      allow write: if false; // Server-only — projection maintained by Cloud Function
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -215,10 +225,23 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════
 
     match /businessProfiles/{profileId} {
-      allow read: if isAuthenticated();
+      // Private collection — business members and admin only. Public reads
+      // use the businessProfilesPublic projection.
+      allow read: if isBusinessMember(resource.data.business_id)
+        || isAdmin();
       allow create: if isBusinessAdmin(request.resource.data.business_id);
       allow update: if isBusinessAdmin(resource.data.business_id) || isAdmin();
       allow delete: if isBusinessOwner(resource.data.business_id) || isAdmin();
+    }
+
+    match /businessProfilesPublic/{businessId} {
+      // Public projection — public fields only (merged from
+      // businessProfiles + businesses.verification_state). Doc ID == business_id.
+      // Readable by anyone (including unauthenticated guests) so public
+      // business profiles can be viewed at /b/:businessId.
+      // Maintained by the saveBusinessProfile Cloud Function (server-only).
+      allow read: if true;
+      allow write: if false; // Server-only — projection maintained by Cloud Function
     }
 
     // ═══════════════════════════════════════════════════════════

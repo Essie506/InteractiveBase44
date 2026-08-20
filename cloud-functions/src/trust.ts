@@ -119,7 +119,7 @@ export const decideVerification = onCall(
       _updated_date: now,
     });
 
-    // 3. Update target verification_state
+    // 3. Update target verification_state (private + public projection)
     if (targetType === 'professional') {
       const profileSnap = await db.collection('professionalProfiles')
         .where('identity_id', '==', targetId)
@@ -131,11 +131,30 @@ export const decideVerification = onCall(
           _updated_date: now,
         });
       }
+      // Sync the public projection so /p/:screenName reflects verification
+      const publicSnap = await db.collection('professionalProfilesPublic')
+        .where('identity_id', '==', targetId)
+        .limit(1)
+        .get();
+      if (!publicSnap.empty) {
+        batch.update(publicSnap.docs[0].ref, {
+          verification_state: newStatus,
+          _updated_date: now,
+        });
+      }
     } else if (targetType === 'business') {
       batch.update(db.collection('businesses').doc(targetId), {
         verification_state: newStatus,
         _updated_date: now,
       });
+      // Sync the public projection so /b/:businessId reflects verification
+      const bizPublicSnap = await db.collection('businessProfilesPublic').doc(targetId).get();
+      if (bizPublicSnap.exists) {
+        batch.update(bizPublicSnap.ref, {
+          verification_state: newStatus,
+          _updated_date: now,
+        });
+      }
     }
 
     // 4. Update or create TrustRecord

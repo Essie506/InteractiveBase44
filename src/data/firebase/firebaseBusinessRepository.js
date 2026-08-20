@@ -64,6 +64,17 @@ export async function saveBusinessProfile(data) {
   return createBusinessProfile(data);
 }
 
+// ── Public Projection ───────────────────────────────────────
+// businessProfilesPublic/{businessId} — doc ID == business_id.
+// Public fields only (merged with businesses.verification_state);
+// readable by anyone (including guests).
+
+export async function getPublicBusinessProfile(businessId) {
+  if (!businessId) return null;
+  const snap = await getDoc(doc(db, 'businessProfilesPublic', businessId));
+  return snap.exists() ? fromFirestoreDoc(snap) : null;
+}
+
 // ── Business Memberships ───────────────────────────────────
 // Deterministic doc ID: {businessId}_{identityId}
 

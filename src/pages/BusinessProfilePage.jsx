@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   getBusiness, updateBusiness, getBusinessProfile, saveBusinessProfile,
+  getPublicBusinessProfile,
   getMembership, hasPermission,
 } from '@/services/businessService';
 import { getMedia, getMediaUrl } from '@/lib/media';
@@ -75,7 +76,12 @@ export default function BusinessProfilePage() {
           editable = true;
         }
       } catch { /* non-member — public view */ }
-      const bp = await getBusinessProfile(id);
+      let bp = null;
+      try {
+        bp = await getBusinessProfile(id);
+      } catch {
+        // Non-member — Firestore rules deny private businessProfiles read
+      }
       let p;
       if (bp) {
         p = bp;
@@ -88,14 +94,20 @@ export default function BusinessProfilePage() {
           if (a) { const u = await getMediaUrl(a); if (u) p.cover_url = u; }
         }
       } else {
-        p = {
-          business_id: id,
-          name: biz?.name || '',
-          services: [],
-          professionals: [],
-          visibility: 'public',
-          lifecycle_state: 'active',
-        };
+        // No private profile (non-member or doesn't exist) — try public projection
+        const publicP = await getPublicBusinessProfile(id);
+        if (publicP) {
+          p = publicP;
+        } else {
+          p = {
+            business_id: id,
+            name: biz?.name || '',
+            services: [],
+            professionals: [],
+            visibility: 'public',
+            lifecycle_state: 'active',
+          };
+        }
       }
       setProfile(p);
       setLoading(false);

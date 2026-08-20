@@ -37,6 +37,8 @@ import SpecificationDetail from '@/pages/SpecificationDetail';
 import UploadPage from '@/pages/Upload';
 import SearchPage from '@/pages/Search';
 import PublicProfile from '@/pages/PublicProfile';
+import PublicPersonalProfile from '@/pages/PublicPersonalProfile';
+import PublicBusinessProfile from '@/pages/PublicBusinessProfile';
 import BookingPage from '@/pages/BookingPage';
 
 const AuthenticatedApp = () => {
@@ -72,6 +74,8 @@ const AuthenticatedApp = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/p/:screenName" element={<PublicProfile />} />
+      <Route path="/u/:screenName" element={<PublicPersonalProfile />} />
+      <Route path="/b/:businessId" element={<PublicBusinessProfile />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/activate-professional" element={<ProfessionalActivation />} />
