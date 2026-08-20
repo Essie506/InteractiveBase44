@@ -197,8 +197,9 @@ async function runTests() {
     await assertFails(db.collection('personalProfiles').doc(profileB).get());
   });
 
-  // 4. Public Profile data can be read where visibility permits
-  await test('4. Public Profile data can be read where visibility permits', async () => {
+  // 4. Private personal profile not readable by non-owner (even with public visibility)
+  // Phase 2: private collection is owner+admin only; public reads use personalProfilesPublic
+  await test('4. Private personal profile not readable by non-owner (even with public visibility)', async () => {
     await clear();
     let profileB;
     await withAdmin(async (db) => {
@@ -210,7 +211,7 @@ async function runTests() {
       });
     });
     const db = testEnv.authenticatedContext('authA').firestore();
-    await assertSucceeds(db.collection('personalProfiles').doc(profileB).get());
+    await assertFails(db.collection('personalProfiles').doc(profileB).get());
   });
 
   // 5. User A cannot read User B Notifications
@@ -684,6 +685,134 @@ async function runIdentityMappingTests() {
     });
     const db = testEnv.authenticatedContext('authA').firestore();
     await assertFails(db.collection('locations').doc('locB').get());
+  });
+
+  // ── Phase 2: Personal & Business Public Projection Tests ──
+
+  // P2.1 Personal profile public projection is readable by authenticated users
+  await test('P2.1 Personal profile public projection readable by authenticated users', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await db.collection('personalProfilesPublic').doc('userb').set({
+        identity_id: 'identityB',
+        display_name: 'User B',
+        screen_name: 'userb',
+        visibility: 'public',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('personalProfilesPublic').doc('userb').get());
+  });
+
+  // P2.2 Personal profile public projection is readable by unauthenticated guests
+  await test('P2.2 Personal profile public projection readable by unauthenticated guests', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await db.collection('personalProfilesPublic').doc('userb').set({
+        identity_id: 'identityB',
+        display_name: 'User B',
+        screen_name: 'userb',
+        visibility: 'public',
+      });
+    });
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(db.collection('personalProfilesPublic').doc('userb').get());
+  });
+
+  // P2.3 Client cannot write personal profile public projection
+  await test('P2.3 Client cannot write personal profile public projection', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('personalProfilesPublic').doc('usera').set({
+      identity_id: 'identityA',
+      display_name: 'User A',
+    }));
+  });
+
+  // P2.4 Business profile public projection is readable by authenticated users
+  await test('P2.4 Business profile public projection readable by authenticated users', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await db.collection('businessProfilesPublic').doc('bizB').set({
+        business_id: 'bizB',
+        name: 'Business B',
+        visibility: 'public',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('businessProfilesPublic').doc('bizB').get());
+  });
+
+  // P2.5 Business profile public projection is readable by unauthenticated guests
+  await test('P2.5 Business profile public projection readable by unauthenticated guests', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await db.collection('businessProfilesPublic').doc('bizB').set({
+        business_id: 'bizB',
+        name: 'Business B',
+        visibility: 'public',
+      });
+    });
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(db.collection('businessProfilesPublic').doc('bizB').get());
+  });
+
+  // P2.6 Client cannot write business profile public projection
+  await test('P2.6 Client cannot write business profile public projection', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('businessProfilesPublic').doc('bizA').set({
+      business_id: 'bizA',
+      name: 'Business A',
+    }));
+  });
+
+  // P2.7 Non-member cannot read private businessProfiles
+  await test('P2.7 Non-member cannot read private businessProfiles', async () => {
+    await clear();
+    let profileBId;
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupBusiness(db, 'bizB', 'identityB');
+      const ref = await db.collection('businessProfiles').add({
+        business_id: 'bizB',
+        name: 'Business B',
+        visibility: 'public',
+        lifecycle_state: 'active',
+      });
+      profileBId = ref.id;
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('businessProfiles').doc(profileBId).get());
+  });
+
+  // P2.8 Business member can read private businessProfiles
+  await test('P2.8 Business member can read private businessProfiles', async () => {
+    await clear();
+    let profileAId;
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupBusiness(db, 'bizA', 'identityA');
+      await setupMembership(db, 'bizA', 'identityA', 'admin');
+      const ref = await db.collection('businessProfiles').add({
+        business_id: 'bizA',
+        name: 'Business A',
+        visibility: 'public',
+        lifecycle_state: 'active',
+      });
+      profileAId = ref.id;
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('businessProfiles').doc(profileAId).get());
   });
 }
 
