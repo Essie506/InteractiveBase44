@@ -36,6 +36,7 @@ import Specifications from '@/pages/Specifications';
 import SpecificationDetail from '@/pages/SpecificationDetail';
 import UploadPage from '@/pages/Upload';
 import SearchPage from '@/pages/Search';
+import Directory from '@/pages/Directory';
 import PublicProfile from '@/pages/PublicProfile';
 import PublicPersonalProfile from '@/pages/PublicPersonalProfile';
 import PublicBusinessProfile from '@/pages/PublicBusinessProfile';
@@ -82,6 +83,7 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/directory" element={<Directory />} />
       <Route path="/p/:screenName" element={<PublicProfile />} />
       <Route path="/u/:screenName" element={<PublicPersonalProfile />} />
       <Route path="/b/:businessId" element={<PublicBusinessProfile />} />

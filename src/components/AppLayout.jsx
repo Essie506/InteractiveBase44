@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { LayoutDashboard, User as UserIcon, Settings, FileText, Search, LogOut, Menu, X, Briefcase, Building2, Users, Calendar, MessageSquare, Clock, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, User as UserIcon, Settings, FileText, Search, LogOut, Menu, X, Briefcase, Building2, Users, Calendar, MessageSquare, Clock, ShieldCheck, Compass } from 'lucide-react';
 import ContextSwitcher from '@/components/ContextSwitcher';
 import NotificationBell from '@/components/NotificationBell';
 
@@ -34,6 +34,7 @@ export default function AppLayout() {
     { path: '/settings', label: 'Settings', icon: Settings },
     { path: '/specifications', label: 'Specs', icon: FileText },
     { path: '/search', label: 'AI Search', icon: Search },
+    { path: '/directory', label: 'Directory', icon: Compass },
   ];
 
   if (activeContext === 'professional' && isProfessionalActive) {
