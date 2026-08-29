@@ -1,36 +1,76 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Plus, X, Trash2 } from 'lucide-react';
+import { Check, Loader2, UserX } from 'lucide-react';
+import { getActiveMemberships } from '@/services/businessService';
+import { getPublicProfessionalProfileByIdentity } from '@/services/profileService';
 
 /**
- * Business professionals list editor — add/remove professionals with
- * denormalized public display info (name, headline, avatar URL, screen name).
- * Curated by business admins; shown on the public Business Profile.
+ * Business professionals editor — selects which business members
+ * to showcase on the public Business Profile.
+ *
+ * Staff must represent actual Professional identities connected to the
+ * Business through the existing BusinessMembership architecture.
+ * Members are only eligible if they have a public Professional profile
+ * (professionalProfilesPublic projection).
+ *
+ * Stores references [{ identity_id }] — display info is resolved
+ * server-side by the saveBusinessProfile Cloud Function for the
+ * public projection. No professional profile data is duplicated
+ * into the private BusinessProfile.
+ *
+ * Props:
+ *  - open, onClose, onSave
+ *  - businessId
+ *  - professionals: currently selected [{ identity_id }]
  */
-export default function ProfessionalsEditDialog({ open, onClose, professionals, onSave }) {
-  const [list, setList] = useState([]);
+export default function ProfessionalsEditDialog({ open, onClose, businessId, professionals, onSave }) {
+  const [selected, setSelected] = useState([]);
+  const [eligible, setEligible] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (open) setList(professionals || []);
-  }, [open, professionals]);
+    if (open) {
+      setSelected((professionals || []).map((p) => p.identity_id));
+      setLoading(true);
+      (async () => {
+        try {
+          const members = await getActiveMemberships(businessId);
+          // For each member, check if they have a public professional profile
+          const results = await Promise.all(
+            members.map(async (m) => {
+              const pub = await getPublicProfessionalProfileByIdentity(m.identity_id);
+              if (!pub) return null;
+              return {
+                identity_id: m.identity_id,
+                role: m.role,
+                display_name: pub.display_name,
+                headline: pub.headline,
+                avatar_url: pub.avatar_url,
+                screen_name: pub.screen_name,
+              };
+            })
+          );
+          setEligible(results.filter(Boolean));
+        } catch {
+          setEligible([]);
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }
+  }, [open, businessId, professionals]);
 
-  const add = () => {
-    setList([...list, { display_name: '', headline: '', avatar_url: '', screen_name: '' }]);
-  };
-
-  const update = (i, field, val) => {
-    setList(list.map((p, idx) => (idx === i ? { ...p, [field]: val } : p)));
-  };
-
-  const remove = (i) => {
-    setList(list.filter((_, idx) => idx !== i));
+  const toggle = (identityId) => {
+    if (selected.includes(identityId)) {
+      setSelected(selected.filter((id) => id !== identityId));
+    } else {
+      setSelected([...selected, identityId]);
+    }
   };
 
   const handleSave = () => {
-    onSave(list.filter((p) => p.display_name?.trim()));
+    onSave(selected.map((identity_id) => ({ identity_id })));
     onClose();
   };
 
@@ -40,47 +80,54 @@ export default function ProfessionalsEditDialog({ open, onClose, professionals, 
         <DialogHeader>
           <DialogTitle>Professionals</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-          {list.map((p, i) => (
-            <div key={i} className="border border-stone-200 rounded-lg p-3 space-y-2 relative">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 text-stone-400 animate-spin" />
+          </div>
+        ) : eligible.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <UserX className="w-8 h-8 text-stone-300 mb-2" />
+            <p className="text-sm text-stone-500">
+              No eligible members found. Members need an active public Professional profile
+              to be showcased here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {eligible.map((p) => (
               <button
+                key={p.identity_id}
                 type="button"
-                onClick={() => remove(i)}
-                className="absolute top-2 right-2 text-stone-400 hover:text-red-500"
+                onClick={() => toggle(p.identity_id)}
+                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                  selected.includes(p.identity_id)
+                    ? 'border-indigo-500 bg-indigo-50'
+                    : 'border-stone-200 hover:bg-stone-50'
+                }`}
               >
-                <Trash2 className="w-4 h-4" />
+                <div className="w-10 h-10 rounded-full bg-stone-200 overflow-hidden shrink-0">
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt={p.display_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-stone-400">
+                      {(p.display_name || '?')[0].toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-stone-800 truncate">{p.display_name}</div>
+                  {p.headline && <div className="text-sm text-stone-500 truncate">{p.headline}</div>}
+                </div>
+                {selected.includes(p.identity_id) && (
+                  <Check className="w-5 h-5 text-indigo-600 shrink-0" />
+                )}
               </button>
-              <div>
-                <Label className="mb-1 block text-xs">Name</Label>
-                <Input value={p.display_name} onChange={(e) => update(i, 'display_name', e.target.value)} placeholder="Professional name" />
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs">Headline</Label>
-                <Input value={p.headline} onChange={(e) => update(i, 'headline', e.target.value)} placeholder="e.g. Personal Trainer" />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="mb-1 block text-xs">Avatar URL</Label>
-                  <Input value={p.avatar_url} onChange={(e) => update(i, 'avatar_url', e.target.value)} placeholder="https://…" />
-                </div>
-                <div>
-                  <Label className="mb-1 block text-xs">Screen name</Label>
-                  <Input value={p.screen_name} onChange={(e) => update(i, 'screen_name', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="handle" />
-                </div>
-              </div>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={add}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-stone-300 rounded-lg text-sm text-stone-500 hover:bg-stone-50 hover:text-stone-700"
-          >
-            <Plus className="w-4 h-4" /> Add professional
-          </button>
-        </div>
+            ))}
+          </div>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={handleSave} disabled={loading}>Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

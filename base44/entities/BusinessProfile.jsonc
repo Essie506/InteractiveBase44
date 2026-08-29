@@ -84,7 +84,7 @@
         "type": "string"
       },
       "title": "Gallery Media IDs",
-      "description": "Stable references to MediaAssets in the business gallery"
+      "description": "Stable references to MediaAssets in the business gallery. Owned by a business admin's identity with source_domain 'business'."
     },
     "location": {
       "type": "string",
@@ -102,36 +102,66 @@
     "services": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Service ID",
+            "description": "Canonical slug from ServiceDefinition taxonomy. Shared with Professional profiles. Null for custom free-text entries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Service Label",
+            "description": "Display label. Matches the taxonomy label for canonical entries; user-entered for custom entries."
+          }
+        },
+        "required": [
+          "label"
+        ]
       },
-      "title": "Services"
+      "title": "Services",
+      "description": "Structured service selections from the shared ServiceDefinition taxonomy. Canonical entries carry an id for search/filter matching; custom entries have id=null."
+    },
+    "facilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Facility ID",
+            "description": "Canonical slug from FacilityDefinition taxonomy. Null for custom free-text entries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Facility Label",
+            "description": "Display label. Matches the taxonomy label for canonical entries; user-entered for custom entries."
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "title": "Facilities",
+      "description": "Structured facility selections from the FacilityDefinition taxonomy. Canonical entries carry an id for search/filter matching; custom entries have id=null."
     },
     "professionals": {
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
-          "display_name": {
+          "identity_id": {
             "type": "string",
-            "title": "Display Name"
-          },
-          "headline": {
-            "type": "string",
-            "title": "Headline"
-          },
-          "avatar_url": {
-            "type": "string",
-            "title": "Avatar URL"
-          },
-          "screen_name": {
-            "type": "string",
-            "title": "Screen Name",
-            "description": "Optional public handle for linking to the professional's public profile"
+            "title": "Identity ID",
+            "description": "Reference to the professional's Interactive identity. Must be an active business member. Display info is resolved from professionalProfilesPublic for the public projection \u2014 not duplicated here."
           }
-        }
+        },
+        "required": [
+          "identity_id"
+        ]
       },
       "title": "Professionals",
-      "description": "Denormalized public display info for professionals associated with this business. Curated by business admins; shown on the public Business Profile."
+      "description": "References to professional identities who are active members of this business. The public projection carries resolved display info (name, headline, avatar, screen_name) sourced from professionalProfilesPublic."
     },
     "contact_email": {
       "type": "string",

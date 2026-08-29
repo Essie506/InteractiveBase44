@@ -11,7 +11,7 @@
 // Caller must be a business admin (owner/admin role) to save.
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
+import { db, allowedOrigins, getIdentityId, hasBusinessRole, resolveProfessionalReferences } from './shared';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
 
 const PROFILES = 'businessProfiles';
@@ -64,13 +64,23 @@ export const saveBusinessProfile = onCall(
     const businessDoc = await db.collection(BUSINESSES).doc(businessId).get();
     const businessData = businessDoc.exists ? businessDoc.data() : null;
 
+    // ── Resolve professional references for the public projection ──
+    // The private profile stores [{ identity_id }] references. The public
+    // projection carries resolved display info sourced from
+    // professionalProfilesPublic so guests can view staff cards without
+    // reading private collections. No professional data is duplicated
+    // into the private businessProfile.
+    const resolvedProfessionals = await resolveProfessionalReferences(merged.professionals);
+
     // ── Maintain the public projection ──
     const isPubliclyListable = merged.visibility === 'public'
       && merged.lifecycle_state === 'active';
 
     const projRef = db.collection(PUBLIC).doc(businessId);
     if (isPubliclyListable) {
-      const projection = buildBusinessPublicProjection(businessId, profileId, merged, businessData);
+      const projection = buildBusinessPublicProjection(
+        businessId, profileId, merged, businessData, resolvedProfessionals,
+      );
       await projRef.set(projection);
     } else {
       // Not eligible for public listing — remove any existing projection

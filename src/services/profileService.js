@@ -89,6 +89,14 @@ export async function getPublicPersonalProfile(screenName) {
   return null;
 }
 
+// Resolve a professional's public profile by identity_id — used by
+// the Business profile to display staff/professionals from membership
+// references without reading the private professionalProfiles collection.
+export async function getPublicProfessionalProfileByIdentity(identityId) {
+  if (useFirebase) return profileRepository.getPublicProfessionalProfileByIdentity(identityId);
+  return null;
+}
+
 // Live screen-name validation (format + server-side uniqueness).
 export async function validateScreenName(screenName, currentScreenName) {
   if (useFirebase) {

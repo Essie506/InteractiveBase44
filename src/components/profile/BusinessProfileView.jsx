@@ -2,6 +2,7 @@ import { MapPin, Mail, Phone, Globe, Clock, Pencil } from 'lucide-react';
 import ProfileHeader from './ProfileHeader';
 import ProfileSection from './ProfileSection';
 import TagList from './TagList';
+import MediaGallerySection from './MediaGallerySection';
 import { mediaStyle } from './mediaStyle';
 
 /**
@@ -57,9 +58,12 @@ export default function BusinessProfileView({
   onEditName,
   onEditField,
   onEditServices,
+  onEditFacilities,
   onEditContact,
   onEditProfessionals,
   onOpenPrivateDetails,
+  onSaveMedia,
+  ownerId,
   actions = null,
 }) {
   const logoPos = {
@@ -121,6 +125,17 @@ export default function BusinessProfileView({
           )}
         </ProfileSection>
 
+        {/* Facilities */}
+        {(profile.facilities?.length > 0 || editable) && (
+          <ProfileSection title="Facilities" onEdit={editable ? onEditFacilities : null}>
+            {profile.facilities?.length > 0 ? (
+              <TagList tags={profile.facilities} />
+            ) : (
+              editable && <p className="text-stone-400 text-sm">Add the facilities your business offers…</p>
+            )}
+          </ProfileSection>
+        )}
+
         {/* Professionals */}
         {profile.professionals?.length > 0 && (
           <ProfileSection title="Professionals" onEdit={editable ? onEditProfessionals : null}>
@@ -175,6 +190,17 @@ export default function BusinessProfileView({
             editable && <p className="text-stone-400 text-sm">Add your location and contact details…</p>
           )}
         </ProfileSection>
+
+        {/* Media */}
+        {(profile.gallery_media_ids?.length > 0 || editable) && (
+          <MediaGallerySection
+            mediaIds={profile.gallery_media_ids || []}
+            editable={editable}
+            ownerId={ownerId}
+            sourceDomain="business"
+            onSave={onSaveMedia}
+          />
+        )}
 
         <div className="h-12" />
       </div>

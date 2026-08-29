@@ -15,7 +15,7 @@
 //     business: { total, projected, skipped, skippedDetails[] } }
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, requireAdmin } from './shared';
+import { db, allowedOrigins, requireAdmin, resolveProfessionalReferences } from './shared';
 import { buildPersonalPublicProjection } from './personalProfileProjection';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
 
@@ -75,7 +75,10 @@ export const backfillPublicProfiles = onCall(
       if (isEligible) {
         const businessDoc = await db.collection('businesses').doc(businessId).get();
         const businessData = businessDoc.exists ? businessDoc.data() : null;
-        const projection = buildBusinessPublicProjection(businessId, doc.id, data, businessData);
+        const resolvedProfessionals = await resolveProfessionalReferences(data.professionals);
+        const projection = buildBusinessPublicProjection(
+          businessId, doc.id, data, businessData, resolvedProfessionals,
+        );
         await db.collection('businessProfilesPublic').doc(businessId).set(projection);
         results.business.projected++;
       } else {

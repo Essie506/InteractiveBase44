@@ -25,6 +25,7 @@ export * as settingsRepository from './firebaseSettingsRepository';
 export * as specRepository from './firebaseSpecRepository';
 export * as blockRepository from './firebaseBlockRepository';
 export * as bookingRepository from './firebaseBookingRepository';
+export * as taxonomyRepository from './firebaseTaxonomyRepository';
 
 export {
   toFirestoreDoc,

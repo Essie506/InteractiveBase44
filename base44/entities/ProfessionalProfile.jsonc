@@ -91,6 +91,14 @@
       "default": 1,
       "title": "Cover Zoom"
     },
+    "gallery_media_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Gallery Media IDs",
+      "description": "Stable references to MediaAssets in the professional gallery. Owned by the professional's identity with source_domain 'professional'."
+    },
     "bio": {
       "type": "string",
       "title": "Bio"
@@ -110,9 +118,25 @@
     "services": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Service ID",
+            "description": "Canonical slug from ServiceDefinition taxonomy. Null for custom free-text entries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Service Label",
+            "description": "Display label. Matches the taxonomy label for canonical entries; user-entered for custom entries."
+          }
+        },
+        "required": [
+          "label"
+        ]
       },
-      "title": "Services / Specialisms"
+      "title": "Services / Specialisms",
+      "description": "Structured service selections. Canonical entries carry an id for search/filter matching; custom entries have id=null."
     },
     "service_area": {
       "type": "string",

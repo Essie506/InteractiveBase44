@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
+import { getServiceDefinitions } from '@/services/taxonomyService';
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { Loader2 } from 'lucide-react';
 import ProfessionalProfileView from '@/components/professional/ProfessionalProfileView';
 import ProfileEditDialog from '@/components/profile/ProfileEditDialog';
 import ImageEditDialog from '@/components/profile/ImageEditDialog';
-import TagListEditDialog from '@/components/profile/TagListEditDialog';
+import TaxonomySelectDialog from '@/components/profile/TaxonomySelectDialog';
 import ContactLocationEditDialog from '@/components/professional/ContactLocationEditDialog';
 import PrivateDetailsSheet from '@/components/professional/PrivateDetailsSheet';
 
@@ -44,6 +45,7 @@ function toPayload(p) {
     cover_position_x: p.cover_position_x,
     cover_position_y: p.cover_position_y,
     cover_zoom: p.cover_zoom,
+    gallery_media_ids: p.gallery_media_ids,
     visibility: p.visibility,
   };
 }
@@ -55,6 +57,7 @@ export default function ProfessionalProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState(null);
+  const [serviceTerms, setServiceTerms] = useState([]);
 
   useEffect(() => {
     if (!user) return;
@@ -75,11 +78,16 @@ export default function ProfessionalProfilePage() {
           display_name: user.display_name || '',
           contact_email: user.email || '',
           services: [],
+          gallery_media_ids: [],
           visibility: 'public',
         });
       }
       setLoading(false);
     });
+    // Load service taxonomy terms for the structured selection dialog
+    getServiceDefinitions('professional')
+      .then(setServiceTerms)
+      .catch(() => setServiceTerms([]));
   }, [user]);
 
   const persist = async (partial) => {
@@ -111,12 +119,14 @@ export default function ProfessionalProfilePage() {
       <ProfessionalProfileView
         profile={profile}
         editable
+        ownerId={user.id}
         onEditCover={() => setDialog('cover')}
         onEditAvatar={() => setDialog('avatar')}
         onEditField={(f) => setDialog(f)}
         onEditServices={() => setDialog('services')}
         onEditContact={() => setDialog('contact')}
         onOpenPrivateDetails={() => setDialog('private')}
+        onSaveMedia={(mediaIds) => persist({ gallery_media_ids: mediaIds })}
       />
 
       {saving && (
@@ -184,12 +194,13 @@ export default function ProfessionalProfilePage() {
         />
       )}
       {dialog === 'services' && (
-        <TagListEditDialog
+        <TaxonomySelectDialog
           open
           onClose={() => setDialog(null)}
           title="Edit services"
           items={profile.services}
-          placeholder="Add a service"
+          terms={serviceTerms}
+          placeholder="Add a custom service"
           onSave={(services) => persist({ services })}
         />
       )}

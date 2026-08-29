@@ -86,6 +86,15 @@ export async function getPublicPersonalProfile(screenName) {
   return snap.exists() ? fromFirestoreDoc(snap) : null;
 }
 
+// Resolve a professional's public profile by identity_id.
+// Used by the Business profile to display staff from membership references.
+export async function getPublicProfessionalProfileByIdentity(identityId) {
+  if (!identityId) return null;
+  const q = query(collection(db, PROFESSIONAL + 'Public'), where('identity_id', '==', identityId), limit(1));
+  const snap = await getDocs(q);
+  return snap.empty ? null : fromFirestoreDoc(snap.docs[0]);
+}
+
 // ── Context Resolution ─────────────────────────────────────
 
 export async function resolveProfileForContext(identityId, context) {

@@ -97,3 +97,40 @@ export async function hasBusinessRole(
   if (membership.lifecycle_state !== 'active') return false;
   return roles.includes(membership.role);
 }
+
+/**
+ * Resolves professional reference [{ identity_id }] to display info
+ * by reading the professionalProfilesPublic projection. Returns
+ * [{ identity_id, display_name, headline, avatar_url, screen_name }]
+ * for members that have a public professional profile. Members without
+ * a public profile are silently omitted.
+ *
+ * Used by saveBusinessProfile and backfillProfiles to build the
+ * businessProfilesPublic projection without duplicating professional
+ * data into the private businessProfile.
+ */
+export async function resolveProfessionalReferences(
+  professionals: any[]
+): Promise<any[]> {
+  if (!Array.isArray(professionals)) return [];
+  const resolved: any[] = [];
+  for (const ref of professionals) {
+    const identityId = ref?.identity_id;
+    if (!identityId) continue;
+    const pubSnap = await db.collection('professionalProfilesPublic')
+      .where('identity_id', '==', identityId)
+      .limit(1)
+      .get();
+    if (!pubSnap.empty) {
+      const pubData = pubSnap.docs[0].data();
+      resolved.push({
+        identity_id: identityId,
+        display_name: pubData.display_name || null,
+        headline: pubData.headline || null,
+        avatar_url: pubData.avatar_url || null,
+        screen_name: pubData.screen_name || null,
+      });
+    }
+  }
+  return resolved;
+}

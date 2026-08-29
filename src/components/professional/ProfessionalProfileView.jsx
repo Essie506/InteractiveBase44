@@ -2,6 +2,7 @@ import { MapPin, Mail, Phone, Globe, Pencil } from 'lucide-react';
 import ProfileHeader from '@/components/profile/ProfileHeader';
 import ProfileSection from '@/components/profile/ProfileSection';
 import TagList from '@/components/profile/TagList';
+import MediaGallerySection from '@/components/profile/MediaGallerySection';
 
 /**
  * Shared Professional profile layout — used by both the public profile
@@ -31,6 +32,8 @@ export default function ProfessionalProfileView({
   onEditServices,
   onEditContact,
   onOpenPrivateDetails,
+  onSaveMedia,
+  ownerId,
   actions = null,
 }) {
   const avatarPos = {
@@ -129,6 +132,17 @@ export default function ProfessionalProfileView({
             editable && <p className="text-stone-400 text-sm">Add your contact details and location…</p>
           )}
         </ProfileSection>
+
+        {/* Media */}
+        {(profile.gallery_media_ids?.length > 0 || editable) && (
+          <MediaGallerySection
+            mediaIds={profile.gallery_media_ids || []}
+            editable={editable}
+            ownerId={ownerId}
+            sourceDomain="professional"
+            onSave={onSaveMedia}
+          />
+        )}
 
         <div className="h-12" />
       </div>

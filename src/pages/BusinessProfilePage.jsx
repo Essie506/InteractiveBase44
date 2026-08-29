@@ -6,13 +6,15 @@ import {
   getPublicBusinessProfile,
   getMembership, hasPermission,
 } from '@/services/businessService';
+import { getPublicProfessionalProfileByIdentity } from '@/services/profileService';
+import { getServiceDefinitions, getFacilityDefinitions } from '@/services/taxonomyService';
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { createOrGetConversation } from '@/lib/messaging';
 import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
 import BusinessProfileView from '@/components/profile/BusinessProfileView';
 import ProfileEditDialog from '@/components/profile/ProfileEditDialog';
 import ImageEditDialog from '@/components/profile/ImageEditDialog';
-import TagListEditDialog from '@/components/profile/TagListEditDialog';
+import TaxonomySelectDialog from '@/components/profile/TaxonomySelectDialog';
 import BusinessContactEditDialog from '@/components/profile/BusinessContactEditDialog';
 import BusinessDetailsSheet from '@/components/profile/BusinessDetailsSheet';
 import ProfessionalsEditDialog from '@/components/profile/ProfessionalsEditDialog';
@@ -41,7 +43,9 @@ function toPayload(p) {
     location_id: p.location_id,
     category: p.category,
     services: p.services,
+    facilities: p.facilities,
     professionals: p.professionals,
+    gallery_media_ids: p.gallery_media_ids,
     contact_email: p.contact_email,
     contact_phone: p.contact_phone,
     website: p.website,
@@ -56,12 +60,15 @@ export default function BusinessProfilePage() {
   const { user } = useAuth();
   const [business, setBusiness] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [professionalsDisplay, setProfessionalsDisplay] = useState([]);
   const [membership, setMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [serviceTerms, setServiceTerms] = useState([]);
+  const [facilityTerms, setFacilityTerms] = useState([]);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -103,15 +110,49 @@ export default function BusinessProfilePage() {
             business_id: id,
             name: biz?.name || '',
             services: [],
+            facilities: [],
             professionals: [],
+            gallery_media_ids: [],
             visibility: 'public',
             lifecycle_state: 'active',
           };
         }
       }
       setProfile(p);
+      // Resolve professional references to display info for the view.
+      // Private profile stores [{ identity_id }]; public projection already
+      // carries resolved display info. For the owner view, we resolve here.
+      if (editable && Array.isArray(p.professionals)) {
+        const refs = p.professionals.filter((pr) => pr?.identity_id);
+        if (refs.length > 0) {
+          const display = await Promise.all(
+            refs.map(async (ref) => {
+              try {
+                const pub = await getPublicProfessionalProfileByIdentity(ref.identity_id);
+                if (!pub) return null;
+                return {
+                  identity_id: ref.identity_id,
+                  display_name: pub.display_name,
+                  headline: pub.headline,
+                  avatar_url: pub.avatar_url,
+                  screen_name: pub.screen_name,
+                };
+              } catch { return null; }
+            })
+          );
+          setProfessionalsDisplay(display.filter(Boolean));
+        } else {
+          setProfessionalsDisplay([]);
+        }
+      } else if (Array.isArray(p.professionals)) {
+        // Public projection already has display info
+        setProfessionalsDisplay(p.professionals);
+      }
       setLoading(false);
     })();
+    // Load taxonomy terms for structured selection dialogs
+    getServiceDefinitions('business').then(setServiceTerms).catch(() => setServiceTerms([]));
+    getFacilityDefinitions().then(setFacilityTerms).catch(() => setFacilityTerms([]));
   }, [user, id]);
 
   const editable = !!membership;
@@ -195,17 +236,20 @@ export default function BusinessProfilePage() {
         </div>
       )}
       <BusinessProfileView
-        profile={profile}
+        profile={{ ...profile, professionals: professionalsDisplay }}
         business={business}
         editable={editable}
+        ownerId={user?.id}
         onEditCover={() => setDialog('cover')}
         onEditLogo={() => setDialog('logo')}
         onEditName={() => setDialog('name')}
         onEditField={(f) => setDialog(f)}
         onEditServices={() => setDialog('services')}
+        onEditFacilities={() => setDialog('facilities')}
         onEditContact={() => setDialog('contact')}
         onEditProfessionals={() => setDialog('professionals')}
         onOpenPrivateDetails={() => setDialog('private')}
+        onSaveMedia={(mediaIds) => persist({ gallery_media_ids: mediaIds })}
         actions={visitorActions}
       />
 
@@ -275,13 +319,25 @@ export default function BusinessProfilePage() {
         />
       )}
       {dialog === 'services' && (
-        <TagListEditDialog
+        <TaxonomySelectDialog
           open
           onClose={() => setDialog(null)}
           title="Edit services"
           items={profile.services}
-          placeholder="Add a service"
+          terms={serviceTerms}
+          placeholder="Add a custom service"
           onSave={(services) => persist({ services })}
+        />
+      )}
+      {dialog === 'facilities' && (
+        <TaxonomySelectDialog
+          open
+          onClose={() => setDialog(null)}
+          title="Edit facilities"
+          items={profile.facilities}
+          terms={facilityTerms}
+          placeholder="Add a custom facility"
+          onSave={(facilities) => persist({ facilities })}
         />
       )}
       {dialog === 'contact' && (
@@ -297,6 +353,7 @@ export default function BusinessProfilePage() {
         <ProfessionalsEditDialog
           open
           onClose={() => setDialog(null)}
+          businessId={id}
           professionals={profile.professionals}
           onSave={(professionals) => persist({ professionals })}
         />

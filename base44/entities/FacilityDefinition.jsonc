@@ -1,0 +1,25 @@
+{
+  "name": "FacilityDefinition",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "title": "Label",
+      "description": "Human-readable facility name displayed in selection UI and on business profiles"
+    },
+    "slug": {
+      "type": "string",
+      "title": "Slug",
+      "description": "Canonical identifier used for search/filter matching. Stored on business profiles alongside the label so directory/search can match without relying on free-text spelling."
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "description": "Optional grouping for the selection UI"
+    }
+  },
+  "required": [
+    "label",
+    "slug"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "ServiceDefinition",
+  "type": "object",
+  "properties": {
+    "label": {
+      "type": "string",
+      "title": "Label",
+      "description": "Human-readable service name displayed in selection UI and on profiles"
+    },
+    "slug": {
+      "type": "string",
+      "title": "Slug",
+      "description": "Canonical identifier used for search/filter matching. Stored on profiles alongside the label so directory/search can match without relying on free-text spelling."
+    },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "description": "Optional grouping for the selection UI"
+    },
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "professional",
+          "business"
+        ]
+      },
+      "title": "Domains",
+      "description": "Which profile types can select this service. A service shared by both professional and business profiles has both entries."
+    }
+  },
+  "required": [
+    "label",
+    "slug"
+  ]
+}

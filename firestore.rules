@@ -295,6 +295,26 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // SERVICE DEFINITIONS — canonical service taxonomy (shared)
+    // Admin-managed. Read by authenticated users for profile selection.
+    // ═══════════════════════════════════════════════════════════
+
+    match /serviceDefinitions/{defId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // FACILITY DEFINITIONS — canonical facility taxonomy (business)
+    // Admin-managed. Read by authenticated users for profile selection.
+    // ═══════════════════════════════════════════════════════════
+
+    match /facilityDefinitions/{defId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // BUSINESS SUBSCRIPTIONS
     // ═══════════════════════════════════════════════════════════
 

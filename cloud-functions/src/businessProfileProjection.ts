@@ -10,6 +10,7 @@ export function buildBusinessPublicProjection(
   profileId: string,
   profileData: any,
   businessData: any,
+  resolvedProfessionals: any[] = [],
 ): Record<string, any> {
   return {
     business_id: businessId,
@@ -30,7 +31,12 @@ export function buildBusinessPublicProjection(
     location: profileData.location || null,
     category: profileData.category || null,
     services: Array.isArray(profileData.services) ? profileData.services : [],
-    professionals: Array.isArray(profileData.professionals) ? profileData.professionals : [],
+    facilities: Array.isArray(profileData.facilities) ? profileData.facilities : [],
+    // professionals carries resolved display info (sourced from
+    // professionalProfilesPublic) so the public route can render
+    // staff cards without reading private collections. The private
+    // businessProfile stores only [{ identity_id }] references.
+    professionals: resolvedProfessionals,
     contact_email: profileData.contact_email || null,
     contact_phone: profileData.contact_phone || null,
     website: profileData.website || null,
