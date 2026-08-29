@@ -40,6 +40,15 @@ import PublicProfile from '@/pages/PublicProfile';
 import PublicPersonalProfile from '@/pages/PublicPersonalProfile';
 import PublicBusinessProfile from '@/pages/PublicBusinessProfile';
 import BookingPage from '@/pages/BookingPage';
+import ProfessionalWorkspace from '@/pages/professional/ProfessionalWorkspace';
+import ProfessionalOverview from '@/pages/professional/ProfessionalOverview';
+import ProfessionalBookings from '@/pages/professional/ProfessionalBookings';
+import ProfessionalServices from '@/pages/professional/ProfessionalServices';
+import BusinessWorkspaceShell from '@/pages/business/BusinessWorkspaceShell';
+import BusinessOverview from '@/pages/business/BusinessOverview';
+import BusinessBookings from '@/pages/business/BusinessBookings';
+import BusinessServicesFacilities from '@/pages/business/BusinessServicesFacilities';
+import BusinessAvailability from '@/pages/business/BusinessAvailability';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -97,6 +106,25 @@ const AuthenticatedApp = () => {
           <Route path="/business/:id/verify" element={<VerificationPage />} />
           <Route path="/business/:id/staff" element={<BusinessStaff />} />
           <Route path="/business/:id/profile" element={<BusinessProfilePage />} />
+          {/* Professional Workspace — sidebar + pages */}
+          <Route path="/professional" element={<ProfessionalWorkspace />}>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<ProfessionalOverview />} />
+            <Route path="bookings" element={<ProfessionalBookings />} />
+            <Route path="services" element={<ProfessionalServices />} />
+            <Route path="availability" element={<AvailabilityPage />} />
+            <Route path="verification" element={<VerificationPage />} />
+          </Route>
+          {/* Business Workspace — sidebar + pages */}
+          <Route path="/business/:id/workspace" element={<BusinessWorkspaceShell />}>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<BusinessOverview />} />
+            <Route path="bookings" element={<BusinessBookings />} />
+            <Route path="services" element={<BusinessServicesFacilities />} />
+            <Route path="availability" element={<BusinessAvailability />} />
+            <Route path="verification" element={<VerificationPage />} />
+            <Route path="staff" element={<BusinessStaff />} />
+          </Route>
           <Route path="/specifications" element={<Specifications />} />
           <Route path="/specifications/:id" element={<SpecificationDetail />} />
           <Route path="/upload" element={<UploadPage />} />
