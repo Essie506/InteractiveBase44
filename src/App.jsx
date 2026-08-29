@@ -89,7 +89,6 @@ const AuthenticatedApp = () => {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/activate-professional" element={<ProfessionalActivation />} />
         <Route path="/create-business" element={<BusinessCreation />} />
-        <Route path="/verify-professional" element={<VerificationPage />} />
         <Route path="/admin/verify" element={<VerificationReview />} />
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
@@ -102,6 +101,7 @@ const AuthenticatedApp = () => {
           <Route path="/messages" element={<Messages />} />
           <Route path="/messages/:conversationId" element={<ConversationPage />} />
           <Route path="/professional-profile" element={<ProfessionalProfilePage />} />
+          <Route path="/verify-professional" element={<VerificationPage />} />
           <Route path="/business/:id" element={<BusinessWorkspace />} />
           <Route path="/business/:id/verify" element={<VerificationPage />} />
           <Route path="/business/:id/staff" element={<BusinessStaff />} />
