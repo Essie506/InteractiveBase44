@@ -39,9 +39,10 @@ export default function AppLayout() {
   if (activeContext === 'professional' && isProfessionalActive) {
     navItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/professional', label: 'Workspace', icon: Building2 },
+      { path: '/messages', label: 'Messages', icon: MessageSquare },
       { path: '/calendar', label: 'Calendar', icon: Calendar },
       { path: '/availability', label: 'Availability', icon: Clock },
-      { path: '/messages', label: 'Messages', icon: MessageSquare },
       { path: '/professional-profile', label: 'Pro Profile', icon: Briefcase },
       { path: '/verify-professional', label: 'Verification', icon: ShieldCheck },
       { path: '/settings', label: 'Settings', icon: Settings },
@@ -53,9 +54,9 @@ export default function AppLayout() {
   if (activeContext === 'business' && activeBusinessId) {
     navItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/calendar', label: 'Calendar', icon: Calendar },
+      { path: `/business/${activeBusinessId}/workspace`, label: 'Workspace', icon: Building2 },
       { path: '/messages', label: 'Messages', icon: MessageSquare },
-      { path: `/business/${activeBusinessId}`, label: 'Workspace', icon: Building2 },
+      { path: '/calendar', label: 'Calendar', icon: Calendar },
       { path: `/business/${activeBusinessId}/staff`, label: 'Staff', icon: Users },
       { path: `/business/${activeBusinessId}/profile`, label: 'Biz Profile', icon: FileText },
       { path: `/business/${activeBusinessId}/verify`, label: 'Verification', icon: ShieldCheck },
