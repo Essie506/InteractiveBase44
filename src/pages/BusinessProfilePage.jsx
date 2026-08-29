@@ -7,7 +7,8 @@ import {
   getMembership, hasPermission,
 } from '@/services/businessService';
 import { getPublicProfessionalProfileByIdentity } from '@/services/profileService';
-import { getServiceDefinitions, getFacilityDefinitions } from '@/services/taxonomyService';
+import { STANDARD_SERVICES } from '@/data/standardServices';
+import { STANDARD_FACILITIES } from '@/data/standardFacilities';
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { createOrGetConversation } from '@/lib/messaging';
 import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
@@ -67,8 +68,6 @@ export default function BusinessProfilePage() {
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState(null);
   const [connecting, setConnecting] = useState(false);
-  const [serviceTerms, setServiceTerms] = useState([]);
-  const [facilityTerms, setFacilityTerms] = useState([]);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -150,9 +149,6 @@ export default function BusinessProfilePage() {
       }
       setLoading(false);
     })();
-    // Load taxonomy terms for structured selection dialogs
-    getServiceDefinitions('business').then(setServiceTerms).catch(() => setServiceTerms([]));
-    getFacilityDefinitions().then(setFacilityTerms).catch(() => setFacilityTerms([]));
   }, [user, id]);
 
   const editable = !!membership;
@@ -324,7 +320,7 @@ export default function BusinessProfilePage() {
           onClose={() => setDialog(null)}
           title="Edit services"
           items={profile.services}
-          terms={serviceTerms}
+          standardOptions={STANDARD_SERVICES}
           placeholder="Add a custom service"
           onSave={(services) => persist({ services })}
         />
@@ -335,7 +331,7 @@ export default function BusinessProfilePage() {
           onClose={() => setDialog(null)}
           title="Edit facilities"
           items={profile.facilities}
-          terms={facilityTerms}
+          standardOptions={STANDARD_FACILITIES}
           placeholder="Add a custom facility"
           onSave={(facilities) => persist({ facilities })}
         />

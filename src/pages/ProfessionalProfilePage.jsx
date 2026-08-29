@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
-import { getServiceDefinitions } from '@/services/taxonomyService';
+import { STANDARD_SERVICES } from '@/data/standardServices';
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { Loader2 } from 'lucide-react';
 import ProfessionalProfileView from '@/components/professional/ProfessionalProfileView';
@@ -57,7 +57,6 @@ export default function ProfessionalProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState(null);
-  const [serviceTerms, setServiceTerms] = useState([]);
 
   useEffect(() => {
     if (!user) return;
@@ -84,10 +83,6 @@ export default function ProfessionalProfilePage() {
       }
       setLoading(false);
     });
-    // Load service taxonomy terms for the structured selection dialog
-    getServiceDefinitions('professional')
-      .then(setServiceTerms)
-      .catch(() => setServiceTerms([]));
   }, [user]);
 
   const persist = async (partial) => {
@@ -199,7 +194,7 @@ export default function ProfessionalProfilePage() {
           onClose={() => setDialog(null)}
           title="Edit services"
           items={profile.services}
-          terms={serviceTerms}
+          standardOptions={STANDARD_SERVICES}
           placeholder="Add a custom service"
           onSave={(services) => persist({ services })}
         />
