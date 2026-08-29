@@ -26,7 +26,8 @@ export default function Directory() {
   const [facilityIds, setFacilityIds] = useState([]);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [locationText, setLocationText] = useState('');
-  const [sort, setSort] = useState('verified_first');
+  const [sort, setSort] = useState('recommended');
+  const [distance, setDistance] = useState(10);
 
   useEffect(() => {
     loadDirectory()
@@ -55,7 +56,8 @@ export default function Directory() {
     setFacilityIds([]);
     setVerifiedOnly(false);
     setLocationText('');
-    setSort('verified_first');
+    setSort('recommended');
+    setDistance(10);
   };
 
   const filterProps = {
@@ -66,6 +68,7 @@ export default function Directory() {
     verifiedOnly, setVerifiedOnly,
     locationText, setLocationText,
     sort, setSort,
+    distance, setDistance,
     onReset: handleReset,
   };
 

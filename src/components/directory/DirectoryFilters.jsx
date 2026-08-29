@@ -2,6 +2,7 @@ import { Search, MapPin, ShieldCheck, RotateCcw } from 'lucide-react';
 import { STANDARD_SERVICES } from '@/data/standardServices';
 import { STANDARD_FACILITIES } from '@/data/standardFacilities';
 import FilterMultiSelect from './FilterMultiSelect';
+import { Slider } from '@/components/ui/slider';
 
 // Reusable filter sidebar for the Directory. Controlled component —
 // all state lives in the parent page. Rendered both in the desktop
@@ -17,9 +18,9 @@ import FilterMultiSelect from './FilterMultiSelect';
 //
 // Deferred (no backend/data yet): Distance/radius, Equipment, General.
 const SORT_OPTIONS = [
-  { value: 'verified_first', label: 'Verified first' },
-  { value: 'name_az', label: 'Name A–Z' },
-  { value: 'recent', label: 'Recently updated' },
+  { value: 'distance', label: 'Distance' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'recommended', label: 'Recommended' },
 ];
 
 function Section({ title, children }) {
@@ -39,6 +40,7 @@ export default function DirectoryFilters({
   verifiedOnly, setVerifiedOnly,
   locationText, setLocationText,
   sort, setSort,
+  distance, setDistance,
   onReset,
 }) {
   const showFacilities = typeFilter === 'all' || typeFilter === 'business';
@@ -110,6 +112,20 @@ export default function DirectoryFilters({
             onChange={e => setLocationText(e.target.value)}
             placeholder="City or area"
             className="w-full pl-9 pr-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+          />
+        </div>
+
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-stone-500">Within</span>
+            <span className="text-xs font-medium text-stone-700">{distance} miles</span>
+          </div>
+          <Slider
+            value={[distance]}
+            onValueChange={(v) => setDistance(v[0])}
+            min={1}
+            max={50}
+            step={1}
           />
         </div>
       </Section>

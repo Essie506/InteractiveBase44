@@ -128,8 +128,18 @@ export function filterResults(data, opts = {}) {
   } else if (sort === 'recent') {
     results.sort((a, b) =>
       new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime());
+  } else if (sort === 'verified') {
+    // Verified first, then most recently updated
+    results.sort((a, b) => {
+      const av = a.verification_state === 'verified' ? 0 : 1;
+      const bv = b.verification_state === 'verified' ? 0 : 1;
+      if (av !== bv) return av - bv;
+      return new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime();
+    });
   } else {
-    // verified_first (default — organic ranking preserved)
+    // 'recommended' (default), 'distance' (not yet supported — no
+    // coordinate data in public projections, falls back to organic),
+    // or 'verified_first' — organic ranking: verified first, then alphabetical.
     results.sort((a, b) => {
       const av = a.verification_state === 'verified' ? 0 : 1;
       const bv = b.verification_state === 'verified' ? 0 : 1;
