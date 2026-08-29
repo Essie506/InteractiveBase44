@@ -8,8 +8,11 @@
 //
 // Profile coordinates come from the public projection's
 // location_geo field, which is derived server-side from the
-// authoritative Location record — only when the user has
-// consented via precision_level 'exact' or 'approximate'.
+// authoritative Location record. Privacy rules (cloud-functions/src/geo.ts):
+//   Professional: only 'approximate' + 'public' — exact never exposed.
+//   Business: 'approximate' + 'public', or 'exact' only for public
+//     business premises (location_context === 'business').
+//   city_only / region_only / online_only: never exposed.
 
 const EARTH_RADIUS_MILES = 3958.8;
 

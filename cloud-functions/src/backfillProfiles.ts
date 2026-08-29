@@ -19,7 +19,7 @@ import { db, allowedOrigins, requireAdmin, resolveProfessionalReferences } from 
 import { buildPersonalPublicProjection } from './personalProfileProjection';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
 import { buildPublicProjection } from './professionalProfile';
-import { fetchPublicGeo } from './geo';
+import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
 
 export const backfillPublicProfiles = onCall(
   { region: 'europe-west2', cors: allowedOrigins, timeoutSeconds: 300 },
@@ -76,8 +76,7 @@ export const backfillPublicProfiles = onCall(
         && !!screenName;
 
       if (isEligible) {
-        const serviceAreaLocationId = data.service_area_location_id || data.location_id;
-        const locationGeo = await fetchPublicGeo(db, serviceAreaLocationId);
+        const locationGeo = await fetchProfessionalPublicGeo(db, data.service_area_location_id, data.location_id);
         const projection = buildPublicProjection(data.identity_id, doc.id, data, locationGeo);
         await db.collection('professionalProfilesPublic').doc(screenName).set(projection);
         results.professional.projected++;
@@ -109,7 +108,7 @@ export const backfillPublicProfiles = onCall(
         const businessDoc = await db.collection('businesses').doc(businessId).get();
         const businessData = businessDoc.exists ? businessDoc.data() : null;
         const resolvedProfessionals = await resolveProfessionalReferences(data.professionals);
-        const locationGeo = await fetchPublicGeo(db, data.location_id);
+        const locationGeo = await fetchBusinessPublicGeo(db, data.location_id);
         const projection = buildBusinessPublicProjection(
           businessId, doc.id, data, businessData, resolvedProfessionals, locationGeo,
         );

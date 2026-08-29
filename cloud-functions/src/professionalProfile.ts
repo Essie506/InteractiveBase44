@@ -11,7 +11,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId } from './shared';
-import { fetchPublicGeo } from './geo';
+import { fetchProfessionalPublicGeo } from './geo';
 
 const PROFILES = 'professionalProfiles';
 const PUBLIC = 'professionalProfilesPublic';
@@ -135,8 +135,7 @@ export const saveProfessionalProfile = onCall(
       // Only exposes coordinates when precision_level is 'exact' or
       // 'approximate' (user consented). city_only/region_only never
       // expose their potentially private stored coordinates.
-      const serviceAreaLocationId = merged.service_area_location_id || merged.location_id;
-      const locationGeo = await fetchPublicGeo(db, serviceAreaLocationId);
+      const locationGeo = await fetchProfessionalPublicGeo(db, merged.service_area_location_id, merged.location_id);
       const projection = buildPublicProjection(identityId, profileId, merged, locationGeo);
       const projRef = db.collection(PUBLIC).doc(screenName!);
       // Transaction: re-check uniqueness atomically with the write
