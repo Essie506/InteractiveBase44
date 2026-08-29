@@ -49,6 +49,7 @@ export default function AppLayout() {
       { path: '/settings', label: 'Settings', icon: Settings },
       { path: '/specifications', label: 'Specs', icon: FileText },
       { path: '/search', label: 'AI Search', icon: Search },
+      { path: '/directory', label: 'Directory', icon: Compass },
     ];
   }
 
@@ -64,6 +65,7 @@ export default function AppLayout() {
       { path: '/settings', label: 'Settings', icon: Settings },
       { path: '/specifications', label: 'Specs', icon: FileText },
       { path: '/search', label: 'AI Search', icon: Search },
+      { path: '/directory', label: 'Directory', icon: Compass },
     ];
   }
 
