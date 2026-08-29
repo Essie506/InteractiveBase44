@@ -65,8 +65,8 @@ function matchesQuery(profile, q) {
 //   types: null = all, or ['professional'] / ['business'] / both
 export function filterResults(data, opts = {}) {
   const {
-    query, types, serviceId, facilityId,
-    verifiedOnly, locationText, maxResults = 100,
+    query, types, serviceIds, facilityIds,
+    verifiedOnly, locationText, sort = 'verified_first', maxResults = 100,
   } = opts;
 
   const wantPro = !types || types.includes('professional');
@@ -85,19 +85,20 @@ export function filterResults(data, opts = {}) {
     results = results.filter(r => r.verification_state === 'verified');
   }
 
-  // Canonical service filter (matches service.id against taxonomy slug)
-  if (serviceId) {
+  // Canonical service filter — match ANY selected service id
+  if (serviceIds && serviceIds.length > 0) {
     results = results.filter(r =>
-      Array.isArray(r.services) && r.services.some(s => s.id === serviceId)
+      Array.isArray(r.services) &&
+      serviceIds.some(sid => r.services.some(s => s.id === sid))
     );
   }
 
-  // Canonical facility filter (business only)
-  if (facilityId) {
+  // Canonical facility filter — business only, match ANY selected facility id
+  if (facilityIds && facilityIds.length > 0) {
     results = results.filter(r =>
       r._type === 'business' &&
       Array.isArray(r.facilities) &&
-      r.facilities.some(f => f.id === facilityId)
+      facilityIds.some(fid => r.facilities.some(f => f.id === fid))
     );
   }
 
@@ -118,15 +119,26 @@ export function filterResults(data, opts = {}) {
     if (q) results = results.filter(r => matchesQuery(r, q));
   }
 
-  // Deterministic ranking: verified first, then alphabetical by name.
-  results.sort((a, b) => {
-    const av = a.verification_state === 'verified' ? 0 : 1;
-    const bv = b.verification_state === 'verified' ? 0 : 1;
-    if (av !== bv) return av - bv;
-    const an = (a.display_name || a.name || '').toLowerCase();
-    const bn = (b.display_name || b.name || '').toLowerCase();
-    return an.localeCompare(bn);
-  });
+  // Ranking — organic default is verified-first then alphabetical.
+  // User-selectable sort alternatives do not change the default.
+  if (sort === 'name_az') {
+    results.sort((a, b) =>
+      (a.display_name || a.name || '').toLowerCase()
+        .localeCompare((b.display_name || b.name || '').toLowerCase()));
+  } else if (sort === 'recent') {
+    results.sort((a, b) =>
+      new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime());
+  } else {
+    // verified_first (default — organic ranking preserved)
+    results.sort((a, b) => {
+      const av = a.verification_state === 'verified' ? 0 : 1;
+      const bv = b.verification_state === 'verified' ? 0 : 1;
+      if (av !== bv) return av - bv;
+      const an = (a.display_name || a.name || '').toLowerCase();
+      const bn = (b.display_name || b.name || '').toLowerCase();
+      return an.localeCompare(bn);
+    });
+  }
 
   return results.slice(0, maxResults);
 }
