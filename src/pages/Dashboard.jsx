@@ -158,33 +158,6 @@ export default function Dashboard() {
           )
         )}
 
-        {/* Business creation */}
-        {businesses.length === 0 ? (
-          <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
-                <Building2 className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-stone-800 mb-1">Create a Business</h3>
-                <p className="text-sm text-stone-500 mb-2">Set up a business workspace</p>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
-              </div>
-            </div>
-          </Link>
-        ) : (
-          <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
-                <Plus className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-stone-800 mb-1">Create Another Business</h3>
-                <p className="text-sm text-stone-500">Add another business workspace to your identity</p>
-              </div>
-            </div>
-          </Link>
-        )}
       </div>
 
       {/* Verification status (Professional context) */}
@@ -216,41 +189,51 @@ export default function Dashboard() {
         </Link>
       )}
 
-      {/* Business cards */}
-      {businesses.length > 0 && (
-        <div className="mb-6">
-          <h2 className="font-semibold text-stone-800 mb-3">Your Businesses</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
-            {businesses.map(biz => (
-              <button
-                key={biz.id}
-                onClick={async () => {
-                  await userService.updateUserState({ active_context: 'business', active_business_id: biz.id });
-                  await refreshUser();
-                  navigate(`/business/${biz.id}`);
-                }}
-                className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
-                    <Building2 className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-stone-800 truncate">{biz.name}</h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded capitalize">{biz.type}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${biz.lifecycle_state === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {biz.lifecycle_state === 'pending_verification' ? 'Pending' : biz.lifecycle_state}
-                      </span>
-                      <span className="text-xs text-stone-500">· {biz._membership?.role}</span>
-                    </div>
+      {/* Business cards + Create Another Business — in the same group/row */}
+      <div className="mb-6">
+        <h2 className="font-semibold text-stone-800 mb-3">Your Businesses</h2>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {businesses.map(biz => (
+            <button
+              key={biz.id}
+              onClick={async () => {
+                await userService.updateUserState({ active_context: 'business', active_business_id: biz.id });
+                await refreshUser();
+                navigate('/dashboard');
+              }}
+              className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
+                  <Building2 className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-stone-800 truncate">{biz.name}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded capitalize">{biz.type}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${biz.lifecycle_state === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {biz.lifecycle_state === 'pending_verification' ? 'Pending' : biz.lifecycle_state}
+                    </span>
+                    <span className="text-xs text-stone-500">· {biz._membership?.role}</span>
                   </div>
                 </div>
-              </button>
-            ))}
-          </div>
+              </div>
+            </button>
+          ))}
+          {/* Create Another Business — part of the business group, not a separate primary card */}
+          <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
+                <Plus className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-stone-800 mb-1">Create Another Business</h3>
+                <p className="text-sm text-stone-500">Add another business to your identity</p>
+              </div>
+            </div>
+          </Link>
         </div>
-      )}
+      </div>
 
       {/* Quick actions */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

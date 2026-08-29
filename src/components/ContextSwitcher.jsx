@@ -42,11 +42,7 @@ export default function ContextSwitcher() {
       await userService.updateUserState(updates);
       await refreshUser();
       setOpen(false);
-      if (context === 'business' && businessId) {
-        navigate(`/business/${businessId}`);
-      } else {
-        navigate('/dashboard');
-      }
+      navigate('/dashboard');
     } finally {
       setSwitching(false);
     }
