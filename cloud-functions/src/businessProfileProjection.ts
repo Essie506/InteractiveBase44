@@ -11,6 +11,7 @@ export function buildBusinessPublicProjection(
   profileData: any,
   businessData: any,
   resolvedProfessionals: any[] = [],
+  locationGeo?: { latitude: number; longitude: number } | null,
 ): Record<string, any> {
   return {
     business_id: businessId,
@@ -29,6 +30,7 @@ export function buildBusinessPublicProjection(
     cover_zoom: profileData.cover_zoom ?? 1,
     gallery_media_ids: Array.isArray(profileData.gallery_media_ids) ? profileData.gallery_media_ids : [],
     location: profileData.location || null,
+    location_geo: locationGeo || null,
     category: profileData.category || null,
     services: Array.isArray(profileData.services) ? profileData.services : [],
     facilities: Array.isArray(profileData.facilities) ? profileData.facilities : [],

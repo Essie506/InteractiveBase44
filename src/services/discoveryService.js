@@ -28,6 +28,7 @@ import { db } from '@/firebase/firebaseClient';
 import { collection, getDocs } from 'firebase/firestore';
 import { useFirebase } from '@/lib/backendConfig';
 import { fromFirestoreDoc } from '@/data/firebase/mappers';
+import { haversineMiles, getGeoCoords } from '@/lib/geo';
 
 const PROFESSIONAL_PUBLIC = 'professionalProfilesPublic';
 const BUSINESS_PUBLIC = 'businessProfilesPublic';
@@ -66,7 +67,8 @@ function matchesQuery(profile, q) {
 export function filterResults(data, opts = {}) {
   const {
     query, types, serviceIds, facilityIds,
-    verifiedOnly, locationText, sort = 'verified_first', maxResults = 100,
+    verifiedOnly, locationText, sort = 'recommended', maxResults = 100,
+    origin, distance,
   } = opts;
 
   const wantPro = !types || types.includes('professional');
@@ -102,8 +104,21 @@ export function filterResults(data, opts = {}) {
     );
   }
 
-  // Location text filter (public display string only)
-  if (locationText) {
+  // Location filter — distance-based when origin is resolved,
+  // text-based fallback when no origin (geocoding failed or no input).
+  const hasOrigin = origin && origin.latitude != null && origin.longitude != null;
+  const distanceActive = hasOrigin && distance && distance > 0;
+
+  if (distanceActive) {
+    // Radius filter — exclude profiles without public coordinates
+    results = results.filter(r => {
+      const coords = getGeoCoords(r);
+      if (!coords) return false;
+      const miles = haversineMiles(origin, coords);
+      return miles != null && miles <= distance;
+    });
+  } else if (locationText) {
+    // Text-based fallback (no origin resolved)
     const loc = locationText.toLowerCase().trim();
     if (loc) {
       results = results.filter(r => {
@@ -119,9 +134,28 @@ export function filterResults(data, opts = {}) {
     if (q) results = results.filter(r => matchesQuery(r, q));
   }
 
+  // Attach calculated distance to each result for display + distance sort.
+  // Profiles without coordinates get _distance = null.
+  if (hasOrigin) {
+    results = results.map(r => {
+      const coords = getGeoCoords(r);
+      return { ...r, _distance: coords ? haversineMiles(origin, coords) : null };
+    });
+  }
+
   // Ranking — organic default is verified-first then alphabetical.
-  // User-selectable sort alternatives do not change the default.
-  if (sort === 'name_az') {
+  // Distance sort is a third independent mode (requires origin).
+  if (sort === 'distance' && hasOrigin) {
+    // Nearest → furthest. Profiles without coordinates sort last.
+    results.sort((a, b) => {
+      const ad = a._distance;
+      const bd = b._distance;
+      if (ad == null && bd == null) return 0;
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      return ad - bd;
+    });
+  } else if (sort === 'name_az') {
     results.sort((a, b) =>
       (a.display_name || a.name || '').toLowerCase()
         .localeCompare((b.display_name || b.name || '').toLowerCase()));
@@ -137,9 +171,8 @@ export function filterResults(data, opts = {}) {
       return new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime();
     });
   } else {
-    // 'recommended' (default), 'distance' (not yet supported — no
-    // coordinate data in public projections, falls back to organic),
-    // or 'verified_first' — organic ranking: verified first, then alphabetical.
+    // 'recommended' (default) or 'distance' without origin —
+    // organic ranking: verified first, then alphabetical.
     results.sort((a, b) => {
       const av = a.verification_state === 'verified' ? 0 : 1;
       const bv = b.verification_state === 'verified' ? 0 : 1;

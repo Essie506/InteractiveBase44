@@ -11,6 +11,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId } from './shared';
+import { fetchPublicGeo } from './geo';
 
 const PROFILES = 'professionalProfiles';
 const PUBLIC = 'professionalProfilesPublic';
@@ -32,7 +33,7 @@ function validateScreenNameFormat(s: string): string | null {
 }
 
 // Public-field allowlist for the projection.
-function buildPublicProjection(identityId: string, profileId: string, data: any): Record<string, any> {
+export function buildPublicProjection(identityId: string, profileId: string, data: any, locationGeo?: { latitude: number; longitude: number } | null): Record<string, any> {
   return {
     identity_id: identityId,
     profile_id: profileId,
@@ -56,6 +57,7 @@ function buildPublicProjection(identityId: string, profileId: string, data: any)
     services: Array.isArray(data.services) ? data.services : [],
     service_area: data.service_area || null,
     location: data.location || null,
+    location_geo: locationGeo || null,
     website: data.website || null,
     gallery_media_ids: Array.isArray(data.gallery_media_ids) ? data.gallery_media_ids : [],
     verification_state: data.verification_state || 'not_verified',
@@ -129,7 +131,13 @@ export const saveProfessionalProfile = onCall(
       && !!screenName;
 
     if (isPubliclyListable) {
-      const projection = buildPublicProjection(identityId, profileId, merged);
+      // Derive public-safe coordinates from the service area / location.
+      // Only exposes coordinates when precision_level is 'exact' or
+      // 'approximate' (user consented). city_only/region_only never
+      // expose their potentially private stored coordinates.
+      const serviceAreaLocationId = merged.service_area_location_id || merged.location_id;
+      const locationGeo = await fetchPublicGeo(db, serviceAreaLocationId);
+      const projection = buildPublicProjection(identityId, profileId, merged, locationGeo);
       const projRef = db.collection(PUBLIC).doc(screenName!);
       // Transaction: re-check uniqueness atomically with the write
       // to prevent two identities claiming the same screen name.

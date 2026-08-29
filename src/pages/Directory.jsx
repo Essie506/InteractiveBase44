@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
+import { geocodeOrigin } from '@/lib/geo';
 import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
@@ -28,6 +29,8 @@ export default function Directory() {
   const [locationText, setLocationText] = useState('');
   const [sort, setSort] = useState('recommended');
   const [distance, setDistance] = useState(10);
+  const [origin, setOrigin] = useState(null);
+  const [originStatus, setOriginStatus] = useState('idle');
 
   useEffect(() => {
     loadDirectory()
@@ -35,6 +38,29 @@ export default function Directory() {
       .catch(err => setError(err.message || 'Could not load directory'))
       .finally(() => setLoading(false));
   }, []);
+
+  // Debounced origin geocoding — resolves the location input to
+  // coordinates for distance filtering/sorting. Uses the free
+  // OpenStreetMap Nominatim API (no key required, rate-limited).
+  useEffect(() => {
+    if (!locationText || !locationText.trim()) {
+      setOrigin(null);
+      setOriginStatus('idle');
+      return;
+    }
+    setOriginStatus('resolving');
+    const timer = setTimeout(async () => {
+      const result = await geocodeOrigin(locationText);
+      if (result) {
+        setOrigin(result);
+        setOriginStatus('resolved');
+      } else {
+        setOrigin(null);
+        setOriginStatus('not_found');
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [locationText]);
 
   const results = useMemo(
     () => filterResults(data, {
@@ -45,8 +71,10 @@ export default function Directory() {
       verifiedOnly,
       locationText: locationText || undefined,
       sort,
+      origin,
+      distance,
     }),
-    [data, query, typeFilter, serviceIds, facilityIds, verifiedOnly, locationText, sort],
+    [data, query, typeFilter, serviceIds, facilityIds, verifiedOnly, locationText, sort, origin, distance],
   );
 
   const handleReset = () => {
@@ -69,6 +97,7 @@ export default function Directory() {
     locationText, setLocationText,
     sort, setSort,
     distance, setDistance,
+    originStatus,
     onReset: handleReset,
   };
 
@@ -121,9 +150,17 @@ export default function Directory() {
 
           {/* Results */}
           <div className="flex-1 min-w-0">
-            <div className="mb-3 text-sm text-stone-500">
-              {loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}
+            <div className="mb-3 text-sm text-stone-500 flex items-center gap-2 flex-wrap">
+              <span>{loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</span>
+              {originStatus === 'resolving' && <span className="text-indigo-500">resolving location…</span>}
+              {originStatus === 'resolved' && origin && <span className="text-stone-400">within {distance} miles of {origin.label}</span>}
+              {originStatus === 'not_found' && locationText && <span className="text-amber-600">location not found</span>}
             </div>
+            {sort === 'distance' && originStatus !== 'resolved' && !loading && !error && (
+              <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                Enter a location to sort by distance.
+              </div>
+            )}
 
             {loading && (
               <div className="flex flex-col items-center py-20">

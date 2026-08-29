@@ -41,6 +41,7 @@ export default function DirectoryFilters({
   locationText, setLocationText,
   sort, setSort,
   distance, setDistance,
+  originStatus,
   onReset,
 }) {
   const showFacilities = typeFilter === 'all' || typeFilter === 'business';
@@ -118,7 +119,9 @@ export default function DirectoryFilters({
         <div className="mt-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-stone-500">Within</span>
-            <span className="text-xs font-medium text-stone-700">{distance} miles</span>
+            <span className={`text-xs font-medium ${originStatus === 'resolved' ? 'text-stone-700' : 'text-stone-400'}`}>
+              {originStatus === 'resolved' ? `${distance} miles` : '— miles'}
+            </span>
           </div>
           <Slider
             value={[distance]}
@@ -126,7 +129,13 @@ export default function DirectoryFilters({
             min={1}
             max={50}
             step={1}
+            disabled={originStatus !== 'resolved'}
           />
+          {originStatus !== 'resolved' && (
+            <p className="text-xs text-stone-400 mt-1.5">
+              {originStatus === 'resolving' ? 'Resolving location…' : 'Enter a location to filter by distance'}
+            </p>
+          )}
         </div>
       </Section>
 

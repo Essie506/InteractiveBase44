@@ -18,6 +18,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, requireAdmin, resolveProfessionalReferences } from './shared';
 import { buildPersonalPublicProjection } from './personalProfileProjection';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
+import { buildPublicProjection } from './professionalProfile';
+import { fetchPublicGeo } from './geo';
 
 export const backfillPublicProfiles = onCall(
   { region: 'europe-west2', cors: allowedOrigins, timeoutSeconds: 300 },
@@ -29,6 +31,7 @@ export const backfillPublicProfiles = onCall(
 
     const results = {
       personal: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
+      professional: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
       business: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
     };
 
@@ -61,6 +64,36 @@ export const backfillPublicProfiles = onCall(
       }
     }
 
+    // ── Professional ──────────────────────────────────────────
+    const proSnap = await db.collection('professionalProfiles').get();
+    results.professional.total = proSnap.size;
+
+    for (const doc of proSnap.docs) {
+      const data = doc.data();
+      const screenName = data.screen_name || null;
+      const isEligible = data.visibility === 'public'
+        && data.lifecycle_state === 'active'
+        && !!screenName;
+
+      if (isEligible) {
+        const serviceAreaLocationId = data.service_area_location_id || data.location_id;
+        const locationGeo = await fetchPublicGeo(db, serviceAreaLocationId);
+        const projection = buildPublicProjection(data.identity_id, doc.id, data, locationGeo);
+        await db.collection('professionalProfilesPublic').doc(screenName).set(projection);
+        results.professional.projected++;
+      } else {
+        results.professional.skipped++;
+        const reasons: string[] = [];
+        if (data.visibility !== 'public') reasons.push(`visibility=${data.visibility}`);
+        if (data.lifecycle_state !== 'active') reasons.push(`lifecycle=${data.lifecycle_state}`);
+        if (!screenName) reasons.push('no screen_name');
+        results.professional.skippedDetails.push(`${doc.id}: ${reasons.join(', ')}`);
+        if (screenName) {
+          await db.collection('professionalProfilesPublic').doc(screenName).delete().catch(() => {});
+        }
+      }
+    }
+
     // ── Business ──────────────────────────────────────────────
     const businessSnap = await db.collection('businessProfiles').get();
     results.business.total = businessSnap.size;
@@ -76,8 +109,9 @@ export const backfillPublicProfiles = onCall(
         const businessDoc = await db.collection('businesses').doc(businessId).get();
         const businessData = businessDoc.exists ? businessDoc.data() : null;
         const resolvedProfessionals = await resolveProfessionalReferences(data.professionals);
+        const locationGeo = await fetchPublicGeo(db, data.location_id);
         const projection = buildBusinessPublicProjection(
-          businessId, doc.id, data, businessData, resolvedProfessionals,
+          businessId, doc.id, data, businessData, resolvedProfessionals, locationGeo,
         );
         await db.collection('businessProfilesPublic').doc(businessId).set(projection);
         results.business.projected++;

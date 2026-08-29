@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { MapPin, ArrowRight, ShieldCheck } from 'lucide-react';
+import { formatDistance } from '@/lib/geo';
 
 // Horizontal image-led directory card for a Professional public profile.
 // Click-through navigates to the existing /p/:screenName route.
@@ -55,6 +56,9 @@ export default function ProfessionalResultCard({ profile }) {
             <div className="flex items-center gap-1 text-sm text-stone-500 mb-2">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">{location}</span>
+              {profile._distance != null && (
+                <span className="text-xs text-indigo-600 font-medium shrink-0">· {formatDistance(profile._distance)}</span>
+              )}
             </div>
           )}
 

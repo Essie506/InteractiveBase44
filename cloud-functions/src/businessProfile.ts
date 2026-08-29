@@ -13,6 +13,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole, resolveProfessionalReferences } from './shared';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
+import { fetchPublicGeo } from './geo';
 
 const PROFILES = 'businessProfiles';
 const PUBLIC = 'businessProfilesPublic';
@@ -78,8 +79,10 @@ export const saveBusinessProfile = onCall(
 
     const projRef = db.collection(PUBLIC).doc(businessId);
     if (isPubliclyListable) {
+      // Derive public-safe coordinates from the business location.
+      const locationGeo = await fetchPublicGeo(db, merged.location_id);
       const projection = buildBusinessPublicProjection(
-        businessId, profileId, merged, businessData, resolvedProfessionals,
+        businessId, profileId, merged, businessData, resolvedProfessionals, locationGeo,
       );
       await projRef.set(projection);
     } else {
