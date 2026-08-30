@@ -109,11 +109,76 @@
     },
     "profession": {
       "type": "string",
-      "title": "Profession"
+      "title": "Profession",
+      "description": "Free-text profession field. Retained for backward compatibility; prefer the structured professional_type field for filter matching."
     },
     "professional_category": {
       "type": "string",
-      "title": "Professional Category"
+      "title": "Professional Category",
+      "description": "Free-text category field. Retained for backward compatibility; prefer the structured professional_type field for filter matching."
+    },
+    "professional_type": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "Professional Type ID",
+          "description": "Canonical slug from the ProfessionalType taxonomy (standardProfessionalTypes). Null for custom free-text entries."
+        },
+        "label": {
+          "type": "string",
+          "title": "Professional Type Label",
+          "description": "Display label. Matches the taxonomy label for canonical entries; user-entered for custom entries."
+        }
+      },
+      "title": "Professional Type",
+      "description": "Canonical professional type from the ProfessionalType taxonomy. A single { id, label } value \u2014 a professional is one type. Distinct from Services (what you offer) and Specialisms (your area of expertise)."
+    },
+    "specialisms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Specialism ID",
+            "description": "Canonical slug from the SpecialismDefinition taxonomy (standardSpecialisms). Null for custom free-text entries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Specialism Label",
+            "description": "Display label. Matches the taxonomy label for canonical entries; user-entered for custom entries."
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "title": "Specialisms",
+      "description": "Structured specialism selections from the shared SpecialismDefinition taxonomy (standardSpecialisms). Canonical entries carry an id for Directory filter matching; custom entries have id=null. A Specialism is an area of expertise (e.g. Beginners, Strength), conceptually distinct from a Service (what you offer)."
+    },
+    "session_types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Session Type ID",
+            "description": "Canonical slug from the SessionTypeDefinition taxonomy (standardSessionTypes). Null for custom free-text entries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Session Type Label",
+            "description": "Display label. Matches the taxonomy label for canonical entries; user-entered for custom entries."
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "title": "Session Types",
+      "description": "Structured session type selections from the shared SessionTypeDefinition taxonomy (standardSessionTypes). Canonical entries carry an id for Directory filter matching; custom entries have id=null. Describes how sessions are delivered (e.g. 1-to-1, Group, Online, Outdoor)."
     },
     "services": {
       "type": "array",
@@ -135,7 +200,7 @@
           "label"
         ]
       },
-      "title": "Services / Specialisms",
+      "title": "Services",
       "description": "Structured service selections. Canonical entries carry an id for search/filter matching; custom entries have id=null."
     },
     "service_area": {

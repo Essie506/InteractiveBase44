@@ -69,6 +69,7 @@ function matchesQuery(profile, q) {
 export function filterResults(data, opts = {}) {
   const {
     query, types, serviceIds, facilityIds, businessTypeIds, equipmentIds,
+    professionalTypeIds, specialismIds, sessionTypeIds,
     verifiedOnly, locationText, sort = 'recommended', maxResults = 100,
     origin, distance,
   } = opts;
@@ -99,6 +100,17 @@ export function filterResults(data, opts = {}) {
     );
   }
 
+  // Professional type filter — strict (not ranked), professional only.
+  // (professional_type is a single { id, label } on the profile; the
+  // filter matches if the profile's type id is in the selected list).
+  if (professionalTypeIds && professionalTypeIds.length > 0) {
+    results = results.filter(r =>
+      r._type === 'professional' &&
+      r.professional_type &&
+      professionalTypeIds.includes(r.professional_type.id)
+    );
+  }
+
   // Ranked multi-select matching for Services, Facilities, Equipment.
   // Each active dimension is scored independently (match_ratio =
   // matched_count / selected_count). Results with 0 matches in any
@@ -107,12 +119,14 @@ export function filterResults(data, opts = {}) {
   const hasStructuredFilters =
     (serviceIds && serviceIds.length > 0) ||
     (facilityIds && facilityIds.length > 0) ||
-    (equipmentIds && equipmentIds.length > 0);
+    (equipmentIds && equipmentIds.length > 0) ||
+    (specialismIds && specialismIds.length > 0) ||
+    (sessionTypeIds && sessionTypeIds.length > 0);
 
   if (hasStructuredFilters) {
     results = results
       .map(r => {
-        const _matchScore = computeMatchScore(r, { serviceIds, facilityIds, equipmentIds });
+        const _matchScore = computeMatchScore(r, { serviceIds, facilityIds, equipmentIds, specialismIds, sessionTypeIds });
         return { ...r, _matchScore };
       })
       .filter(r => r._matchScore.isEligible);

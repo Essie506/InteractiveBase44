@@ -8,21 +8,48 @@ import { STANDARD_EQUIPMENT } from '@/data/standardEquipment';
 // Combat, Recovery) collapse independently — collapsing a
 // subcategory does NOT clear its selections (state lives in parent).
 //
+// When `search` is active:
+//   - items within each category are filtered to matching labels
+//   - categories with zero matches are hidden
+//   - all visible categories auto-expand (user cannot collapse
+//     while search is active)
+//
+// Items within each category are sorted alphabetically by label.
+//
 // Matching semantics: OR (match ANY selected equipment id), identical
 // to Services and Facilities filters.
-export default function EquipmentFilter({ selected, onChange }) {
+export default function EquipmentFilter({ selected, onChange, search = '' }) {
   const categories = useMemo(() => {
     const groups = {};
     for (const item of STANDARD_EQUIPMENT) {
       if (!groups[item.category]) groups[item.category] = [];
       groups[item.category].push(item);
     }
+    // Sort items within each category alphabetically
+    for (const cat of Object.keys(groups)) {
+      groups[cat].sort((a, b) => a.label.localeCompare(b.label));
+    }
     return Object.entries(groups);
   }, []);
 
+  // Filter items by search term; drop categories with no matches
+  const filteredCategories = useMemo(() => {
+    if (!search) return categories;
+    const q = search.toLowerCase();
+    return categories
+      .map(([cat, items]) => [cat, items.filter(i => i.label.toLowerCase().includes(q))])
+      .filter(([, items]) => items.length > 0);
+  }, [categories, search]);
+
   const [openCats, setOpenCats] = useState(() => new Set(['Strength']));
 
+  // Auto-expand all visible categories when search is active
+  const effectiveOpenCats = search
+    ? new Set(filteredCategories.map(([cat]) => cat))
+    : openCats;
+
   const toggleCat = (cat) => {
+    if (search) return; // don't allow toggling during search
     setOpenCats((prev) => {
       const next = new Set(prev);
       if (next.has(cat)) next.delete(cat);
@@ -68,8 +95,8 @@ export default function EquipmentFilter({ selected, onChange }) {
 
       {/* Subcategory groups */}
       <div className="space-y-0.5 -mx-1 px-1">
-        {categories.map(([cat, items]) => {
-          const isOpen = openCats.has(cat);
+        {filteredCategories.map(([cat, items]) => {
+          const isOpen = effectiveOpenCats.has(cat);
           const selectedInCat = items.filter((i) => selected.includes(i.id)).length;
           return (
             <div key={cat}>

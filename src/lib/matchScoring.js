@@ -2,8 +2,8 @@
  * Match Scoring — ranked multi-select matching for Directory filters.
  * ───────────────────────────────────────────────────────────
  *
- * Each active multi-select dimension (Services, Facilities, Equipment)
- * is scored independently:
+ * Each active multi-select dimension (Services, Facilities, Equipment,
+ * Specialisms, Session Types) is scored independently:
  *   matched_count  = number of selected items present on the profile
  *   selected_count = number of selected items in the filter
  *   match_ratio    = matched_count / selected_count
@@ -60,7 +60,7 @@ export function computeDimensionScore(profileItems, selectedIds) {
  *   selectedTotal— aggregate selected count across active dimensions (for UI)
  *   activeCount  — number of dimensions with active selections
  */
-export function computeMatchScore(profile, { serviceIds, facilityIds, equipmentIds } = {}) {
+export function computeMatchScore(profile, { serviceIds, facilityIds, equipmentIds, specialismIds, sessionTypeIds } = {}) {
   const dimensions = {};
   const activeRatios = [];
 
@@ -80,6 +80,18 @@ export function computeMatchScore(profile, { serviceIds, facilityIds, equipmentI
   if (equipment) {
     dimensions.equipment = equipment;
     activeRatios.push(equipment.match_ratio);
+  }
+
+  const specialisms = computeDimensionScore(profile?.specialisms, specialismIds);
+  if (specialisms) {
+    dimensions.specialisms = specialisms;
+    activeRatios.push(specialisms.match_ratio);
+  }
+
+  const sessionTypes = computeDimensionScore(profile?.session_types, sessionTypeIds);
+  if (sessionTypes) {
+    dimensions.session_types = sessionTypes;
+    activeRatios.push(sessionTypes.match_ratio);
   }
 
   const activeCount = activeRatios.length;
