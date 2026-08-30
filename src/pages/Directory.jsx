@@ -12,6 +12,7 @@ import BusinessResultCard from '@/components/directory/BusinessResultCard';
 import EventResultCard from '@/components/directory/EventResultCard';
 import { DEV_DEMO_PROFESSIONALS, DEV_DEMO_BUSINESSES, DEV_DEMO_EVENTS } from '@/data/devDemoListings';
 import { parseDirectoryParams, serializeDirectoryParams, DEFAULT_DIRECTORY_FILTERS } from '@/lib/directoryUrlState';
+import { isPriceSort } from '@/lib/directorySortOptions';
 
 // Directory + Search page.
 // Public route — usable by signed-out visitors. Reads only from
@@ -199,9 +200,19 @@ export default function Directory() {
     setSearchParams(new URLSearchParams(), { replace: true });
   };
 
+  // Price sort is event-only (only events have a comparable public
+  // price). When leaving the Events context with a price sort selected,
+  // fall back to recommended so the sort dropdown stays valid.
+  const handleTypeChange = (newType) => {
+    setTypeFilter(newType);
+    if (isPriceSort(sort) && newType !== 'event') {
+      setSort('recommended');
+    }
+  };
+
   const filterProps = {
     query, setQuery,
-    typeFilter, setTypeFilter,
+    typeFilter, setTypeFilter: handleTypeChange,
     serviceIds, setServiceIds,
     facilityIds, setFacilityIds,
     businessTypeIds, setBusinessTypeIds,

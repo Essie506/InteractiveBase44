@@ -1,4 +1,4 @@
-import { Search, MapPin, ShieldCheck, RotateCcw, Calendar } from 'lucide-react';
+import { Search, MapPin, ShieldCheck, RotateCcw } from 'lucide-react';
 import { STANDARD_SERVICES } from '@/data/standardServices';
 import { STANDARD_FACILITIES } from '@/data/standardFacilities';
 import { BUSINESS_TYPES } from '@/data/businessTypes';
@@ -9,6 +9,7 @@ import FilterMultiSelect from './FilterMultiSelect';
 import EquipmentFilter from './EquipmentFilter';
 import { Slider } from '@/components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { getSortOptions } from '@/lib/directorySortOptions';
 
 const DATE_OPTIONS = [
   { value: '', label: 'Any date' },
@@ -54,7 +55,7 @@ const PRICE_OPTIONS = [
 //   All           → Sort, Verified, Location, Distance, Price, Date, Services/Activities
 //   Professionals → Sort, Verified, Location, Distance, Price, Pro Type, Specialisms, Session Type, Services
 //   Businesses    → Sort, Verified, Location, Distance, Price, Biz Type, Facilities, Equipment, Services
-//   Events        → Sort, Verified, Location, Distance, Price, Date, Activities, Format, Spaces Available
+//   Events        → Sort, Verified, Date, Location, Distance, Price, Activities, Format, Spaces Available
 //
 // Price + Date are shared enough to surface in "All" but, per the
 // entity-aware matching in discoveryService, apply ONLY to the entity
@@ -62,12 +63,10 @@ const PRICE_OPTIONS = [
 // since only events carry a comparable public price). Professionals
 // and Businesses have no comparable public price yet, so Price is
 // hidden for them until structured pricing is introduced.
-const SORT_OPTIONS = [
-  { value: 'distance', label: 'Distance' },
-  { value: 'verified', label: 'Verified' },
-  { value: 'recommended', label: 'Recommended' },
-  { value: 'date', label: 'Date (soonest)' },
-];
+//
+// SORT OPTIONS:
+//   Price: Low→High / High→Low surface ONLY for Events (only events
+//   have a comparable public price). See directorySortOptions.
 
 function alphaSort(options) {
   return [...options].sort((a, b) => a.label.localeCompare(b.label));
@@ -131,6 +130,8 @@ export default function DirectoryFilters({
   // Events present the shared Services taxonomy as "Activities".
   const servicesSectionTitle = isEvt ? 'Activities' : 'Services';
   const servicesSearchPlaceholder = isEvt ? 'Search activities...' : 'Search services...';
+  // Price sort options surface only for Events.
+  const sortOptions = getSortOptions(typeFilter);
 
   function toggleArrayValue(arr, id, setter) {
     if (arr.includes(id)) {
@@ -139,6 +140,39 @@ export default function DirectoryFilters({
       setter([...arr, id]);
     }
   }
+
+  // Date section — position depends on context:
+  //   Events → before Location; All → after Price. Extracted once so
+  //   the (identical) content is not duplicated.
+  const dateSection = showDate ? (
+    <FilterSection value="event-date" title="Event date">
+      <select
+        value={dateFilter}
+        onChange={e => setDateFilter(e.target.value)}
+        className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+      >
+        {DATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      {dateFilter === 'custom' && (
+        <div className="mt-2 flex gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
+            placeholder="From"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
+            placeholder="To"
+          />
+        </div>
+      )}
+    </FilterSection>
+  ) : null;
 
   return (
     <div>
@@ -161,7 +195,7 @@ export default function DirectoryFilters({
             onChange={e => setSort(e.target.value)}
             className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
           >
-            {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {sortOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </FilterSection>
 
@@ -199,6 +233,9 @@ export default function DirectoryFilters({
             <span className="text-sm text-stone-600">Verified only</span>
           </button>
         </FilterSection>
+
+        {/* Events: Date comes before Location. */}
+        {isEvt && dateSection}
 
         <FilterSection value="location" title="Location">
           <div className="relative">
@@ -260,38 +297,8 @@ export default function DirectoryFilters({
           </FilterSection>
         )}
 
-        {/* Date — event-specific dimension, surfaced in All too. In
-            All it filters only the event subset (profiles are never
-            excluded for lacking a start_time). */}
-        {showDate && (
-          <FilterSection value="event-date" title="Event date">
-            <select
-              value={dateFilter}
-              onChange={e => setDateFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
-            >
-              {DATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            {dateFilter === 'custom' && (
-              <div className="mt-2 flex gap-2">
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={e => setDateFrom(e.target.value)}
-                  className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
-                  placeholder="From"
-                />
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={e => setDateTo(e.target.value)}
-                  className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
-                  placeholder="To"
-                />
-              </div>
-            )}
-          </FilterSection>
-        )}
+        {/* All: Date comes after Price (applies to events only). */}
+        {isAll && dateSection}
 
         {/* Professional-specific */}
         {showProfessionalType && (

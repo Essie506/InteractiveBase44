@@ -31,6 +31,8 @@ import { fromFirestoreDoc } from '@/data/firebase/mappers';
 import { haversineMiles, getGeoCoords } from '@/lib/geo';
 import { computeMatchScore, matchScoreValue } from '@/lib/matchScoring';
 import { resolveDateRange, isEventInRange } from '@/lib/eventDateRanges';
+import { compareEventsByPrice } from '@/lib/eventPriceSort';
+import { isPriceSort } from '@/lib/directorySortOptions';
 
 const PROFESSIONAL_PUBLIC = 'professionalProfilesPublic';
 const BUSINESS_PUBLIC = 'businessProfilesPublic';
@@ -333,6 +335,12 @@ export function filterResults(data, opts = {}) {
       if (ms !== 0) return ms;
       return new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime();
     });
+  } else if (isPriceSort(sort)) {
+    // Event price sort. Only events carry a comparable public price
+    // (price_pence); non-events have no price and sort last (unknown,
+    // never treated as free). Free === price_pence === 0.
+    const direction = sort === 'price-asc' ? 'asc' : 'desc';
+    results.sort((a, b) => compareEventsByPrice(a, b, direction));
   } else {
     // 'recommended' (default) or 'distance' without origin.
     //
