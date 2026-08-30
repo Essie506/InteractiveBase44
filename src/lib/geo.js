@@ -53,6 +53,15 @@ export function formatDistance(miles) {
 // Free, no API key, supports CORS. Rate-limited (~1 req/sec).
 // Returns { latitude, longitude, label } or null if not found.
 // Scoped to UK (countrycodes=gb) for the current Interactive market.
+//
+// TODO(PRODUCTION): Replace this client-side Nominatim call with a
+// proper server-side geocoding / places provider (Google Maps, Mapbox,
+// or Geoapify) before production scale. Nominatim is rate-limited and
+// not suitable for high traffic. Do NOT introduce a Google API key /
+// client dependency in the current development phase — this is a
+// deferred production concern. The Directory architecture (typed
+// location → geocodeOrigin → resolved lat/lng → Haversine filter)
+// stays unchanged; only the provider behind geocodeOrigin swaps out.
 export async function geocodeOrigin(query) {
   if (!query || !query.trim()) return null;
   const url =

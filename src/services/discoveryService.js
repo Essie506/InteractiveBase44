@@ -320,13 +320,82 @@ export function filterResults(data, opts = {}) {
       return new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime();
     });
   } else {
-    // 'recommended' (default) or 'distance' without origin
+    // 'recommended' (default) or 'distance' without origin.
+    //
+    // Multi-layer ranking contract:
+    //
+    //   LAYER A — Explicit current filter match (highest priority)
+    //     Ranked by how closely results match the user's actively
+    //     selected Directory filters (services, professional type,
+    //     specialisms, session type, business type, facilities,
+    //     equipment, event Activity/Format/Date/Price, location/radius).
+    //     Reuses computeMatchScore. Current search intent always
+    //     outweighs personalization.
+    //
+    //   LAYER B — Personal relevance (DEFERRED)
+    //     Future layer using privacy-safe signals from a signed-in
+    //     user's Personal Profile (interests, goals, activities),
+    //     previously attended events, completed bookings, and followed
+    //     professionals/businesses. NOT yet implemented — the cross-
+    //     system data is not available, so no fake scores are invented.
+    //     Skipped entirely for signed-out users. Search & Discovery
+    //     owns this logic; nothing is written back to Personal Profile.
+    //
+    //   LAYER C — Contextual quality / fallback
+    //     Breaks ties after Layer A (and Layer B when available):
+    //       a. geographic proximity — soft, only when an origin is
+    //          resolved; never overrides a strong explicit match.
+    //       b. host/profile verification — secondary trust signal,
+    //          NOT a dominant boost.
+    //       c. upcoming date relevance for Events — sooner future
+    //          start time ranks higher.
+    //     With no filters and no personal signals, these form the
+    //     fallback ranking (location + verification + date relevance).
+    //
+    //   LAYER D — Deterministic final tie-break
+    //     Alphabetical by display name / business name / event title.
+    //
+    // No fake popularity, trending, engagement counts, sponsored
+    // ranking, or opaque random weights. Promotions stay separate.
     results.sort((a, b) => {
+      // Layer A — explicit current filter match
       const ms = matchScoreValue(b) - matchScoreValue(a);
       if (ms !== 0) return ms;
+
+      // Layer B — personal relevance (deferred; intentional no-op)
+
+      // Layer C — contextual quality
+      // a. geographic proximity (soft, only when origin resolved)
+      if (hasOrigin) {
+        const ad = a._distance;
+        const bd = b._distance;
+        if (ad == null && bd == null) {
+          // both unknown — fall through
+        } else if (ad == null) {
+          return 1; // no coords → ranks after a located result
+        } else if (bd == null) {
+          return -1;
+        } else if (ad !== bd) {
+          return ad - bd;
+        }
+      }
+
+      // b. verification (secondary trust signal)
       const av = (a.verification_state || a.host?.verification_state) === 'verified' ? 0 : 1;
       const bv = (b.verification_state || b.host?.verification_state) === 'verified' ? 0 : 1;
       if (av !== bv) return av - bv;
+
+      // c. upcoming date relevance for events (sooner future = better)
+      if (a._type === 'event' && b._type === 'event') {
+        const now = Date.now();
+        const at = a.start_time ? new Date(a.start_time).getTime() : null;
+        const bt = b.start_time ? new Date(b.start_time).getTime() : null;
+        const aRank = at != null && at >= now ? at : Infinity;
+        const bRank = bt != null && bt >= now ? bt : Infinity;
+        if (aRank !== bRank) return aRank - bRank;
+      }
+
+      // Layer D — deterministic alphabetical tie-break
       const an = (a.display_name || a.name || a.title || '').toLowerCase();
       const bn = (b.display_name || b.name || b.title || '').toLowerCase();
       return an.localeCompare(bn);

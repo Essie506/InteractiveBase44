@@ -18,7 +18,13 @@
  * one with 2 selections.
  *
  * SORT INTEGRATION:
- *   Recommended → match score desc, then verified, then alphabetical
+ *   Recommended → Layer A: match score desc (explicit filter intent),
+ *                 Layer B: personal relevance (DEFERRED — not yet
+ *                 implemented; no fake scores),
+ *                 Layer C: contextual — proximity (if origin), then
+ *                 verification, then event date relevance,
+ *                 Layer D: deterministic alphabetical tie-break.
+ *                 See discoveryService.js for the full contract.
  *   Verified    → verified first, then match score desc, then recency
  *   Distance    → nearest first, then match score desc as tie-breaker
  */

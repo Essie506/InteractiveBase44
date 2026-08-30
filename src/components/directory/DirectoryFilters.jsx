@@ -131,7 +131,7 @@ export default function DirectoryFilters({
         />
       </div>
 
-      <Accordion type="multiple" defaultValue={['show-me', 'location', 'services']} className="w-full">
+      <Accordion type="multiple" defaultValue={['show-me', 'location']} className="w-full">
         <FilterSection value="sort" title="Sort by">
           <select
             value={sort}
