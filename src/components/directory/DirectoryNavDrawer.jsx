@@ -1,80 +1,44 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import {
-  LayoutDashboard, User as UserIcon, Settings, FileText, Search,
-  LogOut, Briefcase, Building2, Users, Calendar, MessageSquare,
-  Clock, ShieldCheck, Compass,
-} from 'lucide-react';
+import { User as UserIcon, Compass } from 'lucide-react';
+import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
 
-// Lightweight navigation drawer for the Directory page (which lives
-// outside AppLayout). Replicates the same context-aware nav items as
-// AppLayout so logged-in users get their normal menu, and logged-out
-// users get a minimal Directory + Sign In menu.
+// Navigation drawer for the Directory page (which lives outside AppLayout).
 //
-// Opening/closing this drawer does NOT navigate or reset Directory
-// filter state — it is purely a visibility toggle. Clicking a nav item
-// navigates (expected) and closes the drawer.
+// Authenticated users get the SAME sidebar content as AppLayout — header +
+// notification bell, "Operating as" context switcher, context-aware nav, and
+// the signed-in user footer with logout — via AuthenticatedSidebarContent.
+// This reuses the single authenticated navigation source (getContextNavItems)
+// so the menu cannot drift from AppLayout.
+//
+// For authenticated users:
+//   - the public-style X close button is hidden (hideClose);
+//   - nav links do NOT close the drawer, so selecting Directory (or another
+//     destination) leaves the drawer open — it is only dismissed explicitly
+//     (overlay click / Escape). Route changes never reset drawer state.
+//
+// Signed-out visitors keep the lightweight public drawer (Directory + Sign
+// In), which closes on navigation as before.
 export default function DirectoryNavDrawer({ open, onOpenChange }) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
-  const activeContext = user?.active_context || 'personal';
-  const activeBusinessId = user?.active_business_id;
-  const isProfessionalActive = user?.professional_activated || user?.professional_onboarding_status === 'active';
-
-  let navItems = [];
-
-  if (!user) {
-    navItems = [
-      { path: '/directory', label: 'Directory', icon: Compass },
-      { path: '/login', label: 'Sign In', icon: UserIcon },
-    ];
-  } else if (activeContext === 'professional' && isProfessionalActive) {
-    navItems = [
-      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/professional', label: 'Workspace', icon: Building2 },
-      { path: '/messages', label: 'Messages', icon: MessageSquare },
-      { path: '/calendar', label: 'Calendar', icon: Calendar },
-      { path: '/availability', label: 'Availability', icon: Clock },
-      { path: '/professional-profile', label: 'Pro Profile', icon: Briefcase },
-      { path: '/verify-professional', label: 'Verification', icon: ShieldCheck },
-      { path: '/settings', label: 'Settings', icon: Settings },
-      { path: '/specifications', label: 'Specs', icon: FileText },
-      { path: '/search', label: 'AI Search', icon: Search },
-      { path: '/directory', label: 'Directory', icon: Compass },
-    ];
-  } else if (activeContext === 'business' && activeBusinessId) {
-    navItems = [
-      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: `/business/${activeBusinessId}/workspace`, label: 'Workspace', icon: Building2 },
-      { path: '/messages', label: 'Messages', icon: MessageSquare },
-      { path: '/calendar', label: 'Calendar', icon: Calendar },
-      { path: `/business/${activeBusinessId}/staff`, label: 'Staff', icon: Users },
-      { path: `/business/${activeBusinessId}/profile`, label: 'Biz Profile', icon: FileText },
-      { path: `/business/${activeBusinessId}/verify`, label: 'Verification', icon: ShieldCheck },
-      { path: '/settings', label: 'Settings', icon: Settings },
-      { path: '/specifications', label: 'Specs', icon: FileText },
-      { path: '/search', label: 'AI Search', icon: Search },
-      { path: '/directory', label: 'Directory', icon: Compass },
-    ];
-  } else {
-    navItems = [
-      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/calendar', label: 'Calendar', icon: Calendar },
-      { path: '/messages', label: 'Messages', icon: MessageSquare },
-      { path: '/profile', label: 'Profile', icon: UserIcon },
-      { path: '/settings', label: 'Settings', icon: Settings },
-      { path: '/specifications', label: 'Specs', icon: FileText },
-      { path: '/search', label: 'AI Search', icon: Search },
-      { path: '/directory', label: 'Directory', icon: Compass },
-    ];
+  if (user) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent
+          side="left"
+          transparentOverlay
+          hideClose
+          className="w-72 bg-slate-900 text-white border-r-0 p-0 flex flex-col"
+        >
+          <AuthenticatedSidebarContent />
+        </SheetContent>
+      </Sheet>
+    );
   }
 
-  const handleLogout = () => {
-    onOpenChange(false);
-    logout();
-  };
-
+  // Signed-out: lightweight public drawer (preserved).
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" transparentOverlay className="w-72 overflow-y-auto bg-slate-900 text-white border-r-0">
@@ -87,30 +51,23 @@ export default function DirectoryNavDrawer({ open, onOpenChange }) {
           </SheetTitle>
         </SheetHeader>
         <nav className="space-y-0.5 px-1">
-          {navItems.map(item => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={() => onOpenChange(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-              >
-                <Icon className="w-4 h-4" strokeWidth={2} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        {user && (
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 mt-4 mx-1 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors w-[calc(100%-0.5rem)]"
+          <Link
+            to="/directory"
+            onClick={() => onOpenChange(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
           >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
-        )}
+            <Compass className="w-4 h-4" strokeWidth={2} />
+            Directory
+          </Link>
+          <Link
+            to="/login"
+            onClick={() => onOpenChange(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          >
+            <UserIcon className="w-4 h-4" strokeWidth={2} />
+            Sign In
+          </Link>
+        </nav>
       </SheetContent>
     </Sheet>
   );

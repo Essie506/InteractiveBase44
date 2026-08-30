@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { LayoutDashboard, User as UserIcon, Settings, FileText, Search, LogOut, Menu, X, Briefcase, Building2, Users, Calendar, MessageSquare, Clock, ShieldCheck, Compass } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import ContextSwitcher from '@/components/ContextSwitcher';
 import NotificationBell from '@/components/NotificationBell';
+import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
+import { getContextNavItems } from '@/lib/navItems';
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -21,105 +23,16 @@ export default function AppLayout() {
 
   const handleLogout = () => logout();
 
-  // Build context-aware navigation
-  const activeContext = user?.active_context || 'personal';
-  const activeBusinessId = user?.active_business_id;
-  const isProfessionalActive = user?.professional_activated || user?.professional_onboarding_status === 'active';
-
-  let navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/calendar', label: 'Calendar', icon: Calendar },
-    { path: '/messages', label: 'Messages', icon: MessageSquare },
-    { path: '/profile', label: 'Profile', icon: UserIcon },
-    { path: '/settings', label: 'Settings', icon: Settings },
-    { path: '/specifications', label: 'Specs', icon: FileText },
-    { path: '/search', label: 'AI Search', icon: Search },
-    { path: '/directory', label: 'Directory', icon: Compass },
-  ];
-
-  if (activeContext === 'professional' && isProfessionalActive) {
-    navItems = [
-      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: '/professional', label: 'Workspace', icon: Building2 },
-      { path: '/messages', label: 'Messages', icon: MessageSquare },
-      { path: '/calendar', label: 'Calendar', icon: Calendar },
-      { path: '/availability', label: 'Availability', icon: Clock },
-      { path: '/professional-profile', label: 'Pro Profile', icon: Briefcase },
-      { path: '/verify-professional', label: 'Verification', icon: ShieldCheck },
-      { path: '/settings', label: 'Settings', icon: Settings },
-      { path: '/specifications', label: 'Specs', icon: FileText },
-      { path: '/search', label: 'AI Search', icon: Search },
-      { path: '/directory', label: 'Directory', icon: Compass },
-    ];
-  }
-
-  if (activeContext === 'business' && activeBusinessId) {
-    navItems = [
-      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { path: `/business/${activeBusinessId}/workspace`, label: 'Workspace', icon: Building2 },
-      { path: '/messages', label: 'Messages', icon: MessageSquare },
-      { path: '/calendar', label: 'Calendar', icon: Calendar },
-      { path: `/business/${activeBusinessId}/staff`, label: 'Staff', icon: Users },
-      { path: `/business/${activeBusinessId}/profile`, label: 'Biz Profile', icon: FileText },
-      { path: `/business/${activeBusinessId}/verify`, label: 'Verification', icon: ShieldCheck },
-      { path: '/settings', label: 'Settings', icon: Settings },
-      { path: '/specifications', label: 'Specs', icon: FileText },
-      { path: '/search', label: 'AI Search', icon: Search },
-      { path: '/directory', label: 'Directory', icon: Compass },
-    ];
-  }
+  // Shared context-aware navigation config (also used by
+  // AuthenticatedSidebarContent and the Directory nav drawer) so the
+  // authenticated menu never drifts between surfaces.
+  const navItems = getContextNavItems(user);
 
   return (
     <div className="flex h-screen bg-stone-50">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-60 flex-col bg-slate-900 text-white shrink-0">
-        <div className="px-6 py-7">
-          <div className="flex items-center justify-between">
-            <Link to="/dashboard" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">I</span>
-              </div>
-              <span className="text-lg font-semibold tracking-tight">Interactive</span>
-            </Link>
-            <NotificationBell />
-          </div>
-        </div>
-
-        <div className="px-3 mb-2">
-          <ContextSwitcher />
-        </div>
-
-        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
-          {navItems.map(item => {
-            const Icon = item.icon;
-            const active = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-              >
-                <Icon className="w-4 h-4" strokeWidth={2} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="px-3 py-4 border-t border-slate-800">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center text-sm font-medium overflow-hidden">
-              {user?.avatar_url ? <img src={user.avatar_url} alt="" className="w-full h-full object-cover" /> : (user?.display_name?.[0] || user?.email?.[0] || '?').toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate">{user?.display_name || 'User'}</div>
-              <div className="text-xs text-slate-500 truncate">{user?.email}</div>
-            </div>
-            <button onClick={handleLogout} className="text-slate-400 hover:text-white transition-colors">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        <AuthenticatedSidebarContent />
       </aside>
 
       {/* Main content */}
