@@ -15,6 +15,7 @@ exports.saveBusinessProfile = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const businessProfileProjection_1 = require("./businessProfileProjection");
+const geo_1 = require("./geo");
 const PROFILES = 'businessProfiles';
 const PUBLIC = 'businessProfilesPublic';
 const BUSINESSES = 'businesses';
@@ -53,12 +54,24 @@ exports.saveBusinessProfile = (0, https_1.onCall)({ region: 'europe-west2', cors
     // Read the business record for verification_state + type
     const businessDoc = await shared_1.db.collection(BUSINESSES).doc(businessId).get();
     const businessData = businessDoc.exists ? businessDoc.data() : null;
+    // ── Resolve professional references for the public projection ──
+    // The private profile stores [{ identity_id }] references. The public
+    // projection carries resolved display info sourced from
+    // professionalProfilesPublic so guests can view staff cards without
+    // reading private collections. No professional data is duplicated
+    // into the private businessProfile.
+    const resolvedProfessionals = await (0, shared_1.resolveProfessionalReferences)(merged.professionals);
     // ── Maintain the public projection ──
+    // Business projection doc ID == business_id (always present, no
+    // screen_name complication). When ineligible, the projection is
+    // deleted; when eligible, it is written/updated.
     const isPubliclyListable = merged.visibility === 'public'
         && merged.lifecycle_state === 'active';
     const projRef = shared_1.db.collection(PUBLIC).doc(businessId);
     if (isPubliclyListable) {
-        const projection = (0, businessProfileProjection_1.buildBusinessPublicProjection)(businessId, profileId, merged, businessData);
+        // Derive public-safe coordinates from the business location.
+        const locationGeo = await (0, geo_1.fetchBusinessPublicGeo)(shared_1.db, merged.location_id);
+        const projection = (0, businessProfileProjection_1.buildBusinessPublicProjection)(businessId, profileId, merged, businessData, resolvedProfessionals, locationGeo);
         await projRef.set(projection);
     }
     else {

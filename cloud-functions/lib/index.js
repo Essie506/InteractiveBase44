@@ -9,7 +9,7 @@
 //   - cors: explicit approved-origin regex (not cors: true)
 //   - request.auth for Firebase-verified identity
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.backfillPublicProfiles = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
+exports.backfillPublicProfiles = exports.saveCalendarEvent = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
 var identity_1 = require("./identity");
 Object.defineProperty(exports, "resolveIdentity", { enumerable: true, get: function () { return identity_1.resolveIdentity; } });
 var conversations_1 = require("./conversations");
@@ -56,6 +56,9 @@ Object.defineProperty(exports, "validatePersonalScreenName", { enumerable: true,
 // Business Profile — public projection
 var businessProfile_1 = require("./businessProfile");
 Object.defineProperty(exports, "saveBusinessProfile", { enumerable: true, get: function () { return businessProfile_1.saveBusinessProfile; } });
+// Calendar Event — public projection (Events Discovery)
+var calendarEvent_1 = require("./calendarEvent");
+Object.defineProperty(exports, "saveCalendarEvent", { enumerable: true, get: function () { return calendarEvent_1.saveCalendarEvent; } });
 // Backfill — one-time population of public projections
 var backfillProfiles_1 = require("./backfillProfiles");
 Object.defineProperty(exports, "backfillPublicProfiles", { enumerable: true, get: function () { return backfillProfiles_1.backfillPublicProfiles; } });

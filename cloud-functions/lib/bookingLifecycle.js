@@ -13,6 +13,7 @@ exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exp
 const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const stripe_1 = require("./stripe");
+const calendarEvent_1 = require("./calendarEvent");
 // ── cancelBooking ────────────────────────────────────────────
 // Evaluates the cancellation policy snapshot, determines the refund
 // amount, creates a Stripe refund if applicable, and transitions
@@ -146,6 +147,10 @@ exports.cancelBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shar
             _updated_date: nowIso,
         });
     }
+    // Refresh the public Event projection — event bookings release capacity on cancel.
+    if (booking.event_id) {
+        await (0, calendarEvent_1.refreshEventProjection)(booking.event_id);
+    }
     // Update receipt with refund adjustment
     if (refundAmountPence > 0) {
         const receiptSnap = await shared_1.db.collection('receipts')
@@ -224,6 +229,11 @@ exports.rescheduleBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: 
     }
     if (!isCustomer && !isProvider && !isBizAdmin) {
         throw new https_1.HttpsError('permission-denied', 'Not authorized to reschedule this booking');
+    }
+    // Event bookings cannot be rescheduled — the attendee is bound to the
+    // public event's fixed time. One-to-one bookings keep reschedule support.
+    if (booking.event_id) {
+        throw new https_1.HttpsError('failed-precondition', 'Rescheduling is not supported for event bookings');
     }
     // Validate booking state — must be scheduled or confirmed (Booking V2)
     if (booking.booking_status !== 'scheduled' && booking.booking_status !== 'confirmed') {
@@ -408,6 +418,10 @@ exports.reportNoShow = (0, https_1.onCall)({ region: 'europe-west2', cors: share
         },
         _updated_date: nowIso,
     });
+    // Refresh the public Event projection — no-show releases capacity.
+    if (booking.event_id) {
+        await (0, calendarEvent_1.refreshEventProjection)(booking.event_id);
+    }
     // Create trust signal for no-show
     const signalRef = shared_1.db.collection('trustSignals').doc();
     await signalRef.set({

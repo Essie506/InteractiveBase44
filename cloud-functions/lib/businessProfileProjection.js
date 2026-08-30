@@ -7,7 +7,7 @@
 // public view has everything it needs without reading private collections.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.buildBusinessPublicProjection = buildBusinessPublicProjection;
-function buildBusinessPublicProjection(businessId, profileId, profileData, businessData) {
+function buildBusinessPublicProjection(businessId, profileId, profileData, businessData, resolvedProfessionals = [], locationGeo) {
     return {
         business_id: businessId,
         profile_id: profileId,
@@ -25,9 +25,16 @@ function buildBusinessPublicProjection(businessId, profileId, profileData, busin
         cover_zoom: profileData.cover_zoom ?? 1,
         gallery_media_ids: Array.isArray(profileData.gallery_media_ids) ? profileData.gallery_media_ids : [],
         location: profileData.location || null,
+        location_geo: locationGeo || null,
         category: profileData.category || null,
         services: Array.isArray(profileData.services) ? profileData.services : [],
-        professionals: Array.isArray(profileData.professionals) ? profileData.professionals : [],
+        facilities: Array.isArray(profileData.facilities) ? profileData.facilities : [],
+        equipment: Array.isArray(profileData.equipment) ? profileData.equipment : [],
+        // professionals carries resolved display info (sourced from
+        // professionalProfilesPublic) so the public route can render
+        // staff cards without reading private collections. The private
+        // businessProfile stores only [{ identity_id }] references.
+        professionals: resolvedProfessionals,
         contact_email: profileData.contact_email || null,
         contact_phone: profileData.contact_phone || null,
         website: profileData.website || null,

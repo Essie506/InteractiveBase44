@@ -39,6 +39,7 @@ exports.stripeWebhook = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const stripe_1 = require("./stripe");
+const calendarEvent_1 = require("./calendarEvent");
 const db = (0, firestore_1.getFirestore)();
 // ── Webhook handler ─────────────────────────────────────────
 exports.stripeWebhook = (0, https_1.onRequest)({
@@ -191,6 +192,14 @@ async function handlePaymentSuccess(paymentIntent) {
             status: 'confirmed',
             _updated_date: now,
         });
+    }
+    // ── Event booking: no private calendar event is created ──
+    // The booking attaches to the public CalendarEvent via event_id; the
+    // customer is an attendee. Stay in 'confirmed' and refresh the public
+    // projection so spaces_remaining is correct.
+    if (booking.event_id) {
+        await (0, calendarEvent_1.refreshEventProjection)(booking.event_id);
+        return;
     }
     // Create calendar event (idempotent — check if exists)
     if (!booking.calendar_event_id) {
