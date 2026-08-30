@@ -70,6 +70,7 @@ export default function DirectoryFilters({
   distance, setDistance,
   originStatus,
   onReset,
+  onSearch,
 }) {
   const showProfessionalType = typeFilter === 'all' || typeFilter === 'professional';
   const showSpecialisms = typeFilter === 'all' || typeFilter === 'professional';
@@ -246,13 +247,23 @@ export default function DirectoryFilters({
         )}
       </Accordion>
 
-      <button
-        onClick={onReset}
-        className="mt-4 inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-700 font-medium"
-      >
-        <RotateCcw className="w-3.5 h-3.5" />
-        Reset filters
-      </button>
+      {/* Bottom action bar — Search applies all draft selections */}
+      <div className="mt-5 pt-4 border-t border-stone-200 flex gap-2.5">
+        <button
+          onClick={onReset}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 border border-stone-200 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          Reset Filters
+        </button>
+        <button
+          onClick={onSearch}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+        >
+          <Search className="w-4 h-4" />
+          Search
+        </button>
+      </div>
     </div>
   );
 }

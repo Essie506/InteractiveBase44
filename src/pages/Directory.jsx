@@ -46,6 +46,17 @@ export default function Directory() {
   const [origin, setOrigin] = useState(null);
   const [originStatus, setOriginStatus] = useState('idle');
 
+  // Applied filters — snapshot of draft state used for actual filtering.
+  // Draft state (above) updates as the user interacts with the filter UI.
+  // Results only update when the user presses the Search button, which
+  // copies the draft state into appliedFilters.
+  const [appliedFilters, setAppliedFilters] = useState({
+    query: '', typeFilter: 'all', serviceIds: [], facilityIds: [],
+    businessTypeIds: [], equipmentIds: [], professionalTypeIds: [],
+    specialismIds: [], sessionTypeIds: [], verifiedOnly: false,
+    locationText: '', sort: 'recommended', distance: 10, origin: null,
+  });
+
   useEffect(() => {
     loadDirectory().
     then(setData).
@@ -78,23 +89,32 @@ export default function Directory() {
 
   const results = useMemo(
     () => filterResults(data, {
-      query,
-      types: typeFilter === 'all' ? null : [typeFilter],
-      serviceIds,
-      facilityIds,
-      businessTypeIds,
-      equipmentIds,
-      professionalTypeIds,
-      specialismIds,
-      sessionTypeIds,
-      verifiedOnly,
-      locationText: locationText || undefined,
-      sort,
-      origin,
-      distance
+      query: appliedFilters.query,
+      types: appliedFilters.typeFilter === 'all' ? null : [appliedFilters.typeFilter],
+      serviceIds: appliedFilters.serviceIds,
+      facilityIds: appliedFilters.facilityIds,
+      businessTypeIds: appliedFilters.businessTypeIds,
+      equipmentIds: appliedFilters.equipmentIds,
+      professionalTypeIds: appliedFilters.professionalTypeIds,
+      specialismIds: appliedFilters.specialismIds,
+      sessionTypeIds: appliedFilters.sessionTypeIds,
+      verifiedOnly: appliedFilters.verifiedOnly,
+      locationText: appliedFilters.locationText || undefined,
+      sort: appliedFilters.sort,
+      origin: appliedFilters.origin,
+      distance: appliedFilters.distance
     }),
-    [data, query, typeFilter, serviceIds, facilityIds, businessTypeIds, equipmentIds, professionalTypeIds, specialismIds, sessionTypeIds, verifiedOnly, locationText, sort, origin, distance]
+    [data, appliedFilters]
   );
+
+  const handleSearch = () => {
+    setAppliedFilters({
+      query, typeFilter, serviceIds, facilityIds, businessTypeIds,
+      equipmentIds, professionalTypeIds, specialismIds, sessionTypeIds,
+      verifiedOnly, locationText, sort, distance, origin,
+    });
+    setFiltersOpen(false); // close mobile filter sheet
+  };
 
   const handleReset = () => {
     setQuery('');
@@ -110,6 +130,12 @@ export default function Directory() {
     setLocationText('');
     setSort('recommended');
     setDistance(10);
+    setAppliedFilters({
+      query: '', typeFilter: 'all', serviceIds: [], facilityIds: [],
+      businessTypeIds: [], equipmentIds: [], professionalTypeIds: [],
+      specialismIds: [], sessionTypeIds: [], verifiedOnly: false,
+      locationText: '', sort: 'recommended', distance: 10, origin: null,
+    });
   };
 
   const filterProps = {
@@ -127,7 +153,8 @@ export default function Directory() {
     sort, setSort,
     distance, setDistance,
     originStatus,
-    onReset: handleReset
+    onReset: handleReset,
+    onSearch: handleSearch
   };
 
   return (
@@ -168,9 +195,9 @@ export default function Directory() {
             <div className="mb-3 flex items-center justify-between gap-2">
               <div className="text-sm text-stone-500 flex items-center gap-2 flex-wrap">
                 <span>{loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</span>
-                {originStatus === 'resolving' && <span className="text-indigo-500">resolving location…</span>}
-                {originStatus === 'resolved' && origin && <span className="text-stone-400">within {distance} miles of {origin.label}</span>}
-                {originStatus === 'not_found' && locationText && <span className="text-amber-600">location not found</span>}
+                {appliedFilters.origin && appliedFilters.locationText && (
+                  <span className="text-stone-400">within {appliedFilters.distance} miles of {appliedFilters.origin.label}</span>
+                )}
               </div>
               <button
                 onClick={() => setFiltersOpen(true)}
@@ -180,9 +207,9 @@ export default function Directory() {
                 Filters
               </button>
             </div>
-            {sort === 'distance' && originStatus !== 'resolved' && !loading && !error &&
+            {appliedFilters.sort === 'distance' && !appliedFilters.origin && !loading && !error &&
             <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
-                Enter a location to sort by distance.
+                Enter a location and press Search to sort by distance.
               </div>
             }
 
