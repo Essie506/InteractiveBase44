@@ -62,7 +62,6 @@ export default function Directory() {
   const [formatIds, setFormatIds] = useState(initialParams.formatIds);
   const [priceIds, setPriceIds] = useState(initialParams.priceIds);
   const [availableOnly, setAvailableOnly] = useState(initialParams.availableOnly);
-  const [eventTypeIds, setEventTypeIds] = useState(initialParams.eventTypeIds);
   const [origin, setOrigin] = useState(null);
   const [originStatus, setOriginStatus] = useState(
     initialParams.locationText ? 'resolving' : 'idle'
@@ -158,7 +157,6 @@ export default function Directory() {
       formatIds: appliedFilters.formatIds,
       priceIds: appliedFilters.priceIds,
       availableOnly: appliedFilters.availableOnly,
-      eventTypeIds: appliedFilters.eventTypeIds,
     }),
     [data, appliedFilters]
   );
@@ -168,7 +166,7 @@ export default function Directory() {
       query, typeFilter, serviceIds, facilityIds, businessTypeIds,
       equipmentIds, professionalTypeIds, specialismIds, sessionTypeIds,
       verifiedOnly, locationText, sort, distance, origin,
-      dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly, eventTypeIds,
+      dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly,
     };
     setAppliedFilters(newApplied);
     // Serialize applied search to URL (replace — not push — so
@@ -197,7 +195,6 @@ export default function Directory() {
     setFormatIds([]);
     setPriceIds([]);
     setAvailableOnly(false);
-    setEventTypeIds([]);
     setAppliedFilters({ ...DEFAULT_DIRECTORY_FILTERS, origin: null });
     setSearchParams(new URLSearchParams(), { replace: true });
   };
@@ -224,7 +221,6 @@ export default function Directory() {
     formatIds, setFormatIds,
     priceIds, setPriceIds,
     availableOnly, setAvailableOnly,
-    eventTypeIds, setEventTypeIds,
     onReset: handleReset,
     onSearch: handleSearch
   };

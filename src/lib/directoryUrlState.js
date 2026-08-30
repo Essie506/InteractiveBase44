@@ -13,7 +13,11 @@
 //   ptype   — professional type IDs (comma-separated)
 //   spec    — specialism IDs (comma-separated)
 //   sess    — session type IDs (comma-separated)
-//   svc     — service IDs (comma-separated — shared with events Activity)
+//   svc     — service IDs (comma-separated). CANONICAL param for BOTH
+//             profile Services and event Activities — they share the
+//             ServiceDefinition taxonomy, so one param covers both.
+//             Presented as "Services" for professionals/businesses and
+//             "Activities" for events in the filter UI.
 //   btype   — business type IDs (comma-separated)
 //   fac     — facility IDs (comma-separated)
 //   equip   — equipment IDs (comma-separated)
@@ -23,10 +27,9 @@
 //   format  — event format (in-person,online,hybrid — comma-separated)
 //   price   — event price (free,paid — comma-separated)
 //   avail   — spaces available only (1|0)
-//   etype   — event Activity service IDs (comma-separated — alias of svc
-//             for events; kept separate so All-type searches can apply
-//             svc to professionals/businesses and etype to events
-//             independently)
+//   etype   — LEGACY alias of svc for event Activities. Parsed into
+//             serviceIds for backwards-safe link compatibility, but
+//             NEVER serialized — new URLs use svc only.
 //
 // Empty/default values are omitted from the URL. Unknown params
 // are ignored on parse.
@@ -52,7 +55,6 @@ export const DEFAULT_DIRECTORY_FILTERS = {
   formatIds: [],        // [in-person, online, hybrid]
   priceIds: [],        // [free, paid]
   availableOnly: false,
-  eventTypeIds: [],    // Activity service IDs for events
 };
 
 function parseIdList(value) {
@@ -61,6 +63,23 @@ function parseIdList(value) {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+// Merge two ID lists, deduping while preserving first-seen order.
+// Used to fold the legacy `etype` param into the canonical `svc`
+// (serviceIds) on parse, so old shared event links still restore.
+function mergeIdLists(primary, legacy) {
+  if (!legacy || legacy.length === 0) return primary || [];
+  if (!primary || primary.length === 0) return [...legacy];
+  const seen = new Set(primary);
+  const merged = [...primary];
+  for (const id of legacy) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      merged.push(id);
+    }
+  }
+  return merged;
 }
 
 function serializeIdList(ids) {
@@ -82,7 +101,10 @@ export function parseDirectoryParams(searchParams) {
     distance: get('dist')
       ? parseInt(get('dist'), 10) || DEFAULT_DIRECTORY_FILTERS.distance
       : DEFAULT_DIRECTORY_FILTERS.distance,
-    serviceIds: parseIdList(get('svc')),
+    // svc is canonical for both profile Services and event Activities.
+    // Legacy etype links are merged into serviceIds for backwards
+    // compatibility (deduped, order-preserving).
+    serviceIds: mergeIdLists(parseIdList(get('svc')), parseIdList(get('etype'))),
     facilityIds: parseIdList(get('fac')),
     businessTypeIds: parseIdList(get('btype')),
     equipmentIds: parseIdList(get('equip')),
@@ -96,7 +118,6 @@ export function parseDirectoryParams(searchParams) {
     formatIds: parseIdList(get('format')),
     priceIds: parseIdList(get('price')),
     availableOnly: get('avail') === '1',
-    eventTypeIds: parseIdList(get('etype')),
   };
 }
 
@@ -134,7 +155,7 @@ export function serializeDirectoryParams(filters) {
   if (filters.priceIds?.length)
     params.set('price', serializeIdList(filters.priceIds));
   if (filters.availableOnly) params.set('avail', '1');
-  if (filters.eventTypeIds?.length)
-    params.set('etype', serializeIdList(filters.eventTypeIds));
+  // Activities (events) reuse the canonical svc param — never serialize
+  // the legacy etype alias.
   return params;
 }

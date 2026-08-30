@@ -88,8 +88,7 @@ function eventFormatId(event) {
 // opts: { query, types, serviceIds, facilityIds, businessTypeIds, equipmentIds,
 //        professionalTypeIds, specialismIds, sessionTypeIds,
 //        verifiedOnly, locationText, sort, maxResults, origin, distance,
-//        dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly,
-//        eventTypeIds }
+//        dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly }
 //   types: null = all, or ['professional'] / ['business'] / ['event'] / any combo
 export function filterResults(data, opts = {}) {
   const {
@@ -99,7 +98,6 @@ export function filterResults(data, opts = {}) {
     origin, distance,
     // Event filters
     dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly,
-    eventTypeIds,
   } = opts;
 
   const wantPro = !types || types.includes('professional');
@@ -153,12 +151,15 @@ export function filterResults(data, opts = {}) {
       );
     }
 
-    // Activity (services) ranked match for events — uses eventTypeIds
-    // (separate from serviceIds so All-type searches don't cross-apply).
-    if (eventTypeIds && eventTypeIds.length > 0) {
+    // Activities ranked match for events. Events reuse the shared
+    // ServiceDefinition taxonomy (presented as "Activities" in the UI),
+    // so they match against the same serviceIds dimension as profiles.
+    // This counts Activities as ONE matching dimension — not twice —
+    // because profiles and events are scored in separate blocks.
+    if (serviceIds && serviceIds.length > 0) {
       events = events
         .map(e => {
-          const _matchScore = computeMatchScore(e, { serviceIds: eventTypeIds });
+          const _matchScore = computeMatchScore(e, { serviceIds });
           return { ...e, _matchScore };
         })
         .filter(e => e._matchScore.isEligible);

@@ -388,13 +388,16 @@ function ids(arr) {
   test('URL round-trip: event filters serialize → parse correctly', () => {
     const filters = {
       ...DEFAULT_DIRECTORY_FILTERS,
+      typeFilter: 'event',
       dateFilter: 'weekend',
       formatIds: ['online', 'hybrid'],
       priceIds: ['free'],
       availableOnly: true,
-      eventTypeIds: ['yoga', 'pilates'],
+      serviceIds: ['yoga', 'pilates'], // Activities reuse canonical svc
     };
     const params = serializeDirectoryParams(filters);
+    assert.strictEqual(params.get('svc'), 'yoga,pilates');
+    assert.ok(!params.has('etype'), 'etype must not be serialized');
     const parsed = parseDirectoryParams(params);
     assert.deepStrictEqual(parsed, filters);
   });
@@ -428,23 +431,40 @@ function ids(arr) {
     assert.strictEqual(params.get('avail'), '1');
   });
 
-  test('URL round-trip: eventTypeIds comma-separated as etype', () => {
+  test('URL round-trip: Activities (serviceIds) comma-separated as svc', () => {
     const params = serializeDirectoryParams({
       ...DEFAULT_DIRECTORY_FILTERS,
-      eventTypeIds: ['yoga', 'pilates', 'meditation'],
+      typeFilter: 'event',
+      serviceIds: ['yoga', 'pilates', 'meditation'],
     });
-    assert.strictEqual(params.get('etype'), 'yoga,pilates,meditation');
+    assert.strictEqual(params.get('svc'), 'yoga,pilates,meditation');
+    assert.ok(!params.has('etype'));
   });
 
   test('URL round-trip: shared link restores exact event search', () => {
-    const sharedUrl = new URLSearchParams('type=event&date=week&format=online&price=free&avail=1&etype=yoga');
+    // Modern link uses the canonical svc param for Activities.
+    const sharedUrl = new URLSearchParams('type=event&date=week&format=online&price=free&avail=1&svc=yoga');
     const parsed = parseDirectoryParams(sharedUrl);
     assert.strictEqual(parsed.typeFilter, 'event');
     assert.strictEqual(parsed.dateFilter, 'week');
     assert.deepStrictEqual(parsed.formatIds, ['online']);
     assert.deepStrictEqual(parsed.priceIds, ['free']);
     assert.strictEqual(parsed.availableOnly, true);
-    assert.deepStrictEqual(parsed.eventTypeIds, ['yoga']);
+    assert.deepStrictEqual(parsed.serviceIds, ['yoga']);
+  });
+
+  test('URL round-trip: legacy etype link folds into serviceIds (backwards-safe)', () => {
+    // Old shared links used etype for event Activities. They must still
+    // restore the search by merging etype into the canonical serviceIds.
+    const legacyUrl = new URLSearchParams('type=event&etype=yoga,pilates');
+    const parsed = parseDirectoryParams(legacyUrl);
+    assert.deepStrictEqual(parsed.serviceIds, ['yoga', 'pilates']);
+  });
+
+  test('URL round-trip: svc + legacy etype merge without duplicates', () => {
+    const mergedUrl = new URLSearchParams('svc=yoga&etype=pilates,yoga');
+    const parsed = parseDirectoryParams(mergedUrl);
+    assert.deepStrictEqual(parsed.serviceIds, ['yoga', 'pilates']);
   });
 
   // ═══════════════════════════════════════════════════════════

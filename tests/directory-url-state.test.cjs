@@ -44,7 +44,7 @@ function test(name, fn) {
       sessionTypeIds: ['st1'],
       dateFilter: 'weekend', dateFrom: '', dateTo: '',
       formatIds: ['online'], priceIds: ['free'],
-      availableOnly: true, eventTypeIds: ['yoga'],
+      availableOnly: true,
     };
     const params = serializeDirectoryParams(filters);
     const parsed = parseDirectoryParams(params);

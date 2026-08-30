@@ -97,7 +97,6 @@ export default function DirectoryFilters({
   formatIds, setFormatIds,
   priceIds, setPriceIds,
   availableOnly, setAvailableOnly,
-  eventTypeIds, setEventTypeIds,
   onReset,
   onSearch,
 }) {
@@ -108,6 +107,11 @@ export default function DirectoryFilters({
   const showFacilities = typeFilter === 'all' || typeFilter === 'business';
   const showEquipment = typeFilter === 'all' || typeFilter === 'business';
   const showEvents = typeFilter === 'all' || typeFilter === 'event';
+  // Events present the shared Services taxonomy as "Activities";
+  // professionals/businesses present it as "Services". One filter,
+  // one state (serviceIds), one canonical URL param (svc).
+  const servicesSectionTitle = typeFilter === 'event' ? 'Activities' : 'Services';
+  const servicesSearchPlaceholder = typeFilter === 'event' ? 'Search activities...' : 'Search services...';
 
   function toggleArrayValue(arr, id, setter) {
     if (arr.includes(id)) {
@@ -256,12 +260,12 @@ export default function DirectoryFilters({
           </FilterSection>
         )}
 
-        <FilterSection value="services" title="Services">
+        <FilterSection value="services" title={servicesSectionTitle}>
           <FilterMultiSelect
             options={alphaSort(STANDARD_SERVICES)}
             selected={serviceIds}
             onChange={setServiceIds}
-            searchPlaceholder="Search services..."
+            searchPlaceholder={servicesSearchPlaceholder}
           />
         </FilterSection>
 
@@ -350,14 +354,6 @@ export default function DirectoryFilters({
               </button>
             </FilterSection>
 
-            <FilterSection value="event-activity" title="Activity">
-              <FilterMultiSelect
-                options={alphaSort(STANDARD_SERVICES)}
-                selected={eventTypeIds || []}
-                onChange={setEventTypeIds}
-                searchPlaceholder="Search activities..."
-              />
-            </FilterSection>
           </>
         )}
 
