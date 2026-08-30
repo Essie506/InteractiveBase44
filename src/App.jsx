@@ -40,6 +40,7 @@ import Directory from '@/pages/Directory';
 import PublicProfile from '@/pages/PublicProfile';
 import PublicPersonalProfile from '@/pages/PublicPersonalProfile';
 import PublicBusinessProfile from '@/pages/PublicBusinessProfile';
+import PublicEventPage from '@/pages/PublicEventPage';
 import BookingPage from '@/pages/BookingPage';
 import ProfessionalWorkspace from '@/pages/professional/ProfessionalWorkspace';
 import ProfessionalOverview from '@/pages/professional/ProfessionalOverview';
@@ -87,6 +88,7 @@ const AuthenticatedApp = () => {
       <Route path="/p/:screenName" element={<PublicProfile />} />
       <Route path="/u/:screenName" element={<PublicPersonalProfile />} />
       <Route path="/b/:businessId" element={<PublicBusinessProfile />} />
+      <Route path="/e/:eventId" element={<PublicEventPage />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/activate-professional" element={<ProfessionalActivation />} />

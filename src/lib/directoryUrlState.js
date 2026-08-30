@@ -89,6 +89,14 @@ export function parseDirectoryParams(searchParams) {
     professionalTypeIds: parseIdList(get('ptype')),
     specialismIds: parseIdList(get('spec')),
     sessionTypeIds: parseIdList(get('sess')),
+    // Event filters
+    dateFilter: get('date') || DEFAULT_DIRECTORY_FILTERS.dateFilter,
+    dateFrom: get('from') || DEFAULT_DIRECTORY_FILTERS.dateFrom,
+    dateTo: get('to') || DEFAULT_DIRECTORY_FILTERS.dateTo,
+    formatIds: parseIdList(get('format')),
+    priceIds: parseIdList(get('price')),
+    availableOnly: get('avail') === '1',
+    eventTypeIds: parseIdList(get('etype')),
   };
 }
 
@@ -117,5 +125,16 @@ export function serializeDirectoryParams(filters) {
     params.set('spec', serializeIdList(filters.specialismIds));
   if (filters.sessionTypeIds?.length)
     params.set('sess', serializeIdList(filters.sessionTypeIds));
+  // Event filters
+  if (filters.dateFilter) params.set('date', filters.dateFilter);
+  if (filters.dateFrom) params.set('from', filters.dateFrom);
+  if (filters.dateTo) params.set('to', filters.dateTo);
+  if (filters.formatIds?.length)
+    params.set('format', serializeIdList(filters.formatIds));
+  if (filters.priceIds?.length)
+    params.set('price', serializeIdList(filters.priceIds));
+  if (filters.availableOnly) params.set('avail', '1');
+  if (filters.eventTypeIds?.length)
+    params.set('etype', serializeIdList(filters.eventTypeIds));
   return params;
 }

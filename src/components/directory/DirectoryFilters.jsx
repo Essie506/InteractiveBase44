@@ -1,4 +1,4 @@
-import { Search, MapPin, ShieldCheck, RotateCcw } from 'lucide-react';
+import { Search, MapPin, ShieldCheck, RotateCcw, Calendar } from 'lucide-react';
 import { STANDARD_SERVICES } from '@/data/standardServices';
 import { STANDARD_FACILITIES } from '@/data/standardFacilities';
 import { BUSINESS_TYPES } from '@/data/businessTypes';
@@ -9,6 +9,26 @@ import FilterMultiSelect from './FilterMultiSelect';
 import EquipmentFilter from './EquipmentFilter';
 import { Slider } from '@/components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+
+const DATE_OPTIONS = [
+  { value: '', label: 'Any date' },
+  { value: 'today', label: 'Today' },
+  { value: 'tomorrow', label: 'Tomorrow' },
+  { value: 'week', label: 'This week' },
+  { value: 'weekend', label: 'This weekend' },
+  { value: 'custom', label: 'Custom range' },
+];
+
+const FORMAT_OPTIONS = [
+  { id: 'in-person', label: 'In-person' },
+  { id: 'online', label: 'Online' },
+  { id: 'hybrid', label: 'Hybrid' },
+];
+
+const PRICE_OPTIONS = [
+  { id: 'free', label: 'Free' },
+  { id: 'paid', label: 'Paid' },
+];
 
 // Reusable filter panel for the Directory. Controlled component —
 // all filter state lives in the parent page. Rendered in the desktop
@@ -35,6 +55,7 @@ const SORT_OPTIONS = [
   { value: 'distance', label: 'Distance' },
   { value: 'verified', label: 'Verified' },
   { value: 'recommended', label: 'Recommended' },
+  { value: 'date', label: 'Date (soonest)' },
 ];
 
 function alphaSort(options) {
@@ -69,6 +90,14 @@ export default function DirectoryFilters({
   sort, setSort,
   distance, setDistance,
   originStatus,
+  // Event filters
+  dateFilter, setDateFilter,
+  dateFrom, setDateFrom,
+  dateTo, setDateTo,
+  formatIds, setFormatIds,
+  priceIds, setPriceIds,
+  availableOnly, setAvailableOnly,
+  eventTypeIds, setEventTypeIds,
   onReset,
   onSearch,
 }) {
@@ -78,6 +107,15 @@ export default function DirectoryFilters({
   const showBusinessType = typeFilter === 'all' || typeFilter === 'business';
   const showFacilities = typeFilter === 'all' || typeFilter === 'business';
   const showEquipment = typeFilter === 'all' || typeFilter === 'business';
+  const showEvents = typeFilter === 'all' || typeFilter === 'event';
+
+  function toggleArrayValue(arr, id, setter) {
+    if (arr.includes(id)) {
+      setter(arr.filter(x => x !== id));
+    } else {
+      setter([...arr, id]);
+    }
+  }
 
   return (
     <div>
@@ -110,6 +148,7 @@ export default function DirectoryFilters({
               { value: 'all', label: 'All' },
               { value: 'professional', label: 'Pros' },
               { value: 'business', label: 'Biz' },
+              { value: 'event', label: 'Events' },
             ].map(t => (
               <button
                 key={t.value}
@@ -225,6 +264,102 @@ export default function DirectoryFilters({
             searchPlaceholder="Search services..."
           />
         </FilterSection>
+
+        {showEvents && (
+          <>
+            <FilterSection value="event-date" title="Event date">
+              <select
+                value={dateFilter}
+                onChange={e => setDateFilter(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+              >
+                {DATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {dateFilter === 'custom' && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={e => setDateFrom(e.target.value)}
+                    className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
+                    placeholder="From"
+                  />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={e => setDateTo(e.target.value)}
+                    className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
+                    placeholder="To"
+                  />
+                </div>
+              )}
+            </FilterSection>
+
+            <FilterSection value="event-format" title="Format">
+              <div className="space-y-1.5">
+                {FORMAT_OPTIONS.map(o => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggleArrayValue(formatIds || [], o.id, setFormatIds)}
+                    className="flex items-center gap-2 w-full text-left"
+                  >
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                      (formatIds || []).includes(o.id) ? 'bg-indigo-600 border-indigo-600' : 'border-stone-300 bg-white'
+                    }`}>
+                      {(formatIds || []).includes(o.id) && <span className="w-2 h-2 bg-white rounded-sm" />}
+                    </span>
+                    <span className="text-sm text-stone-600">{o.label}</span>
+                  </button>
+                ))}
+              </div>
+            </FilterSection>
+
+            <FilterSection value="event-price" title="Price">
+              <div className="space-y-1.5">
+                {PRICE_OPTIONS.map(o => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => toggleArrayValue(priceIds || [], o.id, setPriceIds)}
+                    className="flex items-center gap-2 w-full text-left"
+                  >
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                      (priceIds || []).includes(o.id) ? 'bg-indigo-600 border-indigo-600' : 'border-stone-300 bg-white'
+                    }`}>
+                      {(priceIds || []).includes(o.id) && <span className="w-2 h-2 bg-white rounded-sm" />}
+                    </span>
+                    <span className="text-sm text-stone-600">{o.label}</span>
+                  </button>
+                ))}
+              </div>
+            </FilterSection>
+
+            <FilterSection value="event-availability" title="Availability">
+              <button
+                type="button"
+                onClick={() => setAvailableOnly(!availableOnly)}
+                className="flex items-center gap-2 w-full text-left"
+              >
+                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                  availableOnly ? 'bg-emerald-500 border-emerald-500' : 'border-stone-300 bg-white'
+                }`}>
+                  {availableOnly && <span className="w-2 h-2 bg-white rounded-sm" />}
+                </span>
+                <span className="text-sm text-stone-600">Spaces available only</span>
+              </button>
+            </FilterSection>
+
+            <FilterSection value="event-activity" title="Activity">
+              <FilterMultiSelect
+                options={alphaSort(STANDARD_SERVICES)}
+                selected={eventTypeIds || []}
+                onChange={setEventTypeIds}
+                searchPlaceholder="Search activities..."
+              />
+            </FilterSection>
+          </>
+        )}
 
         {showFacilities && (
           <FilterSection value="facilities" title="Facilities">

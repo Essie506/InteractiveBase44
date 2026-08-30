@@ -9,7 +9,8 @@ import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
 import ProfessionalResultCard from '@/components/directory/ProfessionalResultCard';
 import BusinessResultCard from '@/components/directory/BusinessResultCard';
-import { DEV_DEMO_PROFESSIONALS, DEV_DEMO_BUSINESSES } from '@/data/devDemoListings';
+import EventResultCard from '@/components/directory/EventResultCard';
+import { DEV_DEMO_PROFESSIONALS, DEV_DEMO_BUSINESSES, DEV_DEMO_EVENTS } from '@/data/devDemoListings';
 import { parseDirectoryParams, serializeDirectoryParams, DEFAULT_DIRECTORY_FILTERS } from '@/lib/directoryUrlState';
 
 // Directory + Search page.
@@ -26,7 +27,7 @@ import { parseDirectoryParams, serializeDirectoryParams, DEFAULT_DIRECTORY_FILTE
 export default function Directory() {
   const { user } = useAuth();
   const [, setSearchParams] = useSearchParams();
-  const [data, setData] = useState({ professionals: [], businesses: [] });
+  const [data, setData] = useState({ professionals: [], businesses: [], events: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -54,6 +55,14 @@ export default function Directory() {
   const [locationText, setLocationText] = useState(initialParams.locationText);
   const [sort, setSort] = useState(initialParams.sort);
   const [distance, setDistance] = useState(initialParams.distance);
+  // Event filters
+  const [dateFilter, setDateFilter] = useState(initialParams.dateFilter);
+  const [dateFrom, setDateFrom] = useState(initialParams.dateFrom);
+  const [dateTo, setDateTo] = useState(initialParams.dateTo);
+  const [formatIds, setFormatIds] = useState(initialParams.formatIds);
+  const [priceIds, setPriceIds] = useState(initialParams.priceIds);
+  const [availableOnly, setAvailableOnly] = useState(initialParams.availableOnly);
+  const [eventTypeIds, setEventTypeIds] = useState(initialParams.eventTypeIds);
   const [origin, setOrigin] = useState(null);
   const [originStatus, setOriginStatus] = useState(
     initialParams.locationText ? 'resolving' : 'idle'
@@ -74,7 +83,7 @@ export default function Directory() {
 
   useEffect(() => {
     if (isDemoMode) {
-      setData({ professionals: DEV_DEMO_PROFESSIONALS, businesses: DEV_DEMO_BUSINESSES });
+      setData({ professionals: DEV_DEMO_PROFESSIONALS, businesses: DEV_DEMO_BUSINESSES, events: DEV_DEMO_EVENTS });
       setLoading(false);
       return;
     }
@@ -141,7 +150,15 @@ export default function Directory() {
       locationText: appliedFilters.locationText || undefined,
       sort: appliedFilters.sort,
       origin: appliedFilters.origin,
-      distance: appliedFilters.distance
+      distance: appliedFilters.distance,
+      // Event filters
+      dateFilter: appliedFilters.dateFilter,
+      dateFrom: appliedFilters.dateFrom,
+      dateTo: appliedFilters.dateTo,
+      formatIds: appliedFilters.formatIds,
+      priceIds: appliedFilters.priceIds,
+      availableOnly: appliedFilters.availableOnly,
+      eventTypeIds: appliedFilters.eventTypeIds,
     }),
     [data, appliedFilters]
   );
@@ -151,6 +168,7 @@ export default function Directory() {
       query, typeFilter, serviceIds, facilityIds, businessTypeIds,
       equipmentIds, professionalTypeIds, specialismIds, sessionTypeIds,
       verifiedOnly, locationText, sort, distance, origin,
+      dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly, eventTypeIds,
     };
     setAppliedFilters(newApplied);
     // Serialize applied search to URL (replace — not push — so
@@ -173,6 +191,13 @@ export default function Directory() {
     setLocationText('');
     setSort('recommended');
     setDistance(10);
+    setDateFilter('');
+    setDateFrom('');
+    setDateTo('');
+    setFormatIds([]);
+    setPriceIds([]);
+    setAvailableOnly(false);
+    setEventTypeIds([]);
     setAppliedFilters({ ...DEFAULT_DIRECTORY_FILTERS, origin: null });
     setSearchParams(new URLSearchParams(), { replace: true });
   };
@@ -192,6 +217,14 @@ export default function Directory() {
     sort, setSort,
     distance, setDistance,
     originStatus,
+    // Event filters
+    dateFilter, setDateFilter,
+    dateFrom, setDateFrom,
+    dateTo, setDateTo,
+    formatIds, setFormatIds,
+    priceIds, setPriceIds,
+    availableOnly, setAvailableOnly,
+    eventTypeIds, setEventTypeIds,
     onReset: handleReset,
     onSearch: handleSearch
   };
@@ -289,6 +322,8 @@ export default function Directory() {
                 {results.map((r) =>
               r._type === 'professional' ?
               <ProfessionalResultCard key={`p-${r.identity_id}`} profile={r} isDemo={isDemoMode} /> :
+              r._type === 'event' ?
+              <EventResultCard key={`e-${r.event_id}`} profile={r} isDemo={isDemoMode} /> :
               <BusinessResultCard key={`b-${r.business_id}`} profile={r} isDemo={isDemoMode} />
               )}
               </div>
