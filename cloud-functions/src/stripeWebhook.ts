@@ -37,6 +37,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStripe } from './stripe';
+import { maintainProjection } from './calendarEvent';
 
 const db = getFirestore();
 
@@ -213,6 +214,15 @@ async function handlePaymentSuccess(paymentIntent: any) {
       status: 'confirmed',
       _updated_date: now,
     });
+  }
+
+  // ── Event booking: no private calendar event is created ──
+  // The booking attaches to the public CalendarEvent via event_id; the
+  // customer is an attendee. Stay in 'confirmed' and refresh the public
+  // projection so spaces_remaining is correct.
+  if (booking.event_id) {
+    await maintainProjection(booking.event_id);
+    return;
   }
 
   // Create calendar event (idempotent — check if exists)

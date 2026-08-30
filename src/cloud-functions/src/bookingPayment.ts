@@ -12,6 +12,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
 import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount, isPaymentReady } from './stripe';
+import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuantity, resolveEventPrice } from './eventCapacity';
+import { maintainProjection } from './calendarEvent';
 
 // ── Slot hold duration ───────────────────────────────────────
 const HOLD_DURATION_MINUTES = 15;
@@ -75,15 +77,21 @@ export const createBookingDraft = onCall(
     if (!provider_identity_id || !service_id || !start_time || !end_time) {
       throw new HttpsError('invalid-argument', 'Missing required booking fields');
     }
-    // ── Event booking validation ──
-    // When booking a public event, event_id is required and attendee_quantity
-    // must be a positive integer (defaults to 1). For one-to-one slot bookings
-    // (no event_id), attendee_quantity is ignored — existing behaviour unchanged.
-    const qty = (typeof attendee_quantity === 'number' && attendee_quantity > 0)
-      ? Math.floor(attendee_quantity)
-      : 1;
-    if (event_id) {
-      // Verify the event exists and is publicly bookable
+    // ── Event booking vs one-to-one ──
+    // Event-specific logic activates ONLY when event_id is present.
+    // Non-event bookings keep their existing behaviour unchanged.
+    const qty = normaliseAttendeeQuantity(attendee_quantity);
+    const isEventBooking = !!event_id;
+
+    // Resolved price/currency/isFree. For events the authoritative event
+    // price is used (never null→free; unknown pricing is rejected). For
+    // one-to-one bookings the client-supplied base price is used.
+    let resolvedBasePrice = base_price_pence || 0;
+    let eventCurrency = currency || 'GBP';
+    let eventIsFree = false;
+    let eventCapacity: number | null = null;
+
+    if (isEventBooking) {
       const eventDoc = await db.collection('calendarEvents').doc(event_id).get();
       if (!eventDoc.exists) {
         throw new HttpsError('not-found', 'Event not found');
@@ -95,28 +103,20 @@ export const createBookingDraft = onCall(
       if (eventData.lifecycle_state === 'cancelled' || eventData.lifecycle_state === 'completed') {
         throw new HttpsError('failed-precondition', 'Event is cancelled or completed');
       }
-      // Capacity check (only if the event has a capacity)
-      if (eventData.capacity && eventData.capacity > 0) {
-        const reservedSnap = await db.collection('bookings')
-          .where('event_id', '==', event_id)
-          .where('booking_status', 'in', [
-            'requested', 'accepted', 'awaiting_customer_confirmation',
-            'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',
-          ])
-          .get();
-        let reserved = 0;
-        for (const b of reservedSnap.docs) {
-          const bQty = b.data().attendee_quantity;
-          reserved += (typeof bQty === 'number' && bQty > 0) ? bQty : 1;
-        }
-        if (reserved + qty > eventData.capacity) {
-          throw new HttpsError('failed-precondition', 'Event is full or has insufficient spaces');
-        }
+      // Authoritative event price — never treat null/missing as free.
+      let eventPrice;
+      try {
+        eventPrice = resolveEventPrice(eventData);
+      } catch (e: any) {
+        throw new HttpsError('failed-precondition', e.message);
       }
-      // For event bookings, use the event's price as the base price if not
-      // explicitly provided (the event's advertised price is authoritative).
-      if (!base_price_pence && eventData.price_pence != null) {
-        // base_price_pence is resolved below from eventData
+      resolvedBasePrice = eventPrice.price_pence;
+      eventCurrency = eventPrice.currency;
+      eventIsFree = eventPrice.is_free;
+      eventCapacity = (typeof eventData.capacity === 'number' && eventData.capacity >= 1)
+        ? eventData.capacity : null;
+      if (eventCapacity == null) {
+        throw new HttpsError('failed-precondition', 'Event has no capacity');
       }
     }
     if (!payment_route) {
@@ -157,18 +157,6 @@ export const createBookingDraft = onCall(
     // For event bookings, the event's advertised price is authoritative
     // when the client does not provide one. This snapshots the event price
     // using the existing Booking price-snapshot architecture.
-    let resolvedBasePrice = base_price_pence || 0;
-    let eventCurrency = currency || 'GBP';
-    let eventIsFree = false;
-    if (event_id) {
-      const eventDoc = await db.collection('calendarEvents').doc(event_id).get();
-      if (eventDoc.exists) {
-        const ed = eventDoc.data()!;
-        resolvedBasePrice = ed.price_pence || 0;
-        eventCurrency = ed.currency || currency || 'GBP';
-        eventIsFree = ed.is_free === true || (ed.price_pence || 0) === 0;
-      }
-    }
     const basePrice = resolvedBasePrice;
 
     // ── Fee configuration safety ──
@@ -216,11 +204,129 @@ export const createBookingDraft = onCall(
       payment_requirement = 'required';
     }
 
-    // ── Slot hold (availability reservation) ──
-    // Use a transaction to prevent double-booking race conditions
+    // ── Slot hold + booking creation ──
     const now = new Date();
     const expiresAt = new Date(now.getTime() + HOLD_DURATION_MINUTES * 60 * 1000);
 
+    // ── Event booking: atomic capacity reservation ──
+    // The capacity check + booking creation run in ONE transaction, with
+    // the event doc as the contention point (capacity_revision bump).
+    // Firestore's optimistic-retry transactions serialise concurrent
+    // bookings on the event doc, so two simultaneous bookings cannot
+    // both take the last place. The booking is created in 'requested'
+    // (capacity-consuming) so the place is held immediately.
+    if (isEventBooking) {
+      const eventRef = db.collection('calendarEvents').doc(event_id);
+      const txResult = await db.runTransaction(async (tx) => {
+        const ev = await tx.get(eventRef);
+        if (!ev.exists) {
+          throw new HttpsError('not-found', 'Event not found');
+        }
+        const evData = ev.data()!;
+        if (evData.lifecycle_state === 'cancelled' || evData.lifecycle_state === 'completed') {
+          throw new HttpsError('failed-precondition', 'Event is cancelled or completed');
+        }
+        const cap = (typeof evData.capacity === 'number' && evData.capacity >= 1) ? evData.capacity : null;
+        if (cap == null) {
+          throw new HttpsError('failed-precondition', 'Event has no capacity');
+        }
+        const reservedSnap = await tx.get(
+          db.collection('bookings')
+            .where('event_id', '==', event_id)
+            .where('booking_status', 'in', CAPACITY_CONSUMING_STATES),
+        );
+        const reserved = sumAttendeeQuantity(reservedSnap.docs);
+        if (reserved + qty > cap) {
+          throw new HttpsError('failed-precondition', 'Event is full or has insufficient spaces');
+        }
+        // Contention bump — serialises concurrent transactions on this doc.
+        tx.update(eventRef, {
+          capacity_revision: (evData.capacity_revision || 0) + 1,
+          _updated_date: now.toISOString(),
+        });
+        // Slot hold (kept for compatibility with the hold-based lifecycle).
+        const holdRef = db.collection('slotHolds').doc();
+        tx.set(holdRef, {
+          provider_identity_id,
+          business_id: business_id || null,
+          service_id,
+          start_time,
+          end_time,
+          status: 'active',
+          expires_at: expiresAt.toISOString(),
+          created_by_identity_id: callerIdentityId,
+          _created_date: now.toISOString(),
+        });
+        // Booking — 'requested' holds the place immediately (capacity-consuming).
+        const bookingRef = db.collection('bookings').doc();
+        tx.set(bookingRef, {
+          customer_identity_id: callerIdentityId,
+          guest_email: guest?.email || null,
+          guest_phone: guest?.phone || null,
+          guest_display_name: guest?.display_name || null,
+          provider_identity_id,
+          business_id: business_id || null,
+          service_id,
+          booking_type: booking_type || 'service',
+          start_time,
+          end_time,
+          timezone: timezone || 'UTC',
+          location_context: location_context || 'physical',
+          meeting_url: meeting_url || null,
+          event_id,
+          attendee_quantity: qty,
+          price_snapshot: {
+            base_price_pence: basePrice,
+            currency: eventCurrency,
+          },
+          booking_fee_snapshot: {
+            amount_pence: feeCalc.bookingFeePence,
+            currency: eventCurrency,
+            fee_rule_basis: feeCalc.feeRuleBasis,
+          },
+          total_snapshot: {
+            amount_pence: feeCalc.totalPence,
+            currency: eventCurrency,
+          },
+          deposit_amount_pence: payment_route === 'deposit' ? (deposit_amount_pence || 0) : null,
+          stripe_charge_amount_pence: stripeChargeAmount,
+          cancellation_policy_snapshot: cancellation_policy || { deadline_hours: 24, refund_percentage: 100 },
+          refund_policy_snapshot: cancellation_policy || { deadline_hours: 24, refund_percentage: 100 },
+          booking_status: 'requested',
+          payment_route,
+          payment_requirement,
+          payment_status_mirror: 'none',
+          payment_record_id: null,
+          stripe_payment_intent_id: null,
+          stripe_connected_account_id: null,
+          calendar_event_id: null,
+          reschedule_history: [],
+          no_show_state: { reported: false, reported_by: null, reported_at: null, reason: null, no_show_type: null },
+          hold_id: holdRef.id,
+          _created_date: now.toISOString(),
+          _updated_date: now.toISOString(),
+          confirmed_at: null,
+          cancelled_at: null,
+          completed_at: null,
+        });
+        return { bookingId: bookingRef.id, holdId: holdRef.id };
+      });
+
+      // Refresh the public projection so spaces_remaining reflects the new booking.
+      await maintainProjection(event_id);
+
+      return {
+        booking_id: txResult.bookingId,
+        hold_id: txResult.holdId,
+        total_pence: feeCalc.totalPence,
+        booking_fee_pence: feeCalc.bookingFeePence,
+        stripe_charge_amount_pence: stripeChargeAmount,
+        payment_requirement,
+        currency: eventCurrency,
+      };
+    }
+
+    // ── One-to-one booking: existing flow (unchanged) ──
     const holdResult = await db.runTransaction(async (tx) => {
       // Check for conflicting active holds
       const conflictingSnap = await tx.get(
@@ -294,9 +400,8 @@ export const createBookingDraft = onCall(
       timezone: timezone || 'UTC',
       location_context: location_context || 'physical',
       meeting_url: meeting_url || null,
-      // Event booking extension (preserves one-to-one behaviour when absent)
-      event_id: event_id || null,
-      attendee_quantity: event_id ? qty : null,
+      event_id: null,
+      attendee_quantity: null,
       // Price snapshots (immutable after creation)
       price_snapshot: {
         base_price_pence: basePrice,
@@ -316,7 +421,7 @@ export const createBookingDraft = onCall(
       cancellation_policy_snapshot: cancellation_policy || { deadline_hours: 24, refund_percentage: 100 },
       refund_policy_snapshot: cancellation_policy || { deadline_hours: 24, refund_percentage: 100 },
       // State
-      booking_status: payment_requirement === 'not_required' ? 'draft' : 'draft',
+      booking_status: 'draft',
       payment_route,
       payment_requirement,
       payment_status_mirror: 'none',
@@ -397,7 +502,10 @@ export const createPaymentIntent = onCall(
     }
 
     // Validate booking state — must be in draft, awaiting_payment, or payment_pending (Booking V2)
-    if (booking.booking_status !== 'draft' && booking.booking_status !== 'awaiting_payment' && booking.booking_status !== 'payment_pending') {
+    // Event bookings are created in 'requested' (capacity-consuming); allow
+    // it here so event bookings can proceed to payment. One-to-one bookings
+    // remain in 'draft'/'awaiting_payment'/'payment_pending'.
+    if (booking.booking_status !== 'draft' && booking.booking_status !== 'awaiting_payment' && booking.booking_status !== 'payment_pending' && booking.booking_status !== 'requested') {
       throw new HttpsError('failed-precondition', `Booking is ${booking.booking_status}, cannot create payment`);
     }
 
@@ -544,7 +652,10 @@ export const confirmFreeBooking = onCall(
     }
 
     // Validate booking state — must be in draft, accepted, or awaiting_customer_confirmation (Booking V2)
-    if (booking.booking_status !== 'draft' && booking.booking_status !== 'accepted' && booking.booking_status !== 'awaiting_customer_confirmation') {
+    // Event bookings are created in 'requested' (capacity-consuming); allow
+    // it here so free event bookings can confirm. One-to-one bookings remain
+    // in 'draft'/'accepted'/'awaiting_customer_confirmation'.
+    if (booking.booking_status !== 'draft' && booking.booking_status !== 'accepted' && booking.booking_status !== 'awaiting_customer_confirmation' && booking.booking_status !== 'requested') {
       throw new HttpsError('failed-precondition', `Booking is ${booking.booking_status}`);
     }
 
@@ -567,6 +678,15 @@ export const confirmFreeBooking = onCall(
         status: 'confirmed',
         _updated_date: now,
       });
+    }
+
+    // ── Event booking: no private calendar event is created ──
+    // The booking attaches to the public CalendarEvent via event_id; the
+    // customer is an attendee. Stay in 'confirmed' (attending the event)
+    // and refresh the public projection so spaces_remaining is correct.
+    if (booking.event_id) {
+      await maintainProjection(booking.event_id);
+      return { booking_id, status: 'confirmed' };
     }
 
     // Create calendar event

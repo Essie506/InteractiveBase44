@@ -14,16 +14,14 @@ import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
 import { isEventListable, normalisePricing } from './eventProjectionEligibility';
 import { buildEventPublicProjection, EventHostInfo } from './calendarEventProjection';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
+import { CAPACITY_CONSUMING_STATES, sumAttendeeQuantity } from './eventCapacity';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
 
-// Booking statuses that count toward reserved capacity for an event.
-// These are the "valid confirmed/reserved attendee quantity" states.
-const RESERVED_BOOKING_STATUSES = [
-  'requested', 'accepted', 'awaiting_customer_confirmation',
-  'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',
-];
+// Booking statuses that count toward reserved capacity are defined once in
+// eventCapacity.ts (CAPACITY_CONSUMING_STATES) and shared by bookingPayment,
+// bookingLifecycle, and stripeWebhook so the contract never drifts.
 
 // ── Host resolution ──────────────────────────────────────────
 // Reads the public profile projection for the host (professional or
@@ -73,14 +71,9 @@ async function resolveHost(
 async function countReservedAttendees(eventId: string): Promise<number> {
   const snap = await db.collection('bookings')
     .where('event_id', '==', eventId)
-    .where('booking_status', 'in', RESERVED_BOOKING_STATUSES)
+    .where('booking_status', 'in', CAPACITY_CONSUMING_STATES)
     .get();
-  let total = 0;
-  for (const doc of snap.docs) {
-    const qty = doc.data().attendee_quantity;
-    total += (typeof qty === 'number' && qty > 0) ? qty : 1;
-  }
-  return total;
+  return sumAttendeeQuantity(snap.docs);
 }
 
 // ── Location label resolution ───────────────────────────────

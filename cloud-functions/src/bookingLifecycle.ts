@@ -11,6 +11,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole, isAdmin } from './shared';
 import { getStripe } from './stripe';
+import { maintainProjection } from './calendarEvent';
 
 // ── cancelBooking ────────────────────────────────────────────
 // Evaluates the cancellation policy snapshot, determines the refund
@@ -161,6 +162,11 @@ export const cancelBooking = onCall(
       });
     }
 
+    // Refresh the public Event projection — event bookings release capacity on cancel.
+    if (booking.event_id) {
+      await maintainProjection(booking.event_id);
+    }
+
     // Update receipt with refund adjustment
     if (refundAmountPence > 0) {
       const receiptSnap = await db.collection('receipts')
@@ -248,6 +254,12 @@ export const rescheduleBooking = onCall(
     }
     if (!isCustomer && !isProvider && !isBizAdmin) {
       throw new HttpsError('permission-denied', 'Not authorized to reschedule this booking');
+    }
+
+    // Event bookings cannot be rescheduled — the attendee is bound to the
+    // public event's fixed time. One-to-one bookings keep reschedule support.
+    if (booking.event_id) {
+      throw new HttpsError('failed-precondition', 'Rescheduling is not supported for event bookings');
     }
 
     // Validate booking state — must be scheduled or confirmed (Booking V2)
@@ -464,6 +476,11 @@ export const reportNoShow = onCall(
       },
       _updated_date: nowIso,
     });
+
+    // Refresh the public Event projection — no-show releases capacity.
+    if (booking.event_id) {
+      await maintainProjection(booking.event_id);
+    }
 
     // Create trust signal for no-show
     const signalRef = db.collection('trustSignals').doc();
