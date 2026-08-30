@@ -59,6 +59,7 @@ export default function BusinessProfileView({
   onEditField,
   onEditServices,
   onEditFacilities,
+  onEditEquipment,
   onEditContact,
   onEditProfessionals,
   onOpenPrivateDetails,
@@ -132,6 +133,17 @@ export default function BusinessProfileView({
               <TagList tags={profile.facilities} />
             ) : (
               editable && <p className="text-stone-400 text-sm">Add the facilities your business offers…</p>
+            )}
+          </ProfileSection>
+        )}
+
+        {/* Equipment */}
+        {(profile.equipment?.length > 0 || editable) && (
+          <ProfileSection title="Equipment" onEdit={editable ? onEditEquipment : null}>
+            {profile.equipment?.length > 0 ? (
+              <TagList tags={profile.equipment} />
+            ) : (
+              editable && <p className="text-stone-400 text-sm">Add the equipment your business offers…</p>
             )}
           </ProfileSection>
         )}

@@ -3,6 +3,7 @@ import { STANDARD_SERVICES } from '@/data/standardServices';
 import { STANDARD_FACILITIES } from '@/data/standardFacilities';
 import { BUSINESS_TYPES } from '@/data/businessTypes';
 import FilterMultiSelect from './FilterMultiSelect';
+import EquipmentFilter from './EquipmentFilter';
 import { Slider } from '@/components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 
@@ -46,6 +47,7 @@ export default function DirectoryFilters({
   serviceIds, setServiceIds,
   facilityIds, setFacilityIds,
   businessTypeIds, setBusinessTypeIds,
+  equipmentIds, setEquipmentIds,
   verifiedOnly, setVerifiedOnly,
   locationText, setLocationText,
   sort, setSort,
@@ -55,6 +57,7 @@ export default function DirectoryFilters({
 }) {
   const showBusinessType = typeFilter === 'all' || typeFilter === 'business';
   const showFacilities = typeFilter === 'all' || typeFilter === 'business';
+  const showEquipment = typeFilter === 'all' || typeFilter === 'business';
 
   return (
     <div>
@@ -174,6 +177,15 @@ export default function DirectoryFilters({
               options={STANDARD_FACILITIES}
               selected={facilityIds}
               onChange={setFacilityIds}
+            />
+          </FilterSection>
+        )}
+
+        {showEquipment && (
+          <FilterSection value="equipment" title="Equipment">
+            <EquipmentFilter
+              selected={equipmentIds}
+              onChange={setEquipmentIds}
             />
           </FilterSection>
         )}

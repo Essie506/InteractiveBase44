@@ -41,6 +41,8 @@ export const STANDARD_FACILITIES = [
   { id: 'lockers', label: 'Lockers' },
   { id: 'towel-service', label: 'Towel Service' },
   { id: 'parking', label: 'Parking' },
+  { id: 'disabled-access', label: 'Disabled Access' },
+  { id: 'ladies-only-area', label: 'Ladies Only Area' },
   { id: 'cafe', label: 'Cafe' },
   { id: 'juice-bar', label: 'Juice Bar' },
   { id: 'childcare', label: 'Childcare' },

@@ -35,6 +35,7 @@ export default function Directory() {
   const [serviceIds, setServiceIds] = useState([]);
   const [facilityIds, setFacilityIds] = useState([]);
   const [businessTypeIds, setBusinessTypeIds] = useState([]);
+  const [equipmentIds, setEquipmentIds] = useState([]);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [locationText, setLocationText] = useState('');
   const [sort, setSort] = useState('recommended');
@@ -79,13 +80,14 @@ export default function Directory() {
       serviceIds,
       facilityIds,
       businessTypeIds,
+      equipmentIds,
       verifiedOnly,
       locationText: locationText || undefined,
       sort,
       origin,
       distance,
     }),
-    [data, query, typeFilter, serviceIds, facilityIds, businessTypeIds, verifiedOnly, locationText, sort, origin, distance],
+    [data, query, typeFilter, serviceIds, facilityIds, businessTypeIds, equipmentIds, verifiedOnly, locationText, sort, origin, distance],
   );
 
   const handleReset = () => {
@@ -94,6 +96,7 @@ export default function Directory() {
     setServiceIds([]);
     setFacilityIds([]);
     setBusinessTypeIds([]);
+    setEquipmentIds([]);
     setVerifiedOnly(false);
     setLocationText('');
     setSort('recommended');
@@ -106,6 +109,7 @@ export default function Directory() {
     serviceIds, setServiceIds,
     facilityIds, setFacilityIds,
     businessTypeIds, setBusinessTypeIds,
+    equipmentIds, setEquipmentIds,
     verifiedOnly, setVerifiedOnly,
     locationText, setLocationText,
     sort, setSort,

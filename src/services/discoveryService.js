@@ -57,6 +57,7 @@ function matchesQuery(profile, q) {
     profile.location, profile.service_area,
     ...(Array.isArray(profile.services) ? profile.services.map(s => s.label) : []),
     ...(Array.isArray(profile.facilities) ? profile.facilities.map(f => f.label) : []),
+    ...(Array.isArray(profile.equipment) ? profile.equipment.map(e => e.label) : []),
   ].filter(Boolean);
   return fields.some(f => String(f).toLowerCase().includes(q));
 }
@@ -66,7 +67,7 @@ function matchesQuery(profile, q) {
 //   types: null = all, or ['professional'] / ['business'] / both
 export function filterResults(data, opts = {}) {
   const {
-    query, types, serviceIds, facilityIds, businessTypeIds,
+    query, types, serviceIds, facilityIds, businessTypeIds, equipmentIds,
     verifiedOnly, locationText, sort = 'recommended', maxResults = 100,
     origin, distance,
   } = opts;
@@ -111,6 +112,16 @@ export function filterResults(data, opts = {}) {
     results = results.filter(r =>
       r._type === 'business' &&
       businessTypeIds.includes(r.business_type)
+    );
+  }
+
+  // Equipment filter — business only, match ANY selected equipment id.
+  // Same OR matching semantics as Services and Facilities.
+  if (equipmentIds && equipmentIds.length > 0) {
+    results = results.filter(r =>
+      r._type === 'business' &&
+      Array.isArray(r.equipment) &&
+      equipmentIds.some(eid => r.equipment.some(e => e.id === eid))
     );
   }
 

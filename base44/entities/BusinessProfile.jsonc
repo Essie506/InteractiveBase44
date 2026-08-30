@@ -145,6 +145,29 @@
       "title": "Facilities",
       "description": "Structured facility selections from the FacilityDefinition taxonomy. Canonical entries carry an id for search/filter matching; custom entries have id=null."
     },
+    "equipment": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Equipment ID",
+            "description": "Canonical slug from the EquipmentDefinition taxonomy (standardEquipment). Null for custom free-text entries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Equipment Label",
+            "description": "Display label. Matches the taxonomy label for canonical entries; user-entered for custom entries."
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "title": "Equipment",
+      "description": "Structured equipment selections from the shared EquipmentDefinition taxonomy (standardEquipment). Canonical entries carry an id for Directory filter matching; custom entries have id=null. Conceptually separate from Facilities (structural areas vs training apparatus)."
+    },
     "professionals": {
       "type": "array",
       "items": {

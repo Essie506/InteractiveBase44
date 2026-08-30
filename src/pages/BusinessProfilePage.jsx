@@ -9,6 +9,7 @@ import {
 import { getPublicProfessionalProfileByIdentity } from '@/services/profileService';
 import { STANDARD_SERVICES } from '@/data/standardServices';
 import { STANDARD_FACILITIES } from '@/data/standardFacilities';
+import { STANDARD_EQUIPMENT } from '@/data/standardEquipment';
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { createOrGetConversation } from '@/lib/messaging';
 import { Loader2, MessageSquare, AlertCircle } from 'lucide-react';
@@ -45,6 +46,7 @@ function toPayload(p) {
     category: p.category,
     services: p.services,
     facilities: p.facilities,
+    equipment: p.equipment,
     professionals: p.professionals,
     gallery_media_ids: p.gallery_media_ids,
     contact_email: p.contact_email,
@@ -110,6 +112,7 @@ export default function BusinessProfilePage() {
             name: biz?.name || '',
             services: [],
             facilities: [],
+            equipment: [],
             professionals: [],
             gallery_media_ids: [],
             visibility: 'public',
@@ -242,6 +245,7 @@ export default function BusinessProfilePage() {
         onEditField={(f) => setDialog(f)}
         onEditServices={() => setDialog('services')}
         onEditFacilities={() => setDialog('facilities')}
+        onEditEquipment={() => setDialog('equipment')}
         onEditContact={() => setDialog('contact')}
         onEditProfessionals={() => setDialog('professionals')}
         onOpenPrivateDetails={() => setDialog('private')}
@@ -334,6 +338,17 @@ export default function BusinessProfilePage() {
           standardOptions={STANDARD_FACILITIES}
           placeholder="Add a custom facility"
           onSave={(facilities) => persist({ facilities })}
+        />
+      )}
+      {dialog === 'equipment' && (
+        <TaxonomySelectDialog
+          open
+          onClose={() => setDialog(null)}
+          title="Edit equipment"
+          items={profile.equipment}
+          standardOptions={STANDARD_EQUIPMENT}
+          placeholder="Add a custom equipment item"
+          onSave={(equipment) => persist({ equipment })}
         />
       )}
       {dialog === 'contact' && (

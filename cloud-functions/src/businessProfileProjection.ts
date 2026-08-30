@@ -34,6 +34,7 @@ export function buildBusinessPublicProjection(
     category: profileData.category || null,
     services: Array.isArray(profileData.services) ? profileData.services : [],
     facilities: Array.isArray(profileData.facilities) ? profileData.facilities : [],
+    equipment: Array.isArray(profileData.equipment) ? profileData.equipment : [],
     // professionals carries resolved display info (sourced from
     // professionalProfilesPublic) so the public route can render
     // staff cards without reading private collections. The private
