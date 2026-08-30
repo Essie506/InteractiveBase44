@@ -211,24 +211,33 @@ export function filterResults(data, opts = {}) {
     results = results.filter(r => r.verification_state === 'verified');
   }
 
-  // Business type filter — strict (not ranked), business only.
+  // Entity-specific strict filters — apply ONLY to the entity type
+  // that owns the dimension. Other result types pass through
+  // untouched: a professional/event cannot possess a business_type,
+  // so it must never be excluded when businessTypeIds is active
+  // (e.g. an "All" search with a business-type filter applied via URL).
   if (businessTypeIds && businessTypeIds.length > 0) {
     results = results.filter(r =>
-      r._type === 'business' &&
+      r._type !== 'business' ||
       businessTypeIds.includes(r.business_type)
     );
   }
 
-  // Professional type filter — strict (not ranked), professional only.
   if (professionalTypeIds && professionalTypeIds.length > 0) {
     results = results.filter(r =>
-      r._type === 'professional' &&
-      r.professional_type &&
-      professionalTypeIds.includes(r.professional_type.id)
+      r._type !== 'professional' ||
+      (r.professional_type && professionalTypeIds.includes(r.professional_type.id))
     );
   }
 
-  // Ranked multi-select matching for Services, Facilities, Equipment.
+  // Entity-aware ranked multi-select matching. Each dimension is
+  // scored only against the entity type that semantically owns it, so
+  // a professional is never penalised for not having facilities, nor a
+  // business for not having specialisms. Services is the one shared
+  // dimension (scored for both professionals and businesses). Events
+  // are scored separately in the events block (Activities = services).
+  //   professional → services, specialisms, session_types
+  //   business     → services, facilities, equipment
   const hasStructuredFilters =
     (serviceIds && serviceIds.length > 0) ||
     (facilityIds && facilityIds.length > 0) ||
@@ -239,7 +248,10 @@ export function filterResults(data, opts = {}) {
   if (hasStructuredFilters) {
     results = results
       .map(r => {
-        const _matchScore = computeMatchScore(r, { serviceIds, facilityIds, equipmentIds, specialismIds, sessionTypeIds });
+        const dims = r._type === 'professional'
+          ? { serviceIds, specialismIds, sessionTypeIds }
+          : { serviceIds, facilityIds, equipmentIds }; // business
+        const _matchScore = computeMatchScore(r, dims);
         return { ...r, _matchScore };
       })
       .filter(r => r._matchScore.isEligible);

@@ -36,6 +36,7 @@ const PRICE_OPTIONS = [
 //
 // Each category is a collapsible Accordion section. Collapsing a
 // section does NOT clear its selections (state is in the parent).
+// Services/Activities starts COLLAPSED by default.
 //
 // PER-SECTION SEARCH:
 //   Each filter section has its own search input inside its expanded
@@ -45,12 +46,22 @@ const PRICE_OPTIONS = [
 //
 // ALPHABETICAL ORDER:
 //   Filter values are sorted alphabetically by label within each
-//   section. Section order remains semantic/logical.
+//   section. Section order is semantic/logical and stable across types.
 //
-// Type-dependent sections:
-//   All           → Pro Type, Specialisms, Session Type, Biz Type, Services, Facilities, Equipment
-//   Professionals → Pro Type, Specialisms, Session Type, Services
-//   Businesses    → Biz Type, Services, Facilities, Equipment
+// CONTEXTUAL VISIBILITY (entity-specific dimensions surface only for
+// the type that owns them, so "All" exposes just the genuinely shared
+// discovery controls):
+//   All           → Sort, Verified, Location, Distance, Price, Date, Services/Activities
+//   Professionals → Sort, Verified, Location, Distance, Price, Pro Type, Specialisms, Session Type, Services
+//   Businesses    → Sort, Verified, Location, Distance, Price, Biz Type, Facilities, Equipment, Services
+//   Events        → Sort, Verified, Location, Distance, Price, Date, Activities, Format, Spaces Available
+//
+// Price + Date are shared enough to surface in "All" but, per the
+// entity-aware matching in discoveryService, apply ONLY to the entity
+// type that owns the dimension (Date → events; Price → events for now,
+// since only events carry a comparable public price). Professionals
+// and Businesses have no comparable public price yet, so Price is
+// hidden for them until structured pricing is introduced.
 const SORT_OPTIONS = [
   { value: 'distance', label: 'Distance' },
   { value: 'verified', label: 'Verified' },
@@ -100,18 +111,26 @@ export default function DirectoryFilters({
   onReset,
   onSearch,
 }) {
-  const showProfessionalType = typeFilter === 'all' || typeFilter === 'professional';
-  const showSpecialisms = typeFilter === 'all' || typeFilter === 'professional';
-  const showSessionType = typeFilter === 'all' || typeFilter === 'professional';
-  const showBusinessType = typeFilter === 'all' || typeFilter === 'business';
-  const showFacilities = typeFilter === 'all' || typeFilter === 'business';
-  const showEquipment = typeFilter === 'all' || typeFilter === 'business';
-  const showEvents = typeFilter === 'all' || typeFilter === 'event';
-  // Events present the shared Services taxonomy as "Activities";
-  // professionals/businesses present it as "Services". One filter,
-  // one state (serviceIds), one canonical URL param (svc).
-  const servicesSectionTitle = typeFilter === 'event' ? 'Activities' : 'Services';
-  const servicesSearchPlaceholder = typeFilter === 'event' ? 'Search activities...' : 'Search services...';
+  // Contextual section visibility — see file header.
+  const isAll = typeFilter === 'all';
+  const isPro = typeFilter === 'professional';
+  const isBiz = typeFilter === 'business';
+  const isEvt = typeFilter === 'event';
+  const showProfessionalType = isPro;
+  const showSpecialisms = isPro;
+  const showSessionType = isPro;
+  const showBusinessType = isBiz;
+  const showFacilities = isBiz;
+  const showEquipment = isBiz;
+  // Date + Price surface in All (applied to events only, entity-aware).
+  // Format + Spaces Available are event-specific.
+  const showDate = isAll || isEvt;
+  const showPrice = isAll || isEvt;
+  const showFormat = isEvt;
+  const showAvailability = isEvt;
+  // Events present the shared Services taxonomy as "Activities".
+  const servicesSectionTitle = isEvt ? 'Activities' : 'Services';
+  const servicesSearchPlaceholder = isEvt ? 'Search activities...' : 'Search services...';
 
   function toggleArrayValue(arr, id, setter) {
     if (arr.includes(id)) {
@@ -216,6 +235,65 @@ export default function DirectoryFilters({
           </div>
         </FilterSection>
 
+        {/* Price — shared surface (All + Event). Free/Paid applies to
+            events only (entity-aware); pros/biz have no comparable
+            public price yet, so Price is hidden for them. */}
+        {showPrice && (
+          <FilterSection value="event-price" title="Price">
+            <div className="space-y-1.5">
+              {PRICE_OPTIONS.map(o => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => toggleArrayValue(priceIds || [], o.id, setPriceIds)}
+                  className="flex items-center gap-2 w-full text-left"
+                >
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                    (priceIds || []).includes(o.id) ? 'bg-indigo-600 border-indigo-600' : 'border-stone-300 bg-white'
+                  }`}>
+                    {(priceIds || []).includes(o.id) && <span className="w-2 h-2 bg-white rounded-sm" />}
+                  </span>
+                  <span className="text-sm text-stone-600">{o.label}</span>
+                </button>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Date — event-specific dimension, surfaced in All too. In
+            All it filters only the event subset (profiles are never
+            excluded for lacking a start_time). */}
+        {showDate && (
+          <FilterSection value="event-date" title="Event date">
+            <select
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+            >
+              {DATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {dateFilter === 'custom' && (
+              <div className="mt-2 flex gap-2">
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={e => setDateFrom(e.target.value)}
+                  className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
+                  placeholder="From"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={e => setDateTo(e.target.value)}
+                  className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
+                  placeholder="To"
+                />
+              </div>
+            )}
+          </FilterSection>
+        )}
+
+        {/* Professional-specific */}
         {showProfessionalType && (
           <FilterSection value="pro-type" title="Professional type">
             <FilterMultiSelect
@@ -249,6 +327,7 @@ export default function DirectoryFilters({
           </FilterSection>
         )}
 
+        {/* Business-specific */}
         {showBusinessType && (
           <FilterSection value="biz-type" title="Business type">
             <FilterMultiSelect
@@ -258,103 +337,6 @@ export default function DirectoryFilters({
               searchPlaceholder="Search business types..."
             />
           </FilterSection>
-        )}
-
-        <FilterSection value="services" title={servicesSectionTitle}>
-          <FilterMultiSelect
-            options={alphaSort(STANDARD_SERVICES)}
-            selected={serviceIds}
-            onChange={setServiceIds}
-            searchPlaceholder={servicesSearchPlaceholder}
-          />
-        </FilterSection>
-
-        {showEvents && (
-          <>
-            <FilterSection value="event-date" title="Event date">
-              <select
-                value={dateFilter}
-                onChange={e => setDateFilter(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
-              >
-                {DATE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {dateFilter === 'custom' && (
-                <div className="mt-2 flex gap-2">
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={e => setDateFrom(e.target.value)}
-                    className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
-                    placeholder="From"
-                  />
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={e => setDateTo(e.target.value)}
-                    className="flex-1 px-2 py-1.5 bg-white border border-stone-200 rounded-lg text-xs focus:outline-none focus:border-indigo-400"
-                    placeholder="To"
-                  />
-                </div>
-              )}
-            </FilterSection>
-
-            <FilterSection value="event-format" title="Format">
-              <div className="space-y-1.5">
-                {FORMAT_OPTIONS.map(o => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => toggleArrayValue(formatIds || [], o.id, setFormatIds)}
-                    className="flex items-center gap-2 w-full text-left"
-                  >
-                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                      (formatIds || []).includes(o.id) ? 'bg-indigo-600 border-indigo-600' : 'border-stone-300 bg-white'
-                    }`}>
-                      {(formatIds || []).includes(o.id) && <span className="w-2 h-2 bg-white rounded-sm" />}
-                    </span>
-                    <span className="text-sm text-stone-600">{o.label}</span>
-                  </button>
-                ))}
-              </div>
-            </FilterSection>
-
-            <FilterSection value="event-price" title="Price">
-              <div className="space-y-1.5">
-                {PRICE_OPTIONS.map(o => (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => toggleArrayValue(priceIds || [], o.id, setPriceIds)}
-                    className="flex items-center gap-2 w-full text-left"
-                  >
-                    <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                      (priceIds || []).includes(o.id) ? 'bg-indigo-600 border-indigo-600' : 'border-stone-300 bg-white'
-                    }`}>
-                      {(priceIds || []).includes(o.id) && <span className="w-2 h-2 bg-white rounded-sm" />}
-                    </span>
-                    <span className="text-sm text-stone-600">{o.label}</span>
-                  </button>
-                ))}
-              </div>
-            </FilterSection>
-
-            <FilterSection value="event-availability" title="Availability">
-              <button
-                type="button"
-                onClick={() => setAvailableOnly(!availableOnly)}
-                className="flex items-center gap-2 w-full text-left"
-              >
-                <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                  availableOnly ? 'bg-emerald-500 border-emerald-500' : 'border-stone-300 bg-white'
-                }`}>
-                  {availableOnly && <span className="w-2 h-2 bg-white rounded-sm" />}
-                </span>
-                <span className="text-sm text-stone-600">Spaces available only</span>
-              </button>
-            </FilterSection>
-
-          </>
         )}
 
         {showFacilities && (
@@ -374,6 +356,57 @@ export default function DirectoryFilters({
               selected={equipmentIds}
               onChange={setEquipmentIds}
             />
+          </FilterSection>
+        )}
+
+        {/* Services / Activities — shared ServiceDefinition taxonomy.
+            Collapsed by default. "Activities" when viewing events. */}
+        <FilterSection value="services" title={servicesSectionTitle}>
+          <FilterMultiSelect
+            options={alphaSort(STANDARD_SERVICES)}
+            selected={serviceIds}
+            onChange={setServiceIds}
+            searchPlaceholder={servicesSearchPlaceholder}
+          />
+        </FilterSection>
+
+        {/* Event-specific details */}
+        {showFormat && (
+          <FilterSection value="event-format" title="Format">
+            <div className="space-y-1.5">
+              {FORMAT_OPTIONS.map(o => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => toggleArrayValue(formatIds || [], o.id, setFormatIds)}
+                  className="flex items-center gap-2 w-full text-left"
+                >
+                  <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                    (formatIds || []).includes(o.id) ? 'bg-indigo-600 border-indigo-600' : 'border-stone-300 bg-white'
+                  }`}>
+                    {(formatIds || []).includes(o.id) && <span className="w-2 h-2 bg-white rounded-sm" />}
+                  </span>
+                  <span className="text-sm text-stone-600">{o.label}</span>
+                </button>
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {showAvailability && (
+          <FilterSection value="event-availability" title="Availability">
+            <button
+              type="button"
+              onClick={() => setAvailableOnly(!availableOnly)}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                availableOnly ? 'bg-emerald-500 border-emerald-500' : 'border-stone-300 bg-white'
+              }`}>
+                {availableOnly && <span className="w-2 h-2 bg-white rounded-sm" />}
+              </span>
+              <span className="text-sm text-stone-600">Spaces available only</span>
+            </button>
           </FilterSection>
         )}
       </Accordion>

@@ -124,6 +124,44 @@ function ids(arr) {
   // comparator that uses Date.now() internally (not injectable).
   const realIsoFrom = (ms) => new Date(Date.now() + ms).toISOString();
 
+  // ── Entity-aware profile filtering (mirror discoveryService.js) ──
+  // Entity-specific strict filters keep other entity types untouched.
+  function applyBusinessTypeFilter(results, businessTypeIds) {
+    if (!businessTypeIds || businessTypeIds.length === 0) return results;
+    return results.filter(r => r._type !== 'business' || businessTypeIds.includes(r.business_type));
+  }
+  function applyProfessionalTypeFilter(results, professionalTypeIds) {
+    if (!professionalTypeIds || professionalTypeIds.length === 0) return results;
+    return results.filter(r =>
+      r._type !== 'professional' ||
+      (r.professional_type && professionalTypeIds.includes(r.professional_type.id))
+    );
+  }
+  // Entity-aware ranked match: each dimension scores only its owning type.
+  function applyEntityAwareRankedMatch(results, dims) {
+    const has = (a) => Array.isArray(a) && a.length > 0;
+    if (!has(dims.serviceIds) && !has(dims.facilityIds) && !has(dims.equipmentIds) &&
+        !has(dims.specialismIds) && !has(dims.sessionTypeIds)) return results;
+    return results.map(r => {
+      const d = r._type === 'professional'
+        ? { serviceIds: dims.serviceIds, specialismIds: dims.specialismIds, sessionTypeIds: dims.sessionTypeIds }
+        : { serviceIds: dims.serviceIds, facilityIds: dims.facilityIds, equipmentIds: dims.equipmentIds };
+      return { ...r, _matchScore: computeMatchScore(r, d) };
+    }).filter(r => r._matchScore.isEligible);
+  }
+  const makePro = (id, opts = {}) => ({
+    _type: 'professional', identity_id: id, display_name: id,
+    professional_type: opts.professional_type || null,
+    services: opts.services || [], specialisms: opts.specialisms || [],
+    session_types: opts.session_types || [],
+  });
+  const makeBiz = (id, opts = {}) => ({
+    _type: 'business', business_id: id, name: id,
+    business_type: opts.business_type || null,
+    services: opts.services || [], facilities: opts.facilities || [],
+    equipment: opts.equipment || [],
+  });
+
   // ═══════════════════════════════════════════════════════════
   // DATE RANGE RESOLUTION
   // ═══════════════════════════════════════════════════════════
@@ -501,6 +539,63 @@ function ids(arr) {
       .map(e => ({ ...e, _matchScore: computeMatchScore(e, { serviceIds: activityFilter }) }))
       .filter(e => e._matchScore.isEligible);
     assert.deepStrictEqual(kept.map(e => e.event_id), ['e1', 'e3']);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // ENTITY-AWARE MATCHING (Part 7)
+  // ═══════════════════════════════════════════════════════════
+
+  test('Entity-aware: businessTypeIds keeps professionals', () => {
+    const results = [
+      makePro('p1', { services: ids(['yoga']) }),
+      makeBiz('b1', { business_type: 'gym' }),
+      makeBiz('b2', { business_type: 'studio' }),
+    ];
+    const kept = applyBusinessTypeFilter(results, ['gym']);
+    assert.deepStrictEqual(kept.map(r => r.identity_id || r.business_id), ['p1', 'b1']);
+  });
+
+  test('Entity-aware: professionalTypeIds keeps businesses', () => {
+    const results = [
+      makePro('p1', { professional_type: { id: 'trainer', label: 'Trainer' } }),
+      makePro('p2', { professional_type: { id: 'coach', label: 'Coach' } }),
+      makeBiz('b1', { business_type: 'gym' }),
+    ];
+    const kept = applyProfessionalTypeFilter(results, ['trainer']);
+    assert.deepStrictEqual(kept.map(r => r.identity_id || r.business_id), ['p1', 'b1']);
+  });
+
+  test('Entity-aware: facilityIds does not exclude professionals', () => {
+    const results = [
+      makePro('p1', { services: ids(['yoga']) }),
+      makeBiz('b1', { facilities: ids(['pool']) }),
+      makeBiz('b2', { facilities: [] }),
+    ];
+    const kept = applyEntityAwareRankedMatch(results, { facilityIds: ['pool'] });
+    // p1 passes through (facilities is not a professional dimension);
+    // b1 matches; b2 excluded (no pool).
+    assert.deepStrictEqual(kept.map(r => r.identity_id || r.business_id), ['p1', 'b1']);
+  });
+
+  test('Entity-aware: specialismIds does not exclude businesses', () => {
+    const results = [
+      makePro('p1', { specialisms: ids(['beginners']) }),
+      makePro('p2', { specialisms: [] }),
+      makeBiz('b1', { business_type: 'gym' }),
+    ];
+    const kept = applyEntityAwareRankedMatch(results, { specialismIds: ['beginners'] });
+    // p1 matches; p2 excluded (no beginners); b1 passes through.
+    assert.deepStrictEqual(kept.map(r => r.identity_id || r.business_id), ['p1', 'b1']);
+  });
+
+  test('Entity-aware: shared services scores both professionals and businesses', () => {
+    const results = [
+      makePro('p1', { services: ids(['yoga']) }),
+      makeBiz('b1', { services: ids(['yoga']) }),
+      makeBiz('b2', { services: ids(['hiit']) }),
+    ];
+    const kept = applyEntityAwareRankedMatch(results, { serviceIds: ['yoga'] });
+    assert.deepStrictEqual(kept.map(r => r.identity_id || r.business_id), ['p1', 'b1']);
   });
 
   // ═══════════════════════════════════════════════════════════
