@@ -53,7 +53,7 @@ export function isEventEligible(
  */
 export function isEventListable(
   data: any,
-  hostData: { visibility?: string; lifecycle_state?: string; screen_name?: string | null; business_id?: string } | null | undefined,
+  hostData: { visibility?: string; lifecycle_state?: string; screen_name?: string | null; business_id?: string | null } | null | undefined,
   nowMs?: number,
 ): boolean {
   if (!isEventEligible(data, nowMs)) return false;

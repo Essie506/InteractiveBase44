@@ -86,7 +86,11 @@ export const backfillPublicProfiles = onCall(
         : null;
       const isEligible = isProfessionalListable(data, canonicalScreenName);
 
-      if (isEligible) {
+      // isProfessionalListable requires !!screenName, so isEligible already
+      // implies canonicalScreenName is a non-empty string. The explicit
+      // && canonicalScreenName guard narrows the type for .doc() use and is
+      // provably behaviour-neutral (isEligible => canonicalScreenName truthy).
+      if (isEligible && canonicalScreenName) {
         const locationGeo = await fetchProfessionalPublicGeo(db, data.service_area_location_id, data.location_id);
         const projection = buildPublicProjection(data.identity_id, doc.id, data, locationGeo);
         // Write to canonical doc ID == normalized screen_name
