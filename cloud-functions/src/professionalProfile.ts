@@ -87,13 +87,6 @@ export const saveProfessionalProfile = onCall(
       throw new HttpsError('permission-denied', 'You can only save your own professional profile');
     }
 
-    // Validate screen_name format if provided
-    const screenName = normaliseScreenName(body.screen_name);
-    if (screenName) {
-      const fmtErr = validateScreenNameFormat(screenName);
-      if (fmtErr) throw new HttpsError('invalid-argument', fmtErr);
-    }
-
     // Find existing profile by identity_id
     const existingSnap = await db.collection(PROFILES)
       .where('identity_id', '==', identityId)
@@ -103,6 +96,21 @@ export const saveProfessionalProfile = onCall(
     const existingDoc = existingSnap.docs[0];
     const profileId = existingDoc?.id || db.collection(PROFILES).doc().id;
     const existingData = existingDoc?.data() || {};
+
+    // Resolve screen_name: preserve existing when not sent in the body.
+    // Previously, omitting screen_name would overwrite the existing value
+    // with null, corrupting the private profile and breaking projection
+    // cleanup. Now, only an explicit body value (including empty string)
+    // overrides the existing screen_name.
+    const requestedScreenName = normaliseScreenName(body.screen_name);
+    const existingScreenName = normaliseScreenName(existingData.screen_name);
+    const screenName = body.screen_name !== undefined
+      ? requestedScreenName
+      : existingScreenName;
+    if (screenName) {
+      const fmtErr = validateScreenNameFormat(screenName);
+      if (fmtErr) throw new HttpsError('invalid-argument', fmtErr);
+    }
 
     // Merge incoming data over existing (client sends full field set)
     const merged = { ...existingData, ...body, identity_id: identityId, screen_name: screenName };
@@ -123,15 +131,23 @@ export const saveProfessionalProfile = onCall(
     await db.collection(PROFILES).doc(profileId).set(merged, { merge: true });
 
     // ── Maintain the public projection (race-free) ──
-    // Delete any projection doc tied to this profile under an old screen name.
-    const oldScreenName = normaliseScreenName(existingData.screen_name);
-    if (oldScreenName && oldScreenName !== screenName) {
-      await db.collection(PUBLIC).doc(oldScreenName).delete().catch(() => {});
-    }
-
     const isPubliclyListable = merged.visibility === 'public'
       && merged.lifecycle_state === 'active'
       && !!screenName;
+
+    // Defensive cleanup: query ALL existing projections for this identity
+    // and delete any that don't match the target screen name. This catches
+    // projections orphaned by screen_name changes, partial updates that
+    // previously lost the screen_name, or direct writes to the public
+    // collection that bypassed the cloud function.
+    const existingProjections = await db.collection(PUBLIC)
+      .where('identity_id', '==', identityId)
+      .get();
+    for (const doc of existingProjections.docs) {
+      if (!isPubliclyListable || doc.id !== screenName) {
+        await doc.ref.delete().catch(() => {});
+      }
+    }
 
     if (isPubliclyListable) {
       // Derive public-safe coordinates from the service area / location.
@@ -150,11 +166,6 @@ export const saveProfessionalProfile = onCall(
         }
         tx.set(projRef, projection);
       });
-    } else {
-      // Not eligible for public listing — remove any existing projection
-      if (screenName) {
-        await db.collection(PUBLIC).doc(screenName).delete().catch(() => {});
-      }
     }
 
     return { id: profileId, ...merged };

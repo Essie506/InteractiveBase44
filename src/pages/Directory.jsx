@@ -9,6 +9,7 @@ import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
 import ProfessionalResultCard from '@/components/directory/ProfessionalResultCard';
 import BusinessResultCard from '@/components/directory/BusinessResultCard';
+import { DEV_DEMO_PROFESSIONALS, DEV_DEMO_BUSINESSES } from '@/data/devDemoListings';
 
 // Directory + Search page.
 // Public route — usable by signed-out visitors. Reads only from
@@ -46,6 +47,11 @@ export default function Directory() {
   const [origin, setOrigin] = useState(null);
   const [originStatus, setOriginStatus] = useState('idle');
 
+  // Dev-only demo mode — gated by Vite DEV flag + ?demo=1 URL param.
+  // Never active in production builds. Uses local seed data instead of
+  // the production discoveryService so the production path is untouched.
+  const isDemoMode = import.meta.env.DEV && new URLSearchParams(window.location.search).has('demo');
+
   // Applied filters — snapshot of draft state used for actual filtering.
   // Draft state (above) updates as the user interacts with the filter UI.
   // Results only update when the user presses the Search button, which
@@ -58,6 +64,11 @@ export default function Directory() {
   });
 
   useEffect(() => {
+    if (isDemoMode) {
+      setData({ professionals: DEV_DEMO_PROFESSIONALS, businesses: DEV_DEMO_BUSINESSES });
+      setLoading(false);
+      return;
+    }
     loadDirectory().
     then(setData).
     catch((err) => setError(err.message || 'Could not load directory')).
@@ -189,6 +200,13 @@ export default function Directory() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {isDemoMode && (
+          <div className="mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
+            <span className="w-2 h-2 bg-amber-400 rounded-full"></span>
+            <strong className="font-semibold">Demo Data</strong>
+            <span className="text-amber-600">— local seed listings for UI testing. Not from Firebase.</span>
+          </div>
+        )}
         <div className="flex gap-6">
           {/* Results — majority width */}
           <div className="flex-1 min-w-0">

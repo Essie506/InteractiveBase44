@@ -74,6 +74,9 @@ export const saveBusinessProfile = onCall(
     const resolvedProfessionals = await resolveProfessionalReferences(merged.professionals);
 
     // ── Maintain the public projection ──
+    // Business projection doc ID == business_id (always present, no
+    // screen_name complication). When ineligible, the projection is
+    // deleted; when eligible, it is written/updated.
     const isPubliclyListable = merged.visibility === 'public'
       && merged.lifecycle_state === 'active';
 
