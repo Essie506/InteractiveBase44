@@ -37,7 +37,7 @@
 import { onRequest } from 'firebase-functions/v2/https';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStripe } from './stripe';
-import { maintainProjection } from './calendarEvent';
+import { refreshEventProjection } from './calendarEvent';
 
 const db = getFirestore();
 
@@ -221,7 +221,7 @@ async function handlePaymentSuccess(paymentIntent: any) {
   // customer is an attendee. Stay in 'confirmed' and refresh the public
   // projection so spaces_remaining is correct.
   if (booking.event_id) {
-    await maintainProjection(booking.event_id);
+    await refreshEventProjection(booking.event_id);
     return;
   }
 

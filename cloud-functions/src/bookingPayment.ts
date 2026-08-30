@@ -13,7 +13,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
 import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount, isPaymentReady } from './stripe';
 import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuantity, resolveEventPrice } from './eventCapacity';
-import { maintainProjection } from './calendarEvent';
+import { refreshEventProjection } from './calendarEvent';
 
 // ── Slot hold duration ───────────────────────────────────────
 const HOLD_DURATION_MINUTES = 15;
@@ -313,7 +313,7 @@ export const createBookingDraft = onCall(
       });
 
       // Refresh the public projection so spaces_remaining reflects the new booking.
-      await maintainProjection(event_id);
+      await refreshEventProjection(event_id);
 
       return {
         booking_id: txResult.bookingId,
@@ -685,7 +685,7 @@ export const confirmFreeBooking = onCall(
     // customer is an attendee. Stay in 'confirmed' (attending the event)
     // and refresh the public projection so spaces_remaining is correct.
     if (booking.event_id) {
-      await maintainProjection(booking.event_id);
+      await refreshEventProjection(booking.event_id);
       return { booking_id, status: 'confirmed' };
     }
 

@@ -172,3 +172,16 @@ export async function maintainProjection(eventId: string, data: any): Promise<vo
   );
   await db.collection(PUBLIC).doc(eventId).set(projection);
 }
+
+// ── Refresh projection by event ID ──────────────────────────
+// Reads the authoritative event doc and re-runs maintainProjection.
+// Used by booking lifecycle functions (cancel/no-show/confirm/payment)
+// that change capacity but don't have the full event data in hand.
+export async function refreshEventProjection(eventId: string): Promise<void> {
+  const ev = await db.collection(EVENTS).doc(eventId).get();
+  if (!ev.exists) {
+    await db.collection(PUBLIC).doc(eventId).delete().catch(() => {});
+    return;
+  }
+  await maintainProjection(eventId, ev.data()!);
+}

@@ -11,7 +11,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole, isAdmin } from './shared';
 import { getStripe } from './stripe';
-import { maintainProjection } from './calendarEvent';
+import { refreshEventProjection } from './calendarEvent';
 
 // ── cancelBooking ────────────────────────────────────────────
 // Evaluates the cancellation policy snapshot, determines the refund
@@ -164,7 +164,7 @@ export const cancelBooking = onCall(
 
     // Refresh the public Event projection — event bookings release capacity on cancel.
     if (booking.event_id) {
-      await maintainProjection(booking.event_id);
+      await refreshEventProjection(booking.event_id);
     }
 
     // Update receipt with refund adjustment
@@ -479,7 +479,7 @@ export const reportNoShow = onCall(
 
     // Refresh the public Event projection — no-show releases capacity.
     if (booking.event_id) {
-      await maintainProjection(booking.event_id);
+      await refreshEventProjection(booking.event_id);
     }
 
     // Create trust signal for no-show
