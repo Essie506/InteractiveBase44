@@ -148,7 +148,7 @@ export default function Directory() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {/* Title + mobile filter trigger */}
-        <div className="flex items-center justify-between mb-5 hidden">
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <Compass className="w-6 h-6 text-indigo-600" />
             <h1 className="text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
