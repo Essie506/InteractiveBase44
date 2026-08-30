@@ -19,6 +19,7 @@ import { db, allowedOrigins, requireAdmin, resolveProfessionalReferences } from 
 import { buildPersonalPublicProjection } from './personalProfileProjection';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
 import { buildPublicProjection } from './professionalProfile';
+import { isProfessionalListable } from './projectionEligibility';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
 
 export const backfillPublicProfiles = onCall(
@@ -64,31 +65,54 @@ export const backfillPublicProfiles = onCall(
       }
     }
 
-    // ── Professional ──────────────────────────────────────────
+    // ── Professional (canonical: doc ID == normalized screen_name) ──
+    // For each professional profile:
+    //   - eligible: write projection to professionalProfilesPublic/{normalizedScreenName}
+    //     then delete any stale projections for the same identity_id
+    //     whose doc ID != normalizedScreenName (catches legacy migration
+    //     docs that used the Base44 entity ID as doc ID)
+    //   - ineligible: delete ALL projections for this identity_id
+    //     (connections/private/inactive must have no public projection)
     const proSnap = await db.collection('professionalProfiles').get();
     results.professional.total = proSnap.size;
 
     for (const doc of proSnap.docs) {
       const data = doc.data();
-      const screenName = data.screen_name || null;
-      const isEligible = data.visibility === 'public'
-        && data.lifecycle_state === 'active'
-        && !!screenName;
+      const rawScreenName = data.screen_name || null;
+      const canonicalScreenName = rawScreenName
+        ? String(rawScreenName).toLowerCase().trim()
+        : null;
+      const isEligible = isProfessionalListable(data, canonicalScreenName);
 
       if (isEligible) {
         const locationGeo = await fetchProfessionalPublicGeo(db, data.service_area_location_id, data.location_id);
         const projection = buildPublicProjection(data.identity_id, doc.id, data, locationGeo);
-        await db.collection('professionalProfilesPublic').doc(screenName).set(projection);
+        // Write to canonical doc ID == normalized screen_name
+        await db.collection('professionalProfilesPublic').doc(canonicalScreenName).set(projection);
         results.professional.projected++;
+        // Remove stale projections for this identity whose doc ID
+        // doesn't match the canonical screen_name
+        const staleSnap = await db.collection('professionalProfilesPublic')
+          .where('identity_id', '==', data.identity_id)
+          .get();
+        for (const staleDoc of staleSnap.docs) {
+          if (staleDoc.id !== canonicalScreenName) {
+            await staleDoc.ref.delete().catch(() => {});
+          }
+        }
       } else {
         results.professional.skipped++;
         const reasons: string[] = [];
         if (data.visibility !== 'public') reasons.push(`visibility=${data.visibility}`);
         if (data.lifecycle_state !== 'active') reasons.push(`lifecycle=${data.lifecycle_state}`);
-        if (!screenName) reasons.push('no screen_name');
+        if (!canonicalScreenName) reasons.push('no screen_name');
         results.professional.skippedDetails.push(`${doc.id}: ${reasons.join(', ')}`);
-        if (screenName) {
-          await db.collection('professionalProfilesPublic').doc(screenName).delete().catch(() => {});
+        // Remove ALL public projections for this ineligible identity
+        const staleSnap = await db.collection('professionalProfilesPublic')
+          .where('identity_id', '==', data.identity_id)
+          .get();
+        for (const staleDoc of staleSnap.docs) {
+          await staleDoc.ref.delete().catch(() => {});
         }
       }
     }

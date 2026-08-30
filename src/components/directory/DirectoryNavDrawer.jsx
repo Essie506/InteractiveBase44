@@ -77,7 +77,7 @@ export default function DirectoryNavDrawer({ open, onOpenChange }) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-72 overflow-y-auto bg-slate-900 text-white border-r-0">
+      <SheetContent side="left" transparentOverlay className="w-72 overflow-y-auto bg-slate-900 text-white border-r-0">
         <SheetHeader className="mb-4 text-left">
           <SheetTitle className="text-white flex items-center gap-2.5">
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">

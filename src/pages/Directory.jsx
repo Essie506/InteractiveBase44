@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
 import { geocodeOrigin } from '@/lib/geo';
@@ -10,6 +10,7 @@ import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
 import ProfessionalResultCard from '@/components/directory/ProfessionalResultCard';
 import BusinessResultCard from '@/components/directory/BusinessResultCard';
 import { DEV_DEMO_PROFESSIONALS, DEV_DEMO_BUSINESSES } from '@/data/devDemoListings';
+import { parseDirectoryParams, serializeDirectoryParams, DEFAULT_DIRECTORY_FILTERS } from '@/lib/directoryUrlState';
 
 // Directory + Search page.
 // Public route — usable by signed-out visitors. Reads only from
@@ -24,6 +25,7 @@ import { DEV_DEMO_PROFESSIONALS, DEV_DEMO_BUSINESSES } from '@/data/devDemoListi
 // drawer or nav drawer never resets filters.
 export default function Directory() {
   const { user } = useAuth();
+  const [, setSearchParams] = useSearchParams();
   const [data, setData] = useState({ professionals: [], businesses: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,21 +33,31 @@ export default function Directory() {
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [navOpen, setNavOpen] = useState(false);
 
-  const [query, setQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [serviceIds, setServiceIds] = useState([]);
-  const [facilityIds, setFacilityIds] = useState([]);
-  const [businessTypeIds, setBusinessTypeIds] = useState([]);
-  const [equipmentIds, setEquipmentIds] = useState([]);
-  const [professionalTypeIds, setProfessionalTypeIds] = useState([]);
-  const [specialismIds, setSpecialismIds] = useState([]);
-  const [sessionTypeIds, setSessionTypeIds] = useState([]);
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [locationText, setLocationText] = useState('');
-  const [sort, setSort] = useState('recommended');
-  const [distance, setDistance] = useState(10);
+  // Parse URL search params once on mount — initializes both draft
+  // and applied filter state so the Directory restores the exact
+  // search when returning from a profile (browser Back) or opening
+  // a shared/refreshed URL.
+  const [initialParams] = useState(() =>
+    parseDirectoryParams(new URLSearchParams(window.location.search))
+  );
+
+  const [query, setQuery] = useState(initialParams.query);
+  const [typeFilter, setTypeFilter] = useState(initialParams.typeFilter);
+  const [serviceIds, setServiceIds] = useState(initialParams.serviceIds);
+  const [facilityIds, setFacilityIds] = useState(initialParams.facilityIds);
+  const [businessTypeIds, setBusinessTypeIds] = useState(initialParams.businessTypeIds);
+  const [equipmentIds, setEquipmentIds] = useState(initialParams.equipmentIds);
+  const [professionalTypeIds, setProfessionalTypeIds] = useState(initialParams.professionalTypeIds);
+  const [specialismIds, setSpecialismIds] = useState(initialParams.specialismIds);
+  const [sessionTypeIds, setSessionTypeIds] = useState(initialParams.sessionTypeIds);
+  const [verifiedOnly, setVerifiedOnly] = useState(initialParams.verifiedOnly);
+  const [locationText, setLocationText] = useState(initialParams.locationText);
+  const [sort, setSort] = useState(initialParams.sort);
+  const [distance, setDistance] = useState(initialParams.distance);
   const [origin, setOrigin] = useState(null);
-  const [originStatus, setOriginStatus] = useState('idle');
+  const [originStatus, setOriginStatus] = useState(
+    initialParams.locationText ? 'resolving' : 'idle'
+  );
 
   // Dev-only demo mode — gated by Vite DEV flag + ?demo=1 URL param.
   // Never active in production builds. Uses local seed data instead of
@@ -57,10 +69,7 @@ export default function Directory() {
   // Results only update when the user presses the Search button, which
   // copies the draft state into appliedFilters.
   const [appliedFilters, setAppliedFilters] = useState({
-    query: '', typeFilter: 'all', serviceIds: [], facilityIds: [],
-    businessTypeIds: [], equipmentIds: [], professionalTypeIds: [],
-    specialismIds: [], sessionTypeIds: [], verifiedOnly: false,
-    locationText: '', sort: 'recommended', distance: 10, origin: null,
+    ...initialParams, origin: null,
   });
 
   useEffect(() => {
@@ -98,6 +107,25 @@ export default function Directory() {
     return () => clearTimeout(timer);
   }, [locationText]);
 
+  // Restore origin from URL on mount — immediate (non-debounced)
+  // geocode so distance filtering works without waiting for the
+  // debounced effect. Patches the origin into appliedFilters so
+  // the restored search includes distance filtering immediately.
+  useEffect(() => {
+    if (!initialParams.locationText) return;
+    geocodeOrigin(initialParams.locationText).then(result => {
+      if (result) {
+        setOrigin(result);
+        setOriginStatus('resolved');
+        setAppliedFilters(prev => ({ ...prev, origin: result }));
+      } else {
+        setOriginStatus('not_found');
+      }
+    });
+    // mount only — initialParams is fixed at mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const results = useMemo(
     () => filterResults(data, {
       query: appliedFilters.query,
@@ -119,11 +147,15 @@ export default function Directory() {
   );
 
   const handleSearch = () => {
-    setAppliedFilters({
+    const newApplied = {
       query, typeFilter, serviceIds, facilityIds, businessTypeIds,
       equipmentIds, professionalTypeIds, specialismIds, sessionTypeIds,
       verifiedOnly, locationText, sort, distance, origin,
-    });
+    };
+    setAppliedFilters(newApplied);
+    // Serialize applied search to URL (replace — not push — so
+    // browser Back from a profile restores this exact search).
+    setSearchParams(serializeDirectoryParams(newApplied), { replace: true });
     setFiltersOpen(false); // close mobile filter sheet
   };
 
@@ -141,12 +173,8 @@ export default function Directory() {
     setLocationText('');
     setSort('recommended');
     setDistance(10);
-    setAppliedFilters({
-      query: '', typeFilter: 'all', serviceIds: [], facilityIds: [],
-      businessTypeIds: [], equipmentIds: [], professionalTypeIds: [],
-      specialismIds: [], sessionTypeIds: [], verifiedOnly: false,
-      locationText: '', sort: 'recommended', distance: 10, origin: null,
-    });
+    setAppliedFilters({ ...DEFAULT_DIRECTORY_FILTERS, origin: null });
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   const filterProps = {
@@ -260,8 +288,8 @@ export default function Directory() {
             <div className="space-y-4">
                 {results.map((r) =>
               r._type === 'professional' ?
-              <ProfessionalResultCard key={`p-${r.identity_id}`} profile={r} /> :
-              <BusinessResultCard key={`b-${r.business_id}`} profile={r} />
+              <ProfessionalResultCard key={`p-${r.identity_id}`} profile={r} isDemo={isDemoMode} /> :
+              <BusinessResultCard key={`b-${r.business_id}`} profile={r} isDemo={isDemoMode} />
               )}
               </div>
             }
