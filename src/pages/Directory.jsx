@@ -134,42 +134,39 @@ export default function Directory() {
             </div>
             <span className="font-semibold text-stone-800">Interactive</span>
           </button>
-          {/* Page title (not a Dashboard link) */}
+          {/* Page title (not a Dashboard link) — compass icon + Directory */}
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-stone-800">Directory</span>
-            {!user &&
-            <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+            <div className="flex items-center gap-2">
+              <Compass className="w-6 h-6 text-indigo-600" />
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
+            </div>
+            {!user && (
+              <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
                 Sign In
               </Link>
-            }
+            )}
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Title + mobile filter trigger */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <Compass className="w-6 h-6 text-indigo-600" />
-            <h1 className="text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
-          </div>
-          <button
-            onClick={() => setFiltersOpen(true)}
-            className="lg:hidden inline-flex items-center gap-2 px-4 py-2 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50">
-            
-            <SlidersHorizontal className="w-4 h-4" />
-            Filters
-          </button>
-        </div>
-
         <div className="flex gap-6">
           {/* Results — majority width */}
           <div className="flex-1 min-w-0">
-            <div className="mb-3 text-sm text-stone-500 flex items-center gap-2 flex-wrap">
-              <span>{loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</span>
-              {originStatus === 'resolving' && <span className="text-indigo-500">resolving location…</span>}
-              {originStatus === 'resolved' && origin && <span className="text-stone-400">within {distance} miles of {origin.label}</span>}
-              {originStatus === 'not_found' && locationText && <span className="text-amber-600">location not found</span>}
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="text-sm text-stone-500 flex items-center gap-2 flex-wrap">
+                <span>{loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</span>
+                {originStatus === 'resolving' && <span className="text-indigo-500">resolving location…</span>}
+                {originStatus === 'resolved' && origin && <span className="text-stone-400">within {distance} miles of {origin.label}</span>}
+                {originStatus === 'not_found' && locationText && <span className="text-amber-600">location not found</span>}
+              </div>
+              <button
+                onClick={() => setFiltersOpen(true)}
+                className="lg:hidden inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                Filters
+              </button>
             </div>
             {sort === 'distance' && originStatus !== 'resolved' && !loading && !error &&
             <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
