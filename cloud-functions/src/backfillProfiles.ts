@@ -1,18 +1,18 @@
-// Backfill — one-time population of personalProfilesPublic and
-// businessProfilesPublic from existing private profile records.
+// Backfill — one-time population of public projection collections from
+// existing private source records (personalProfiles, professionalProfiles,
+// businessProfiles, calendarEvents).
 // ───────────────────────────────────────────────────────────
-// Uses the exact same projection builders as the save functions
-// (imported from personalProfileProjection / businessProfileProjection),
+// Uses the exact same projection builders as the save functions,
 // so the public collections contain identical field selection.
 //
 // Admin-only. Idempotent: safe to run multiple times.
 // Does NOT modify private source data — only writes to the public
-// projection collections. Ineligible profiles that have a stale
+// projection collections. Ineligible records that have a stale
 // projection are cleaned up (projection deleted).
 //
 // Returns:
-//   { personal: { total, projected, skipped, skippedDetails[] },
-//     business: { total, projected, skipped, skippedDetails[] } }
+//   { personal, professional, business, events }
+//   each: { total, projected, skipped, skippedDetails[] }
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, requireAdmin, resolveProfessionalReferences } from './shared';
@@ -21,6 +21,7 @@ import { buildBusinessPublicProjection } from './businessProfileProjection';
 import { buildPublicProjection } from './professionalProfile';
 import { isProfessionalListable } from './projectionEligibility';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
+import { maintainProjection } from './calendarEvent';
 
 export const backfillPublicProfiles = onCall(
   { region: 'europe-west2', cors: allowedOrigins, timeoutSeconds: 300 },
@@ -34,6 +35,7 @@ export const backfillPublicProfiles = onCall(
       personal: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
       professional: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
       business: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
+      events: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
     };
 
     // ── Personal ──────────────────────────────────────────────
@@ -149,6 +151,34 @@ export const backfillPublicProfiles = onCall(
         if (businessId) {
           await db.collection('businessProfilesPublic').doc(businessId).delete().catch(() => {});
         }
+      }
+    }
+
+    // ── Events (calendarEventsPublic) ─────────────────────────
+    // Reuses the exact same maintainProjection logic as saveCalendarEvent
+    // so the projection is identical whether built live or via backfill.
+    // Ineligible events (private/cancelled/past/non-public-host) have any
+    // stale projection deleted.
+    const eventSnap = await db.collection('calendarEvents').get();
+    results.events.total = eventSnap.size;
+
+    for (const doc of eventSnap.docs) {
+      const data = doc.data();
+      try {
+        await maintainProjection(doc.id, data);
+        // Check whether a projection was actually written (maintainProjection
+        // deletes the projection for ineligible events). We infer success
+        // by checking if the public doc exists.
+        const pubDoc = await db.collection('calendarEventsPublic').doc(doc.id).get();
+        if (pubDoc.exists) {
+          results.events.projected++;
+        } else {
+          results.events.skipped++;
+          results.events.skippedDetails.push(`${doc.id}: ineligible`);
+        }
+      } catch (err: any) {
+        results.events.skipped++;
+        results.events.skippedDetails.push(`${doc.id}: ${err?.message || 'error'}`);
       }
     }
 

@@ -76,7 +76,8 @@
     },
     "meeting_url": {
       "type": "string",
-      "title": "Meeting URL"
+      "title": "Meeting URL",
+      "description": "Private \u2014 never projected to calendarEventsPublic. Revealed only through the booking/attendance flow."
     },
     "visibility": {
       "type": "string",
@@ -144,6 +145,62 @@
       "type": "string",
       "title": "Recurrence Rule",
       "description": "RRULE string for recurring events (RFC 5545)"
+    },
+    "services": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Service ID",
+            "description": "Canonical slug from ServiceDefinition taxonomy. Shared with Professional/Business profiles. Null for custom free-text entries."
+          },
+          "label": {
+            "type": "string",
+            "title": "Service Label"
+          }
+        },
+        "required": [
+          "label"
+        ]
+      },
+      "title": "Services / Activity",
+      "description": "Structured activity/service selections from the shared ServiceDefinition taxonomy. Reused for Directory 'Activity' filtering. Canonical entries carry an id; custom entries have id=null. Only meaningful for public events (owner_type professional or business)."
+    },
+    "cover_media_id": {
+      "type": "string",
+      "title": "Cover Media ID",
+      "description": "Stable reference to the MediaAsset used as the event cover image. Owned by the event owner's identity with source_domain 'professional' or 'business'."
+    },
+    "cover_url": {
+      "type": "string",
+      "title": "Cover URL",
+      "description": "Display URL for the cover image (resolved from MediaAsset). Convenience denormalisation for the public projection."
+    },
+    "price_pence": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0,
+      "title": "Price (pence)",
+      "description": "Advertised event price in pence. 0 for free events. Invariant: is_free === (price_pence === 0)."
+    },
+    "currency": {
+      "type": "string",
+      "default": "GBP",
+      "title": "Currency"
+    },
+    "is_free": {
+      "type": "boolean",
+      "default": true,
+      "title": "Is Free",
+      "description": "Deterministic invariant: is_free === (price_pence === 0). A free event must not carry a fabricated paid price."
+    },
+    "capacity": {
+      "type": "number",
+      "minimum": 1,
+      "title": "Capacity",
+      "description": "Maximum number of attendees for a group event. Null/absent for non-capacity events (e.g. one-to-one slot-based bookings). When present, spaces_remaining is derived as capacity minus valid confirmed/reserved attendee quantity."
     }
   },
   "required": [

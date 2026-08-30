@@ -67,11 +67,57 @@ export const createBookingDraft = onCall(
       payment_route, deposit_amount_pence,
       cancellation_policy,
       guest,
+      event_id,           // NEW — links booking to a public Calendar Event
+      attendee_quantity,  // NEW — group attendance (default 1 for one-to-one)
     } = data;
 
     // ── Validate required fields ──
     if (!provider_identity_id || !service_id || !start_time || !end_time) {
       throw new HttpsError('invalid-argument', 'Missing required booking fields');
+    }
+    // ── Event booking validation ──
+    // When booking a public event, event_id is required and attendee_quantity
+    // must be a positive integer (defaults to 1). For one-to-one slot bookings
+    // (no event_id), attendee_quantity is ignored — existing behaviour unchanged.
+    const qty = (typeof attendee_quantity === 'number' && attendee_quantity > 0)
+      ? Math.floor(attendee_quantity)
+      : 1;
+    if (event_id) {
+      // Verify the event exists and is publicly bookable
+      const eventDoc = await db.collection('calendarEvents').doc(event_id).get();
+      if (!eventDoc.exists) {
+        throw new HttpsError('not-found', 'Event not found');
+      }
+      const eventData = eventDoc.data()!;
+      if (eventData.visibility !== 'public') {
+        throw new HttpsError('failed-precondition', 'Event is not publicly bookable');
+      }
+      if (eventData.lifecycle_state === 'cancelled' || eventData.lifecycle_state === 'completed') {
+        throw new HttpsError('failed-precondition', 'Event is cancelled or completed');
+      }
+      // Capacity check (only if the event has a capacity)
+      if (eventData.capacity && eventData.capacity > 0) {
+        const reservedSnap = await db.collection('bookings')
+          .where('event_id', '==', event_id)
+          .where('booking_status', 'in', [
+            'requested', 'accepted', 'awaiting_customer_confirmation',
+            'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',
+          ])
+          .get();
+        let reserved = 0;
+        for (const b of reservedSnap.docs) {
+          const bQty = b.data().attendee_quantity;
+          reserved += (typeof bQty === 'number' && bQty > 0) ? bQty : 1;
+        }
+        if (reserved + qty > eventData.capacity) {
+          throw new HttpsError('failed-precondition', 'Event is full or has insufficient spaces');
+        }
+      }
+      // For event bookings, use the event's price as the base price if not
+      // explicitly provided (the event's advertised price is authoritative).
+      if (!base_price_pence && eventData.price_pence != null) {
+        // base_price_pence is resolved below from eventData
+      }
     }
     if (!payment_route) {
       throw new HttpsError('invalid-argument', 'payment_route is required');
@@ -108,7 +154,22 @@ export const createBookingDraft = onCall(
     const { feeRule, planTier, hasProWaiver, feeConfigStatus } = await resolveFeeRule(db, provider_identity_id, business_id || null);
 
     // ── Price snapshot + fee calculation (server-side) ──
-    const basePrice = base_price_pence || 0;
+    // For event bookings, the event's advertised price is authoritative
+    // when the client does not provide one. This snapshots the event price
+    // using the existing Booking price-snapshot architecture.
+    let resolvedBasePrice = base_price_pence || 0;
+    let eventCurrency = currency || 'GBP';
+    let eventIsFree = false;
+    if (event_id) {
+      const eventDoc = await db.collection('calendarEvents').doc(event_id).get();
+      if (eventDoc.exists) {
+        const ed = eventDoc.data()!;
+        resolvedBasePrice = ed.price_pence || 0;
+        eventCurrency = ed.currency || currency || 'GBP';
+        eventIsFree = ed.is_free === true || (ed.price_pence || 0) === 0;
+      }
+    }
+    const basePrice = resolvedBasePrice;
 
     // ── Fee configuration safety ──
     // Do not allow a missing fee configuration to silently become an
@@ -127,6 +188,11 @@ export const createBookingDraft = onCall(
     }
 
     const feeCalc = calculateBookingFee(basePrice, feeRule, feeConfigStatus);
+    // Free events: no fee regardless of route
+    if (event_id && eventIsFree) {
+      feeCalc.totalPence = 0;
+      feeCalc.bookingFeePence = 0;
+    }
 
     // For deposit route, the Stripe charge is the deposit amount
     // The total is still base + fee, but only deposit is charged now
@@ -228,19 +294,22 @@ export const createBookingDraft = onCall(
       timezone: timezone || 'UTC',
       location_context: location_context || 'physical',
       meeting_url: meeting_url || null,
+      // Event booking extension (preserves one-to-one behaviour when absent)
+      event_id: event_id || null,
+      attendee_quantity: event_id ? qty : null,
       // Price snapshots (immutable after creation)
       price_snapshot: {
         base_price_pence: basePrice,
-        currency: currency || 'GBP',
+        currency: eventCurrency,
       },
       booking_fee_snapshot: {
         amount_pence: feeCalc.bookingFeePence,
-        currency: currency || 'GBP',
+        currency: eventCurrency,
         fee_rule_basis: feeCalc.feeRuleBasis,
       },
       total_snapshot: {
         amount_pence: feeCalc.totalPence,
-        currency: currency || 'GBP',
+        currency: eventCurrency,
       },
       deposit_amount_pence: payment_route === 'deposit' ? (deposit_amount_pence || 0) : null,
       stripe_charge_amount_pence: stripeChargeAmount,
@@ -275,7 +344,7 @@ export const createBookingDraft = onCall(
       booking_fee_pence: feeCalc.bookingFeePence,
       stripe_charge_amount_pence: stripeChargeAmount,
       payment_requirement,
-      currency: currency || 'GBP',
+      currency: eventCurrency,
     };
   },
 );

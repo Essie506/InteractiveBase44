@@ -489,6 +489,20 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // CALENDAR EVENTS — PUBLIC PROJECTION
+    // ═══════════════════════════════════════════════════════════
+
+    match /calendarEventsPublic/{eventId} {
+      // Public projection — public-safe fields only (no meeting_url,
+      // no attendee identities, no private booking records). Doc ID == eventId.
+      // Readable by anyone (including unauthenticated guests) so public
+      // events can be discovered in the Directory and viewed at /e/:eventId.
+      // Maintained by the saveCalendarEvent Cloud Function (server-only).
+      allow read: if true;
+      allow write: if false; // Server-only — projection maintained by Cloud Function
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // CALENDAR EVENTS
     // ═══════════════════════════════════════════════════════════
 

@@ -5,18 +5,28 @@
 //
 // Params:
 //   q       — listing/search query (text)
-//   type    — result type (all|professional|business)
-//   sort    — sort order (distance|verified|recommended)
+//   type    — result type (all|professional|business|event)
+//   sort    — sort order (distance|verified|recommended|date)
 //   verified — verified only (1|0)
 //   loc     — location text
 //   dist    — distance/radius in miles
 //   ptype   — professional type IDs (comma-separated)
 //   spec    — specialism IDs (comma-separated)
 //   sess    — session type IDs (comma-separated)
-//   svc     — service IDs (comma-separated)
+//   svc     — service IDs (comma-separated — shared with events Activity)
 //   btype   — business type IDs (comma-separated)
 //   fac     — facility IDs (comma-separated)
 //   equip   — equipment IDs (comma-separated)
+//   date    — event date filter (today|tomorrow|week|weekend|custom)
+//   from    — custom date range start (YYYY-MM-DD)
+//   to      — custom date range end (YYYY-MM-DD)
+//   format  — event format (in-person,online,hybrid — comma-separated)
+//   price   — event price (free,paid — comma-separated)
+//   avail   — spaces available only (1|0)
+//   etype   — event Activity service IDs (comma-separated — alias of svc
+//             for events; kept separate so All-type searches can apply
+//             svc to professionals/businesses and etype to events
+//             independently)
 //
 // Empty/default values are omitted from the URL. Unknown params
 // are ignored on parse.
@@ -35,6 +45,14 @@ export const DEFAULT_DIRECTORY_FILTERS = {
   professionalTypeIds: [],
   specialismIds: [],
   sessionTypeIds: [],
+  // Event filters
+  dateFilter: '',      // today|tomorrow|week|weekend|custom
+  dateFrom: '',        // YYYY-MM-DD
+  dateTo: '',          // YYYY-MM-DD
+  formatIds: [],        // [in-person, online, hybrid]
+  priceIds: [],        // [free, paid]
+  availableOnly: false,
+  eventTypeIds: [],    // Activity service IDs for events
 };
 
 function parseIdList(value) {
