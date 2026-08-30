@@ -169,10 +169,11 @@ export function filterResults(data, opts = {}) {
       events = events.filter(e => e.host?.verification_state === 'verified');
     }
 
-    // Location filter for events
-    const hasOrigin = origin && origin.latitude != null && origin.longitude != null;
-    const distanceActive = hasOrigin && distance && distance > 0;
-    if (distanceActive) {
+    // Location filter for events (local-scope aliases to avoid
+    // shadowing the outer hasOrigin used by profile filtering + sort)
+    const evtHasOrigin = origin && origin.latitude != null && origin.longitude != null;
+    const evtDistanceActive = evtHasOrigin && distance && distance > 0;
+    if (evtDistanceActive) {
       events = events.filter(e => {
         const coords = e.location_geo;
         if (!coords) return false;
@@ -196,7 +197,7 @@ export function filterResults(data, opts = {}) {
     }
 
     // Attach distance for events
-    if (hasOrigin) {
+    if (evtHasOrigin) {
       events = events.map(e => ({
         ...e,
         _distance: e.location_geo ? haversineMiles(origin, e.location_geo) : null,

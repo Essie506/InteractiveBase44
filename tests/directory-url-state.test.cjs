@@ -35,12 +35,16 @@ function test(name, fn) {
 
   test('Round-trip: all filters serialize → parse correctly', () => {
     const filters = {
+      ...DEFAULT_DIRECTORY_FILTERS,
       query: 'yoga', typeFilter: 'professional', sort: 'distance',
       verifiedOnly: true, locationText: 'London', distance: 15,
       serviceIds: ['svc1', 'svc2'], facilityIds: ['fac1'],
       businessTypeIds: ['gym'], equipmentIds: ['eq1', 'eq2'],
       professionalTypeIds: ['pt1'], specialismIds: ['sp1'],
       sessionTypeIds: ['st1'],
+      dateFilter: 'weekend', dateFrom: '', dateTo: '',
+      formatIds: ['online'], priceIds: ['free'],
+      availableOnly: true, eventTypeIds: ['yoga'],
     };
     const params = serializeDirectoryParams(filters);
     const parsed = parseDirectoryParams(params);
