@@ -28,9 +28,9 @@ import { isPriceSort } from '@/lib/directorySortOptions';
 export default function Directory() {
   const { user } = useAuth();
   const [, setSearchParams] = useSearchParams();
-  const [data, setData] = useState({ professionals: [], businesses: [], events: [] });
+  const [data, setData] = useState({ professionals: [], businesses: [], events: [], sourceErrors: {} });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [reloading, setReloading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [navOpen, setNavOpen] = useState(false);
@@ -81,16 +81,31 @@ export default function Directory() {
     ...initialParams, origin: null,
   });
 
-  useEffect(() => {
+  // Load each discovery source independently (Promise.allSettled inside
+  // loadDirectory). A failed source is reported via data.sourceErrors
+  // and surfaced as a subtle notice — it never blanks the Directory or
+  // resets filters/URL state. Retry re-runs the load in place.
+  const loadData = async () => {
     if (isDemoMode) {
-      setData({ professionals: DEV_DEMO_PROFESSIONALS, businesses: DEV_DEMO_BUSINESSES, events: DEV_DEMO_EVENTS });
+      setData({ professionals: DEV_DEMO_PROFESSIONALS, businesses: DEV_DEMO_BUSINESSES, events: DEV_DEMO_EVENTS, sourceErrors: {} });
       setLoading(false);
+      setReloading(false);
       return;
     }
-    loadDirectory().
-    then(setData).
-    catch((err) => setError(err.message || 'Could not load directory')).
-    finally(() => setLoading(false));
+    setReloading(true);
+    try {
+      const result = await loadDirectory();
+      setData(result);
+    } finally {
+      setLoading(false);
+      setReloading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // mount only — isDemoMode is fixed for the page lifetime
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Debounced origin geocoding — resolves the location input to
@@ -161,6 +176,39 @@ export default function Directory() {
     }),
     [data, appliedFilters]
   );
+
+  // ── Source-unavailable reporting ──
+  // Each discovery source (professionals / businesses / events) loads
+  // independently. A failed source is reported as a subtle persistent
+  // notice above the results, without blanking the whole Directory.
+  // When the selected Show Me type's source is unavailable, a targeted
+  // unavailable state is shown instead of a fake "no results" — keeping
+  // genuine zero-match results distinct from source-unavailable.
+  const SOURCE_LABELS = {
+    professionals: 'Professional listings',
+    businesses: 'Business listings',
+    events: 'Events',
+  };
+  const sourceErrors = data.sourceErrors || {};
+  const failedSources = Object.keys(SOURCE_LABELS).filter(k => sourceErrors[k]);
+  const selectedSourceKey =
+    appliedFilters.typeFilter === 'professional' ? 'professionals' :
+    appliedFilters.typeFilter === 'business' ? 'businesses' :
+    appliedFilters.typeFilter === 'event' ? 'events' : null;
+  const selectedSourceFailed = !!(selectedSourceKey && sourceErrors[selectedSourceKey]);
+  const allSourcesFailed = failedSources.length >= 3;
+  const showUnavailableState = selectedSourceFailed ||
+    (appliedFilters.typeFilter === 'all' && allSourcesFailed);
+  function buildUnavailableMessage(failed) {
+    if (failed.length === 0) return '';
+    if (failed.length >= 3) return 'Directory listings are temporarily unavailable.';
+    const parts = failed.map(f => SOURCE_LABELS[f]);
+    const joined = parts.length === 1
+      ? parts[0]
+      : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+    return `${joined} are temporarily unavailable.`;
+  }
+  const unavailableMessage = buildUnavailableMessage(failedSources);
 
   const handleSearch = () => {
     const newApplied = {
@@ -293,9 +341,26 @@ export default function Directory() {
                 Filters
               </button>
             </div>
-            {appliedFilters.sort === 'distance' && !appliedFilters.origin && !loading && !error &&
+            {/* Distance-sort hint */}
+            {appliedFilters.sort === 'distance' && !appliedFilters.origin && !loading &&
             <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
                 Enter a location and press Search to sort by distance.
+              </div>
+            }
+
+            {/* Source-unavailable notice — subtle, persistent, non-blocking.
+                Shown for any failed discovery source(s). Disappears on a
+                successful reload. Does not reset filters or URL state. */}
+            {failedSources.length > 0 && !loading &&
+            <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-3">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span className="flex-1">{unavailableMessage}</span>
+                <button
+                  onClick={loadData}
+                  disabled={reloading}
+                  className="text-amber-700 font-medium hover:text-amber-900 disabled:opacity-50 shrink-0">
+                  {reloading ? 'Retrying…' : 'Retry'}
+                </button>
               </div>
             }
 
@@ -306,17 +371,16 @@ export default function Directory() {
               </div>
             }
 
-            {error && !loading &&
-            <div className="flex flex-col items-center py-20">
-                <AlertCircle className="w-10 h-10 text-stone-300 mb-3" />
-                <p className="text-sm text-stone-500 mb-1">{error}</p>
-                <button onClick={() => window.location.reload()} className="text-sm text-indigo-600 font-medium">
-                  Try again
-                </button>
+            {/* Selected source unavailable — targeted state, not a fake
+                "no results". Distinct from a genuine zero-match result. */}
+            {!loading && showUnavailableState &&
+            <div className="flex flex-col items-center py-16">
+                <AlertCircle className="w-8 h-8 text-amber-300 mb-2" />
+                <p className="text-sm text-stone-400">Unavailable</p>
               </div>
             }
 
-            {!loading && !error && results.length === 0 &&
+            {!loading && !showUnavailableState && results.length === 0 &&
             <div className="flex flex-col items-center py-20">
                 <SearchX className="w-10 h-10 text-stone-300 mb-3" />
                 <p className="text-stone-600 font-medium mb-1">No results found</p>
@@ -324,7 +388,7 @@ export default function Directory() {
               </div>
             }
 
-            {!loading && !error && results.length > 0 &&
+            {!loading && !showUnavailableState && results.length > 0 &&
             <div className="space-y-4">
                 {results.map((r) =>
               r._type === 'professional' ?

@@ -39,20 +39,30 @@ const BUSINESS_PUBLIC = 'businessProfilesPublic';
 const EVENTS_PUBLIC = 'calendarEventsPublic';
 
 // ── Load all listable public profiles + events ────────────
+// Each discovery source loads independently via Promise.allSettled so
+// a permission-denied / network failure on ONE source (e.g. an
+// undeployed calendarEventsPublic rule) does NOT blank the whole
+// Directory. Failed sources are reported in `sourceErrors` rather
+// than rejecting the entire load.
 export async function loadDirectory() {
-  if (!useFirebase) return { professionals: [], businesses: [], events: [] };
+  if (!useFirebase) return { professionals: [], businesses: [], events: [], sourceErrors: {} };
 
-  const [proSnap, bizSnap, evtSnap] = await Promise.all([
+  const [proRes, bizRes, evtRes] = await Promise.allSettled([
     getDocs(collection(db, PROFESSIONAL_PUBLIC)),
     getDocs(collection(db, BUSINESS_PUBLIC)),
     getDocs(collection(db, EVENTS_PUBLIC)),
   ]);
 
-  return {
-    professionals: proSnap.docs.map(fromFirestoreDoc),
-    businesses: bizSnap.docs.map(fromFirestoreDoc),
-    events: evtSnap.docs.map(fromFirestoreDoc),
-  };
+  const professionals = proRes.status === 'fulfilled' ? proRes.value.docs.map(fromFirestoreDoc) : [];
+  const businesses = bizRes.status === 'fulfilled' ? bizRes.value.docs.map(fromFirestoreDoc) : [];
+  const events = evtRes.status === 'fulfilled' ? evtRes.value.docs.map(fromFirestoreDoc) : [];
+
+  const sourceErrors = {};
+  if (proRes.status === 'rejected') sourceErrors.professionals = proRes.reason?.message || 'Unavailable';
+  if (bizRes.status === 'rejected') sourceErrors.businesses = bizRes.reason?.message || 'Unavailable';
+  if (evtRes.status === 'rejected') sourceErrors.events = evtRes.reason?.message || 'Unavailable';
+
+  return { professionals, businesses, events, sourceErrors };
 }
 
 // ── Text match (case-insensitive across public fields) ────
