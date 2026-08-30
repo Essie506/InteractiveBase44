@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { MapPin, ArrowRight, ShieldCheck } from 'lucide-react';
 import { formatDistance } from '@/lib/geo';
+import MatchBadge from './MatchBadge';
 
 // Horizontal image-led directory card for a Professional public profile.
 // Click-through navigates to the existing /p/:screenName route.
@@ -81,7 +82,8 @@ export default function ProfessionalResultCard({ profile }) {
             </div>
           )}
 
-          <div className="mt-auto pt-2 flex items-center justify-end">
+          <div className="mt-auto pt-2 flex items-center justify-between">
+            <MatchBadge matchScore={profile._matchScore} />
             <span className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 group-hover:gap-2 transition-all">
               View Profile
               <ArrowRight className="w-4 h-4" />

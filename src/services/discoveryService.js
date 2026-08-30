@@ -29,6 +29,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { useFirebase } from '@/lib/backendConfig';
 import { fromFirestoreDoc } from '@/data/firebase/mappers';
 import { haversineMiles, getGeoCoords } from '@/lib/geo';
+import { computeMatchScore, matchScoreValue } from '@/lib/matchScoring';
 
 const PROFESSIONAL_PUBLIC = 'professionalProfilesPublic';
 const BUSINESS_PUBLIC = 'businessProfilesPublic';
@@ -88,24 +89,7 @@ export function filterResults(data, opts = {}) {
     results = results.filter(r => r.verification_state === 'verified');
   }
 
-  // Canonical service filter — match ANY selected service id
-  if (serviceIds && serviceIds.length > 0) {
-    results = results.filter(r =>
-      Array.isArray(r.services) &&
-      serviceIds.some(sid => r.services.some(s => s.id === sid))
-    );
-  }
-
-  // Canonical facility filter — business only, match ANY selected facility id
-  if (facilityIds && facilityIds.length > 0) {
-    results = results.filter(r =>
-      r._type === 'business' &&
-      Array.isArray(r.facilities) &&
-      facilityIds.some(fid => r.facilities.some(f => f.id === fid))
-    );
-  }
-
-  // Business type filter — business only, match ANY selected type
+  // Business type filter — strict (not ranked), business only.
   // (business_type is the denormalised Business.type enum carried on
   // the public projection).
   if (businessTypeIds && businessTypeIds.length > 0) {
@@ -115,14 +99,23 @@ export function filterResults(data, opts = {}) {
     );
   }
 
-  // Equipment filter — business only, match ANY selected equipment id.
-  // Same OR matching semantics as Services and Facilities.
-  if (equipmentIds && equipmentIds.length > 0) {
-    results = results.filter(r =>
-      r._type === 'business' &&
-      Array.isArray(r.equipment) &&
-      equipmentIds.some(eid => r.equipment.some(e => e.id === eid))
-    );
+  // Ranked multi-select matching for Services, Facilities, Equipment.
+  // Each active dimension is scored independently (match_ratio =
+  // matched_count / selected_count). Results with 0 matches in any
+  // active dimension are excluded. The combined score (average of
+  // dimension ratios) influences sort order — see ranking below.
+  const hasStructuredFilters =
+    (serviceIds && serviceIds.length > 0) ||
+    (facilityIds && facilityIds.length > 0) ||
+    (equipmentIds && equipmentIds.length > 0);
+
+  if (hasStructuredFilters) {
+    results = results
+      .map(r => {
+        const _matchScore = computeMatchScore(r, { serviceIds, facilityIds, equipmentIds });
+        return { ...r, _matchScore };
+      })
+      .filter(r => r._matchScore.isEligible);
   }
 
   // Location filter — distance-based when origin is resolved,
@@ -164,17 +157,21 @@ export function filterResults(data, opts = {}) {
     });
   }
 
-  // Ranking — organic default is verified-first then alphabetical.
-  // Distance sort is a third independent mode (requires origin).
+  // Ranking — structured match quality influences each sort mode.
+  //   Recommended → match score desc, then verified, then alphabetical
+  //   Verified    → verified first, then match score desc, then recency
+  //   Distance    → nearest first, then match score desc as tie-breaker
   if (sort === 'distance' && hasOrigin) {
     // Nearest → furthest. Profiles without coordinates sort last.
+    // Match score is a tie-breaker for equal distances.
     results.sort((a, b) => {
       const ad = a._distance;
       const bd = b._distance;
-      if (ad == null && bd == null) return 0;
+      if (ad == null && bd == null) return matchScoreValue(b) - matchScoreValue(a);
       if (ad == null) return 1;
       if (bd == null) return -1;
-      return ad - bd;
+      if (ad !== bd) return ad - bd;
+      return matchScoreValue(b) - matchScoreValue(a);
     });
   } else if (sort === 'name_az') {
     results.sort((a, b) =>
@@ -184,17 +181,21 @@ export function filterResults(data, opts = {}) {
     results.sort((a, b) =>
       new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime());
   } else if (sort === 'verified') {
-    // Verified first, then most recently updated
+    // Verified first, then stronger filter match, then most recently updated
     results.sort((a, b) => {
       const av = a.verification_state === 'verified' ? 0 : 1;
       const bv = b.verification_state === 'verified' ? 0 : 1;
       if (av !== bv) return av - bv;
+      const ms = matchScoreValue(b) - matchScoreValue(a);
+      if (ms !== 0) return ms;
       return new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime();
     });
   } else {
     // 'recommended' (default) or 'distance' without origin —
-    // organic ranking: verified first, then alphabetical.
+    // strongest structured match first, then verified, then alphabetical.
     results.sort((a, b) => {
+      const ms = matchScoreValue(b) - matchScoreValue(a);
+      if (ms !== 0) return ms;
       const av = a.verification_state === 'verified' ? 0 : 1;
       const bv = b.verification_state === 'verified' ? 0 : 1;
       if (av !== bv) return av - bv;
