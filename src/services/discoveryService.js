@@ -66,7 +66,7 @@ function matchesQuery(profile, q) {
 //   types: null = all, or ['professional'] / ['business'] / both
 export function filterResults(data, opts = {}) {
   const {
-    query, types, serviceIds, facilityIds,
+    query, types, serviceIds, facilityIds, businessTypeIds,
     verifiedOnly, locationText, sort = 'recommended', maxResults = 100,
     origin, distance,
   } = opts;
@@ -101,6 +101,16 @@ export function filterResults(data, opts = {}) {
       r._type === 'business' &&
       Array.isArray(r.facilities) &&
       facilityIds.some(fid => r.facilities.some(f => f.id === fid))
+    );
+  }
+
+  // Business type filter — business only, match ANY selected type
+  // (business_type is the denormalised Business.type enum carried on
+  // the public projection).
+  if (businessTypeIds && businessTypeIds.length > 0) {
+    results = results.filter(r =>
+      r._type === 'business' &&
+      businessTypeIds.includes(r.business_type)
     );
   }
 

@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
 import { geocodeOrigin } from '@/lib/geo';
-import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal } from 'lucide-react';
+import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
+import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
 import ProfessionalResultCard from '@/components/directory/ProfessionalResultCard';
 import BusinessResultCard from '@/components/directory/BusinessResultCard';
 
@@ -14,17 +15,26 @@ import BusinessResultCard from '@/components/directory/BusinessResultCard';
 // the public profile projections (professionalProfilesPublic,
 // businessProfilesPublic) which are public-read and contain only
 // public-safe fields. No private collections are accessed.
+//
+// The Interactive logo opens a navigation drawer (does NOT navigate
+// to Dashboard). The top-right shows "Directory" as the page title.
+// The filter panel lives on the RIGHT side as a collapsible drawer.
+// All filter state lives in this component, so opening/closing the
+// drawer or nav drawer never resets filters.
 export default function Directory() {
   const { user } = useAuth();
   const [data, setData] = useState({ professionals: [], businesses: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [navOpen, setNavOpen] = useState(false);
 
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [serviceIds, setServiceIds] = useState([]);
   const [facilityIds, setFacilityIds] = useState([]);
+  const [businessTypeIds, setBusinessTypeIds] = useState([]);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [locationText, setLocationText] = useState('');
   const [sort, setSort] = useState('recommended');
@@ -68,13 +78,14 @@ export default function Directory() {
       types: typeFilter === 'all' ? null : [typeFilter],
       serviceIds,
       facilityIds,
+      businessTypeIds,
       verifiedOnly,
       locationText: locationText || undefined,
       sort,
       origin,
       distance,
     }),
-    [data, query, typeFilter, serviceIds, facilityIds, verifiedOnly, locationText, sort, origin, distance],
+    [data, query, typeFilter, serviceIds, facilityIds, businessTypeIds, verifiedOnly, locationText, sort, origin, distance],
   );
 
   const handleReset = () => {
@@ -82,6 +93,7 @@ export default function Directory() {
     setTypeFilter('all');
     setServiceIds([]);
     setFacilityIds([]);
+    setBusinessTypeIds([]);
     setVerifiedOnly(false);
     setLocationText('');
     setSort('recommended');
@@ -93,6 +105,7 @@ export default function Directory() {
     typeFilter, setTypeFilter,
     serviceIds, setServiceIds,
     facilityIds, setFacilityIds,
+    businessTypeIds, setBusinessTypeIds,
     verifiedOnly, setVerifiedOnly,
     locationText, setLocationText,
     sort, setSort,
@@ -104,23 +117,28 @@ export default function Directory() {
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200">
+      <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2.5">
+          {/* Logo → opens nav drawer (does NOT navigate to Dashboard) */}
+          <button
+            onClick={() => setNavOpen(true)}
+            className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+            aria-label="Open navigation menu"
+          >
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">I</span>
             </div>
             <span className="font-semibold text-stone-800">Interactive</span>
-          </Link>
-          {user ? (
-            <Link to="/dashboard" className="text-sm text-stone-600 hover:text-stone-800 font-medium">
-              Dashboard
-            </Link>
-          ) : (
-            <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-              Sign In
-            </Link>
-          )}
+          </button>
+          {/* Page title (not a Dashboard link) */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-stone-800">Directory</span>
+            {!user && (
+              <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                Sign In
+              </Link>
+            )}
+          </div>
         </div>
       </header>
 
@@ -141,14 +159,7 @@ export default function Directory() {
         </div>
 
         <div className="flex gap-6">
-          {/* Desktop sidebar */}
-          <aside className="hidden lg:block w-72 shrink-0">
-            <div className="sticky top-6 bg-white border border-stone-200 rounded-xl p-5">
-              <DirectoryFilters {...filterProps} />
-            </div>
-          </aside>
-
-          {/* Results */}
+          {/* Results — majority width */}
           <div className="flex-1 min-w-0">
             <div className="mb-3 text-sm text-stone-500 flex items-center gap-2 flex-wrap">
               <span>{loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</span>
@@ -197,6 +208,32 @@ export default function Directory() {
               </div>
             )}
           </div>
+
+          {/* Desktop filter drawer — right side, collapsible */}
+          {drawerOpen ? (
+            <aside className="hidden lg:block w-80 shrink-0 relative">
+              {/* Close chevron on drawer left edge */}
+              <button
+                onClick={() => setDrawerOpen(false)}
+                className="absolute left-0 top-8 -translate-x-1/2 w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-sm hover:bg-stone-50 hover:border-stone-300 z-10 transition-colors"
+                aria-label="Collapse filter drawer"
+              >
+                <ChevronRight className="w-4 h-4 text-stone-600" />
+              </button>
+              <div className="sticky top-24 bg-white border border-stone-200 rounded-xl p-5 max-h-[calc(100vh-8rem)] overflow-y-auto">
+                <DirectoryFilters {...filterProps} />
+              </div>
+            </aside>
+          ) : (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="hidden lg:flex items-center gap-2 px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-50 hover:border-stone-300 self-start sticky top-24 transition-colors"
+              aria-label="Expand filter drawer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Filters
+            </button>
+          )}
         </div>
       </div>
 
@@ -209,6 +246,9 @@ export default function Directory() {
           <DirectoryFilters {...filterProps} />
         </SheetContent>
       </Sheet>
+
+      {/* Navigation drawer (opened by logo click) */}
+      <DirectoryNavDrawer open={navOpen} onOpenChange={setNavOpen} />
     </div>
   );
 }
