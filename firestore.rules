@@ -507,12 +507,14 @@ service cloud.firestore {
     // ═══════════════════════════════════════════════════════════
 
     match /calendarEvents/{eventId} {
+      // Private collection — owner, authorised business members, and
+      // admins only. Generic authenticated users can NO LONGER read the
+      // full private event merely because visibility == 'public' or
+      // 'connections'. Public discovery uses the calendarEventsPublic
+      // projection (public-read, no meeting_url / private fields).
+      // Attendees receive attendance-specific info via their booking
+      // record, not via calendarEvents — no authorised-attendee clause.
       allow read: if isOwner(resource.data.owner_id)
-        || (resource.data.visibility == 'public' && isAuthenticated())
-        || (resource.data.visibility == 'connections' && isAuthenticated())
-        || (resource.data.visibility == 'staff'
-          && resource.data.business_id != null
-          && isBusinessMember(resource.data.business_id))
         || (resource.data.business_id != null
           && isBusinessMember(resource.data.business_id))
         || isAdmin();

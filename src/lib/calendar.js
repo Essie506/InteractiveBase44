@@ -197,15 +197,3 @@ export async function updateConnectionStatus(connectionId, status, error = null)
   if (useFirebase) return calendarRepository.updateConnection(connectionId, updateData);
   return base44.entities.ExternalCalendarConnection.update(connectionId, updateData);
 }
-
-export function canAccessEvent(event, identityId, businessId, businessRole) {
-  if (!event) return false;
-  if (event.owner_id === identityId) return true;
-  if (event.created_by_id === identityId) return true;
-  if (event.owner_type === 'business' && event.business_id === businessId) {
-    if (event.visibility === 'staff' && (businessRole === 'owner' || businessRole === 'admin')) return true;
-    if (event.visibility === 'public') return true;
-  }
-  if (event.visibility === 'public') return true;
-  return false;
-}

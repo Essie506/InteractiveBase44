@@ -1278,6 +1278,209 @@ async function runServerAuthoritativeTests() {
   });
 }
 
+// ── Calendar Events Private-Read Hardening Tests ──
+
+async function setupCalendarEvent(db, eventId, data) {
+  await db.collection('calendarEvents').doc(eventId).set(data);
+}
+
+async function runCalendarHardeningTests() {
+  // CE1. Owner can read own private calendar event
+  await test('CE1. Owner can read own private calendar event', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupCalendarEvent(db, 'evtA', {
+        owner_id: 'identityA',
+        owner_type: 'identity',
+        title: 'My event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        meeting_url: 'https://meet.example.com/priv',
+        created_by_id: 'identityA',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('calendarEvents').doc('evtA').get());
+  });
+
+  // CE2. Legitimate business member can read business calendar event
+  await test('CE2. Business member can read business calendar event', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupBusiness(db, 'bizA', 'identityB');
+      await setupMembership(db, 'bizA', 'identityA', 'member');
+      await setupCalendarEvent(db, 'evtBiz', {
+        owner_id: 'identityB',
+        owner_type: 'business',
+        business_id: 'bizA',
+        title: 'Business class',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'staff',
+        meeting_url: 'https://meet.example.com/biz',
+        created_by_id: 'identityB',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('calendarEvents').doc('evtBiz').get());
+  });
+
+  // CE3. Admin can read private calendar event
+  await test('CE3. Admin can read private calendar event', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authAdmin', 'adminIdentity');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupUser(db, 'adminIdentity', { role: 'admin', email: 'admin@test.com' });
+      await setupCalendarEvent(db, 'evtB', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Private event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        meeting_url: 'https://meet.example.com/b',
+        created_by_id: 'identityB',
+      });
+    });
+    const db = testEnv.authenticatedContext('authAdmin').firestore();
+    await assertSucceeds(db.collection('calendarEvents').doc('evtB').get());
+  });
+
+  // CE4. Signed-out visitor can read eligible calendarEventsPublic projection
+  await test('CE4. Signed-out visitor can read calendarEventsPublic projection', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await db.collection('calendarEventsPublic').doc('evtPub').set({
+        event_id: 'evtPub',
+        title: 'Public yoga class',
+        visibility: 'public',
+        lifecycle_state: 'scheduled',
+        is_free: true,
+        price_pence: 0,
+      });
+    });
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertSucceeds(db.collection('calendarEventsPublic').doc('evtPub').get());
+  });
+
+  // CE5. Authenticated non-owner can read calendarEventsPublic projection
+  await test('CE5. Authenticated non-owner can read calendarEventsPublic projection', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await db.collection('calendarEventsPublic').doc('evtPub2').set({
+        event_id: 'evtPub2',
+        title: 'Public class',
+        visibility: 'public',
+        lifecycle_state: 'scheduled',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('calendarEventsPublic').doc('evtPub2').get());
+  });
+
+  // CE6. Signed-out user denied read of private calendarEvents
+  await test('CE6. Signed-out user denied private calendarEvents read', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupCalendarEvent(db, 'evtPriv', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Private',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'public',
+        created_by_id: 'identityB',
+      });
+    });
+    const db = testEnv.unauthenticatedContext().firestore();
+    await assertFails(db.collection('calendarEvents').doc('evtPriv').get());
+  });
+
+  // CE7. Authenticated unrelated user denied read of private event (visibility=public)
+  await test('CE7. Unrelated user denied private event with visibility=public', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupCalendarEvent(db, 'evtPub', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Public event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'public',
+        meeting_url: 'https://meet.example.com/leak',
+        created_by_id: 'identityB',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('calendarEvents').doc('evtPub').get());
+  });
+
+  // CE8. Authenticated unrelated user denied read of private event (visibility=connections)
+  await test('CE8. Unrelated user denied private event with visibility=connections', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupCalendarEvent(db, 'evtConn', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Connections event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'connections',
+        meeting_url: 'https://meet.example.com/leak',
+        created_by_id: 'identityB',
+      });
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('calendarEvents').doc('evtConn').get());
+  });
+
+  // CE9. Unrelated user denied read of private/staff business event
+  await test('CE9. Unrelated user denied private/staff business event', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authC', 'identityC');
+      await setupBusiness(db, 'bizB', 'identityB');
+      await setupCalendarEvent(db, 'evtStaff', {
+        owner_id: 'identityB',
+        owner_type: 'business',
+        business_id: 'bizB',
+        title: 'Staff event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'staff',
+        meeting_url: 'https://meet.example.com/staff',
+        created_by_id: 'identityB',
+      });
+    });
+    const db = testEnv.authenticatedContext('authC').firestore();
+    await assertFails(db.collection('calendarEvents').doc('evtStaff').get());
+  });
+
+  // CE10. Client cannot write calendarEventsPublic projection
+  await test('CE10. Client cannot write calendarEventsPublic projection', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('calendarEventsPublic').doc('evtFake').set({
+      event_id: 'evtFake',
+      title: 'Forged public event',
+      visibility: 'public',
+    }));
+  });
+}
+
 // ── Main ──
 
 async function main() {
@@ -1304,6 +1507,7 @@ async function main() {
   await runTests();
   await runIdentityMappingTests();
   await runServerAuthoritativeTests();
+  await runCalendarHardeningTests();
 
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;
