@@ -1,4 +1,3 @@
-import { useState, useMemo } from 'react';
 import { Search, MapPin, ShieldCheck, RotateCcw } from 'lucide-react';
 import { STANDARD_SERVICES } from '@/data/standardServices';
 import { STANDARD_FACILITIES } from '@/data/standardFacilities';
@@ -6,7 +5,6 @@ import { BUSINESS_TYPES } from '@/data/businessTypes';
 import { STANDARD_PROFESSIONAL_TYPES } from '@/data/standardProfessionalTypes';
 import { STANDARD_SPECIALISMS } from '@/data/standardSpecialisms';
 import { STANDARD_SESSION_TYPES } from '@/data/standardSessionTypes';
-import { STANDARD_EQUIPMENT } from '@/data/standardEquipment';
 import FilterMultiSelect from './FilterMultiSelect';
 import EquipmentFilter from './EquipmentFilter';
 import { Slider } from '@/components/ui/slider';
@@ -19,30 +17,20 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/
 // Each category is a collapsible Accordion section. Collapsing a
 // section does NOT clear its selections (state is in the parent).
 //
-// FILTER SEARCH:
-//   A search input at the top filters OPTIONS (not listings).
-//   When active, only matching options are shown within their
-//   sections, sections with no matches are hidden, and all visible
-//   sections auto-expand. Search is case-insensitive and matches
-//   partial text. It does not select or reset anything.
+// PER-SECTION SEARCH:
+//   Each filter section has its own search input inside its expanded
+//   content. The search filters only that section's options, is
+//   case-insensitive, supports partial matching, and does not affect
+//   selections or any other section's search.
 //
 // ALPHABETICAL ORDER:
 //   Filter values are sorted alphabetically by label within each
 //   section. Section order remains semantic/logical.
 //
 // Type-dependent sections:
-//   All         → Pro Type, Specialisms, Session Type, Biz Type, Services, Facilities, Equipment
+//   All           → Pro Type, Specialisms, Session Type, Biz Type, Services, Facilities, Equipment
 //   Professionals → Pro Type, Specialisms, Session Type, Services
 //   Businesses    → Biz Type, Services, Facilities, Equipment
-//
-// Taxonomy sources:
-//   Professional Type — STANDARD_PROFESSIONAL_TYPES
-//   Specialisms       — STANDARD_SPECIALISMS
-//   Session Type      — STANDARD_SESSION_TYPES
-//   Services          — STANDARD_SERVICES (shared pro/biz taxonomy)
-//   Facilities        — STANDARD_FACILITIES (business-only taxonomy)
-//   Business type     — BUSINESS_TYPES (Business.type enum values)
-//   Equipment         — STANDARD_EQUIPMENT (business-only, nested categories)
 const SORT_OPTIONS = [
   { value: 'distance', label: 'Distance' },
   { value: 'verified', label: 'Verified' },
@@ -83,9 +71,6 @@ export default function DirectoryFilters({
   originStatus,
   onReset,
 }) {
-  const [filterSearch, setFilterSearch] = useState('');
-  const [accordionValue, setAccordionValue] = useState(['show-me', 'location', 'services']);
-
   const showProfessionalType = typeFilter === 'all' || typeFilter === 'professional';
   const showSpecialisms = typeFilter === 'all' || typeFilter === 'professional';
   const showSessionType = typeFilter === 'all' || typeFilter === 'professional';
@@ -93,68 +78,8 @@ export default function DirectoryFilters({
   const showFacilities = typeFilter === 'all' || typeFilter === 'business';
   const showEquipment = typeFilter === 'all' || typeFilter === 'business';
 
-  const search = filterSearch.toLowerCase().trim();
-
-  // Filter + sort options by search term
-  const filterOpts = (opts) => {
-    const sorted = alphaSort(opts);
-    if (!search) return sorted;
-    return sorted.filter(o => o.label.toLowerCase().includes(search));
-  };
-
-  const professionalTypeOptions = showProfessionalType ? filterOpts(STANDARD_PROFESSIONAL_TYPES) : [];
-  const specialismsOptions = showSpecialisms ? filterOpts(STANDARD_SPECIALISMS) : [];
-  const sessionTypeOptions = showSessionType ? filterOpts(STANDARD_SESSION_TYPES) : [];
-  const businessTypeOptions = showBusinessType ? filterOpts(BUSINESS_TYPES) : [];
-  const servicesOptions = filterOpts(STANDARD_SERVICES);
-  const facilitiesOptions = showFacilities ? filterOpts(STANDARD_FACILITIES) : [];
-
-  // Equipment matches (checked separately due to nested categories)
-  const equipmentMatchCount = useMemo(() => {
-    if (!search) return STANDARD_EQUIPMENT.length;
-    return STANDARD_EQUIPMENT.filter(e => e.label.toLowerCase().includes(search)).length;
-  }, [search]);
-
-  // Which sections have matching options (hidden when search yields 0)
-  const showProTypeSection = showProfessionalType && professionalTypeOptions.length > 0;
-  const showSpecialismsSection = showSpecialisms && specialismsOptions.length > 0;
-  const showSessionTypeSection = showSessionType && sessionTypeOptions.length > 0;
-  const showBizTypeSection = showBusinessType && businessTypeOptions.length > 0;
-  const showServicesSection = servicesOptions.length > 0;
-  const showFacilitiesSection = showFacilities && facilitiesOptions.length > 0;
-  const showEquipmentSection = showEquipment && (!search || equipmentMatchCount > 0);
-
-  // All visible sections — used to auto-expand when search is active
-  const allVisibleSections = useMemo(() => {
-    const sections = ['sort', 'show-me', 'location'];
-    if (showProTypeSection) sections.push('pro-type');
-    if (showSpecialismsSection) sections.push('specialisms');
-    if (showSessionTypeSection) sections.push('session-type');
-    if (showBizTypeSection) sections.push('biz-type');
-    if (showServicesSection) sections.push('services');
-    if (showFacilitiesSection) sections.push('facilities');
-    if (showEquipmentSection) sections.push('equipment');
-    return sections;
-  }, [showProTypeSection, showSpecialismsSection, showSessionTypeSection,
-      showBizTypeSection, showServicesSection, showFacilitiesSection, showEquipmentSection]);
-
-  const anyFilterMatches = showProTypeSection || showSpecialismsSection || showSessionTypeSection ||
-    showBizTypeSection || showServicesSection || showFacilitiesSection || showEquipmentSection;
-
   return (
     <div>
-      {/* Filter option search — searches filter options, not listings */}
-      <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-        <input
-          type="text"
-          value={filterSearch}
-          onChange={e => setFilterSearch(e.target.value)}
-          placeholder="Search filters..."
-          className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-        />
-      </div>
-
       {/* Listing search */}
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -167,16 +92,7 @@ export default function DirectoryFilters({
         />
       </div>
 
-      {search && !anyFilterMatches && (
-        <p className="text-sm text-stone-400 mb-4 text-center">No matching filters</p>
-      )}
-
-      <Accordion
-        type="multiple"
-        value={search ? allVisibleSections : accordionValue}
-        onValueChange={(v) => { if (!search) setAccordionValue(v); }}
-        className="w-full"
-      >
+      <Accordion type="multiple" defaultValue={['show-me', 'location', 'services']} className="w-full">
         <FilterSection value="sort" title="Sort by">
           <select
             value={sort}
@@ -256,72 +172,75 @@ export default function DirectoryFilters({
           </div>
         </FilterSection>
 
-        {showProTypeSection && (
+        {showProfessionalType && (
           <FilterSection value="pro-type" title="Professional type">
             <FilterMultiSelect
-              options={professionalTypeOptions}
+              options={alphaSort(STANDARD_PROFESSIONAL_TYPES)}
               selected={professionalTypeIds}
               onChange={setProfessionalTypeIds}
+              searchPlaceholder="Search professional types..."
             />
           </FilterSection>
         )}
 
-        {showSpecialismsSection && (
+        {showSpecialisms && (
           <FilterSection value="specialisms" title="Specialisms">
             <FilterMultiSelect
-              options={specialismsOptions}
+              options={alphaSort(STANDARD_SPECIALISMS)}
               selected={specialismIds}
               onChange={setSpecialismIds}
+              searchPlaceholder="Search specialisms..."
             />
           </FilterSection>
         )}
 
-        {showSessionTypeSection && (
+        {showSessionType && (
           <FilterSection value="session-type" title="Session type">
             <FilterMultiSelect
-              options={sessionTypeOptions}
+              options={alphaSort(STANDARD_SESSION_TYPES)}
               selected={sessionTypeIds}
               onChange={setSessionTypeIds}
+              searchPlaceholder="Search session types..."
             />
           </FilterSection>
         )}
 
-        {showBizTypeSection && (
+        {showBusinessType && (
           <FilterSection value="biz-type" title="Business type">
             <FilterMultiSelect
-              options={businessTypeOptions}
+              options={alphaSort(BUSINESS_TYPES)}
               selected={businessTypeIds}
               onChange={setBusinessTypeIds}
+              searchPlaceholder="Search business types..."
             />
           </FilterSection>
         )}
 
-        {showServicesSection && (
-          <FilterSection value="services" title="Services">
-            <FilterMultiSelect
-              options={servicesOptions}
-              selected={serviceIds}
-              onChange={setServiceIds}
-            />
-          </FilterSection>
-        )}
+        <FilterSection value="services" title="Services">
+          <FilterMultiSelect
+            options={alphaSort(STANDARD_SERVICES)}
+            selected={serviceIds}
+            onChange={setServiceIds}
+            searchPlaceholder="Search services..."
+          />
+        </FilterSection>
 
-        {showFacilitiesSection && (
+        {showFacilities && (
           <FilterSection value="facilities" title="Facilities">
             <FilterMultiSelect
-              options={facilitiesOptions}
+              options={alphaSort(STANDARD_FACILITIES)}
               selected={facilityIds}
               onChange={setFacilityIds}
+              searchPlaceholder="Search facilities..."
             />
           </FilterSection>
         )}
 
-        {showEquipmentSection && (
+        {showEquipment && (
           <FilterSection value="equipment" title="Equipment">
             <EquipmentFilter
               selected={equipmentIds}
               onChange={setEquipmentIds}
-              search={search}
             />
           </FilterSection>
         )}

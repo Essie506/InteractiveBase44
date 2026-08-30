@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronRight, Check, X } from 'lucide-react';
+import { ChevronRight, Check, X, Search } from 'lucide-react';
 import { STANDARD_EQUIPMENT } from '@/data/standardEquipment';
 
 // Equipment filter with nested collapsible subcategories.
@@ -8,17 +8,17 @@ import { STANDARD_EQUIPMENT } from '@/data/standardEquipment';
 // Combat, Recovery) collapse independently — collapsing a
 // subcategory does NOT clear its selections (state lives in parent).
 //
-// When `search` is active:
+// Has its own section-level search input that filters only equipment
+// options. When search is active:
 //   - items within each category are filtered to matching labels
 //   - categories with zero matches are hidden
-//   - all visible categories auto-expand (user cannot collapse
-//     while search is active)
+//   - all visible categories auto-expand
 //
 // Items within each category are sorted alphabetically by label.
-//
-// Matching semantics: OR (match ANY selected equipment id), identical
-// to Services and Facilities filters.
-export default function EquipmentFilter({ selected, onChange, search = '' }) {
+export default function EquipmentFilter({ selected, onChange }) {
+  const [search, setSearch] = useState('');
+  const q = search.toLowerCase().trim();
+
   const categories = useMemo(() => {
     const groups = {};
     for (const item of STANDARD_EQUIPMENT) {
@@ -34,22 +34,21 @@ export default function EquipmentFilter({ selected, onChange, search = '' }) {
 
   // Filter items by search term; drop categories with no matches
   const filteredCategories = useMemo(() => {
-    if (!search) return categories;
-    const q = search.toLowerCase();
+    if (!q) return categories;
     return categories
       .map(([cat, items]) => [cat, items.filter(i => i.label.toLowerCase().includes(q))])
       .filter(([, items]) => items.length > 0);
-  }, [categories, search]);
+  }, [categories, q]);
 
   const [openCats, setOpenCats] = useState(() => new Set(['Strength']));
 
   // Auto-expand all visible categories when search is active
-  const effectiveOpenCats = search
+  const effectiveOpenCats = q
     ? new Set(filteredCategories.map(([cat]) => cat))
     : openCats;
 
   const toggleCat = (cat) => {
-    if (search) return; // don't allow toggling during search
+    if (q) return; // don't allow toggling during search
     setOpenCats((prev) => {
       const next = new Set(prev);
       if (next.has(cat)) next.delete(cat);
@@ -91,6 +90,22 @@ export default function EquipmentFilter({ selected, onChange, search = '' }) {
             );
           })}
         </div>
+      )}
+
+      {/* Section search — filters only equipment options */}
+      <div className="relative mb-2">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search equipment..."
+          className="w-full pl-8 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-md text-xs focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+        />
+      </div>
+
+      {filteredCategories.length === 0 && q && (
+        <p className="text-xs text-stone-400 text-center py-2">No matches</p>
       )}
 
       {/* Subcategory groups */}

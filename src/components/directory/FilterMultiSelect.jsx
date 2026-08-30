@@ -1,9 +1,19 @@
-import { Check, X } from 'lucide-react';
+import { useState } from 'react';
+import { Check, X, Search } from 'lucide-react';
 
 // Multi-select filter control: removable selected chips + a
 // scrollable checklist. Uses canonical taxonomy {id, label} items
 // so selected values match profile service/facility ids exactly.
-export default function FilterMultiSelect({ options, selected, onChange }) {
+//
+// Each instance has its own section-level search input that filters
+// only this section's options. The search is case-insensitive,
+// supports partial matching, and does not affect selections or
+// any other section's search.
+export default function FilterMultiSelect({ options, selected, onChange, searchPlaceholder = 'Search...' }) {
+  const [search, setSearch] = useState('');
+  const q = search.toLowerCase().trim();
+  const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q)) : options;
+
   const toggle = (id) => {
     if (selected.includes(id)) {
       onChange(selected.filter(s => s !== id));
@@ -38,8 +48,23 @@ export default function FilterMultiSelect({ options, selected, onChange }) {
         </div>
       )}
 
+      {/* Section search — filters only this section's options */}
+      <div className="relative mb-2">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={searchPlaceholder}
+          className="w-full pl-8 pr-2.5 py-1.5 bg-stone-50 border border-stone-200 rounded-md text-xs focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+        />
+      </div>
+
       <div className="max-h-52 overflow-y-auto space-y-0.5 -mx-1 px-1">
-        {options.map(opt => {
+        {filtered.length === 0 && q && (
+          <p className="text-xs text-stone-400 text-center py-2">No matches</p>
+        )}
+        {filtered.map(opt => {
           const isSelected = selected.includes(opt.id);
           return (
             <button
