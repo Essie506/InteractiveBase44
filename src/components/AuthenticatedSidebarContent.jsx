@@ -10,13 +10,15 @@
 //   - DirectoryNavDrawer (when authenticated) so the Directory left drawer
 //     matches the AppLayout sidebar without a second nav definition.
 //
-// Nav links do NOT close any parent drawer — the Directory drawer is
-// intentionally kept open during navigation. Parent surfaces that need to
-// close on navigate (e.g. AppLayout mobile drawer) keep their own inline
-// implementation and simply reuse getContextNavItems for the config.
+// Nav links close the drawer on MOBILE after navigating (so the user
+// lands on the destination with the drawer closed). On DESKTOP the
+// drawer stays open across navigation (persistent nav) — the close is
+// guarded by useIsMobile().
 
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { useNav } from '@/lib/NavContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { LogOut } from 'lucide-react';
 import ContextSwitcher from '@/components/ContextSwitcher';
 import NotificationBell from '@/components/NotificationBell';
@@ -24,14 +26,22 @@ import { getContextNavItems } from '@/lib/navItems';
 
 export default function AuthenticatedSidebarContent() {
   const { user, logout } = useAuth();
+  const { setNavOpen } = useNav();
+  const isMobile = useIsMobile();
   const location = useLocation();
   const navItems = getContextNavItems(user);
+
+  // Mobile-only: close the drawer after navigating to a destination.
+  // Desktop keeps the drawer open across navigation (persistent nav).
+  const closeOnMobileNavigate = () => {
+    if (isMobile) setNavOpen(false);
+  };
 
   return (
     <>
       <div className="px-6 py-7">
         <div className="flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2.5">
+          <Link to="/dashboard" onClick={closeOnMobileNavigate} className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">I</span>
             </div>
@@ -53,6 +63,7 @@ export default function AuthenticatedSidebarContent() {
             <Link
               key={item.path}
               to={item.path}
+              onClick={closeOnMobileNavigate}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
             >
               <Icon className="w-4 h-4" strokeWidth={2} />

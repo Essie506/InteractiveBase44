@@ -1,21 +1,17 @@
 import { useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { useNav } from '@/lib/NavContext';
-import { Menu, X } from 'lucide-react';
-import NotificationBell from '@/components/NotificationBell';
 import { getContextNavItems } from '@/lib/navItems';
 
 // Thin main-content wrapper used inside AuthenticatedShell for the
-// authenticated app routes. The persistent sidebar is owned by the
-// shell — AppLayout no longer renders it. This component keeps only:
+// authenticated app routes. The persistent sidebar AND the mobile
+// header are owned by the shell — AppLayout no longer renders either.
+// This component keeps only:
 //   - the onboarding guard,
-//   - the mobile top header (hamburger toggles the shared sidebar),
 //   - the mobile bottom nav,
 //   - the <Outlet/> for the actual page.
 export default function AppLayout() {
   const { user } = useAuth();
-  const { navOpen, toggleNav } = useNav();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -31,22 +27,6 @@ export default function AppLayout() {
 
   return (
     <>
-      {/* Mobile header */}
-      <div className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
-        <Link to="/dashboard" className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-indigo-500 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xs">I</span>
-          </div>
-          <span className="font-semibold">Interactive</span>
-        </Link>
-        <div className="flex items-center gap-2">
-          <NotificationBell />
-          <button onClick={toggleNav} aria-label="Toggle navigation">
-            {navOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
-      </div>
-
       <div className="pb-16 md:pb-0">
         <Outlet />
       </div>

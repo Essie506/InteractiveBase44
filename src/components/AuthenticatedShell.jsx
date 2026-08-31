@@ -6,6 +6,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
 import AuthenticatedTopNav from '@/components/nav/AuthenticatedTopNav';
 import NavCollapseControl from '@/components/nav/NavCollapseControl';
+import AuthenticatedMobileHeader from '@/components/nav/AuthenticatedMobileHeader';
 import { getPageIdentity } from '@/lib/pageIdentity';
 
 // Persistent authenticated navigation shell.
@@ -32,8 +33,9 @@ import { getPageIdentity } from '@/lib/pageIdentity';
 //     left trigger opens/closes it. It is NOT the page-specific workspace
 //     sidebar — that lives inside page content (e.g. Professional
 //     Workspace), to the right of this drawer.
-//   - Mobile: the same panel as an overlay Sheet, same state; the
-//     navbar is hidden (each route uses its own mobile header/trigger).
+//   - Mobile: the same panel as an overlay Sheet, same state; a shared
+//     dark navy mobile header (AuthenticatedMobileHeader) renders here
+//     with the Interactive branding as the drawer trigger.
 export default function AuthenticatedShell() {
   const { user, isLoadingAuth } = useAuth();
   const { navOpen, setNavOpen, toggleNav } = useNav();
@@ -91,6 +93,10 @@ export default function AuthenticatedShell() {
             onToggleNav={toggleNav}
           />
         </div>
+
+        {/* Shared mobile header — mobile only. Dark navy banner;
+            Interactive branding opens the global drawer. */}
+        <AuthenticatedMobileHeader />
 
         {/* Page content */}
         <main className="flex-1 overflow-auto relative">

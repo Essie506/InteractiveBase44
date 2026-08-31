@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { useNav } from '@/lib/NavContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
 import { geocodeOrigin } from '@/lib/geo';
-import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight, ChevronLeft, Menu } from 'lucide-react';
+import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
@@ -36,7 +35,6 @@ export default function Directory() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [publicNavOpen, setPublicNavOpen] = useState(false);
-  const { navOpen, toggleNav } = useNav();
 
   // Parse URL search params once on mount — initializes both draft
   // and applied filter state so the Directory restores the exact
@@ -310,22 +308,6 @@ export default function Directory() {
             </div>
           </div>
         </header>
-      )}
-
-      {/* Signed-in mobile trigger — compact control that opens the
-          persistent sidebar (the shell's edge trigger is desktop-only).
-          Small button, not a header-style NavTrigger. */}
-      {user && !navOpen && (
-        <div className="md:hidden px-4 pt-3">
-          <button
-            type="button"
-            onClick={toggleNav}
-            aria-label="Open navigation"
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 shadow-sm"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-        </div>
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6">
