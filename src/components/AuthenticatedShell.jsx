@@ -4,8 +4,8 @@ import { useNav } from '@/lib/NavContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
+import { PanelLeftOpen } from 'lucide-react';
 import NavCollapseControl from '@/components/nav/NavCollapseControl';
-import NavTrigger from '@/components/nav/NavTrigger';
 
 // Persistent authenticated navigation shell.
 // ───────────────────────────────────────────────────────────
@@ -25,8 +25,11 @@ import NavTrigger from '@/components/nav/NavTrigger';
 // Toggleable on all viewports:
 //   - Desktop (md+): a collapsible <aside> (w-60 ↔ w-0). When open, a
 //     small edge collapse control (NavCollapseControl) sits on the
-//     panel's right edge; when collapsed, a shared NavTrigger sits
-//     in-flow at the top of main (consistent spacing, not floating).
+//     panel's right edge; when collapsed, a compact edge expand control
+//     (PanelLeftOpen) sits at the left edge of main — the symmetric
+//     counterpart to the collapse control. Both are small edge tabs;
+//     no in-flow header row, so page content uses the full vertical
+//     space.
 //   - Mobile: the same panel as an overlay Sheet, same state.
 export default function AuthenticatedShell() {
   const { user, isLoadingAuth } = useAuth();
@@ -67,16 +70,24 @@ export default function AuthenticatedShell() {
         </Sheet>
       )}
 
-      {/* Main content — route content renders beside the sidebar.
-          When the sidebar is closed, a shared NavTrigger sits in-flow at
-          the top of main (desktop) with consistent spacing — deliberately
-          positioned, not floating. Mobile uses each route's own trigger. */}
+      {/* Compact edge expand control — left edge of main when the
+          sidebar is collapsed (desktop). Symmetric counterpart to the
+          NavCollapseControl on the open panel's right edge. Small edge
+          tab only — no in-flow header row, so route content uses the
+          full vertical space. Mobile uses each route's own trigger. */}
+      {!navOpen && !isMobile && (
+        <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          aria-label="Open navigation"
+          className="absolute top-8 left-0 translate-x-1/2 w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-sm hover:bg-stone-50 hover:border-stone-300 z-40 transition-colors"
+        >
+          <PanelLeftOpen className="w-4 h-4 text-stone-600" />
+        </button>
+      )}
+
+      {/* Main content — route content renders beside the sidebar */}
       <main className="flex-1 overflow-auto relative">
-        {!navOpen && !isMobile && (
-          <div className="px-6 md:px-10 pt-6 md:pt-10">
-            <NavTrigger />
-          </div>
-        )}
         <Outlet />
       </main>
     </div>

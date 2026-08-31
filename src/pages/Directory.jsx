@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { useNav } from '@/lib/NavContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
 import { geocodeOrigin } from '@/lib/geo';
-import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight, ChevronLeft, Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
@@ -312,11 +312,19 @@ export default function Directory() {
         </header>
       )}
 
-      {/* Signed-in mobile trigger — opens the persistent sidebar.
-          Desktop uses the shell's in-flow NavTrigger instead. */}
+      {/* Signed-in mobile trigger — compact control that opens the
+          persistent sidebar (the shell's edge trigger is desktop-only).
+          Small button, not a header-style NavTrigger. */}
       {user && !navOpen && (
-        <div className="md:hidden px-4 sm:px-6 pt-6">
-          <NavTrigger onOpen={toggleNav} />
+        <div className="md:hidden px-4 pt-3">
+          <button
+            type="button"
+            onClick={toggleNav}
+            aria-label="Open navigation"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 shadow-sm"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
         </div>
       )}
 
