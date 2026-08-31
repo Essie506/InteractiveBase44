@@ -93,7 +93,7 @@ export default function AvailabilityPage() {
     <div className="p-6 md:p-10 max-w-4xl mx-auto">
       <div className="mb-6">
         
-        <p className="text-stone-500">Configure your professional working hours. This is the authoritative availability state that future Booking will consume.</p>
+        <p className="text-stone-500 hidden">Configure your professional working hours. This is the authoritative availability state that future Booking will consume.</p>
       </div>
 
       {/* Add new rule */}
