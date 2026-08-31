@@ -5,6 +5,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
 import AuthenticatedTopNav from '@/components/nav/AuthenticatedTopNav';
+import NavCollapseControl from '@/components/nav/NavCollapseControl';
 import { getPageIdentity } from '@/lib/pageIdentity';
 
 // Persistent authenticated navigation shell.
@@ -59,6 +60,12 @@ export default function AuthenticatedShell() {
         </div>
       </aside>
 
+      {/* Edge collapse control — circular white button straddling the
+          drawer's right edge, near the header. Closes the drawer. */}
+      {navOpen && !isMobile && (
+        <NavCollapseControl onClose={() => setNavOpen(false)} className="left-60 top-20" />
+      )}
+
       {/* Mobile drawer — overlay Sheet, same panel + state. The
           Sheet's built-in close (X) is the mobile close control. */}
       {isMobile && (
@@ -80,7 +87,6 @@ export default function AuthenticatedShell() {
           <AuthenticatedTopNav
             pageIcon={identity.icon}
             pageLabel={identity.label}
-            navOpen={navOpen}
             onToggleNav={toggleNav}
           />
         </div>
