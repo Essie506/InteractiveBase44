@@ -348,8 +348,9 @@ export default function Dashboard() {
         </Link>
       )}
 
-      {/* Primary context card — current operating context, shown first */}
-      <div className="mb-6">{PrimaryCard}</div>
+      {/* Primary context card — current operating context, shown first.
+          Sized to match the grid cards below (one column of the 2-col grid). */}
+      <div className="grid sm:grid-cols-2 gap-4 mb-6">{PrimaryCard}</div>
 
       {/* Businesses section — ordering depends on context */}
       {businessesSection}
