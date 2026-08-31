@@ -212,13 +212,6 @@ export default function Dashboard() {
         <h2 className="font-semibold text-stone-800 mb-3">Other Businesses</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           {otherBusinesses.map(renderBusinessCard)}
-          {createAnotherBusinessCard}
-        </div>
-      </div>
-    ) : businesses.length > 0 ? (
-      <div className="mb-6">
-        <div className="grid sm:grid-cols-2 gap-4">
-          {createAnotherBusinessCard}
         </div>
       </div>
     ) : null
@@ -349,8 +342,13 @@ export default function Dashboard() {
       )}
 
       {/* Primary context card — current operating context, shown first.
-          Sized to match the grid cards below (one column of the 2-col grid). */}
-      <div className="grid sm:grid-cols-2 gap-4 mb-6">{PrimaryCard}</div>
+          Sized to match the grid cards below (one column of the 2-col grid).
+          In business context the "Create Another Business" card sits to the
+          right of the current business, filling the grid's second column. */}
+      <div className="grid sm:grid-cols-2 gap-4 mb-6">
+        {PrimaryCard}
+        {activeContext === 'business' && createAnotherBusinessCard}
+      </div>
 
       {/* Businesses section — ordering depends on context */}
       {businessesSection}
