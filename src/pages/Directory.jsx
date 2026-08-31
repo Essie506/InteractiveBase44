@@ -329,10 +329,10 @@ export default function Directory() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6">
-        {/* Signed-in page heading — sits directly in the main content
-            area (no public navbar). Signed-out keeps its header above. */}
+        {/* Signed-in page heading — mobile only (desktop shows the page
+            identity in the shared navbar). Signed-out keeps its header. */}
         {user && (
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-6 md:hidden">
             <Compass className="w-6 h-6 text-indigo-600" />
             <h1 className="text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
           </div>

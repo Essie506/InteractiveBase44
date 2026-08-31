@@ -1,11 +1,11 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useNav } from '@/lib/NavContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
-import { PanelLeftOpen } from 'lucide-react';
-import NavCollapseControl from '@/components/nav/NavCollapseControl';
+import AuthenticatedTopNav from '@/components/nav/AuthenticatedTopNav';
+import { getPageIdentity } from '@/lib/pageIdentity';
 
 // Persistent authenticated navigation shell.
 // ───────────────────────────────────────────────────────────
@@ -22,18 +22,23 @@ import NavCollapseControl from '@/components/nav/NavCollapseControl';
 // Directory keeps its own public drawer. AppLayout routes are
 // ProtectedRoute-gated, so a signed-out user never reaches them here.
 //
-// Toggleable on all viewports:
-//   - Desktop (md+): a collapsible <aside> (w-60 ↔ w-0), full-height
-//     (the shell is h-screen, so the sidebar spans the full viewport
-//     height regardless of page content). When open, a small edge
-//     collapse control (NavCollapseControl) sits on the panel's right
-//     edge; when collapsed, a compact edge expand control (PanelLeftOpen)
-//     sits at the left edge of main — the symmetric counterpart.
-//   - Mobile: the same panel as an overlay Sheet, same state.
+// Layout: a full-height global nav drawer on the far left + a content
+// area to its right. The content area is a column: the shared top
+// navbar (AuthenticatedTopNav) on top, page content below.
+//   - Global drawer: full-height (the shell is h-screen, so the aside
+//     spans the full viewport height regardless of page content), w-60
+//     ↔ w-0, persistent open/closed state (NavContext). The navbar's
+//     left trigger opens/closes it. It is NOT the page-specific workspace
+//     sidebar — that lives inside page content (e.g. Professional
+//     Workspace), to the right of this drawer.
+//   - Mobile: the same panel as an overlay Sheet, same state; the
+//     navbar is hidden (each route uses its own mobile header/trigger).
 export default function AuthenticatedShell() {
   const { user, isLoadingAuth } = useAuth();
-  const { navOpen, setNavOpen } = useNav();
+  const { navOpen, setNavOpen, toggleNav } = useNav();
   const isMobile = useIsMobile();
+  const location = useLocation();
+  const identity = getPageIdentity(location.pathname);
 
   // Only render the authenticated chrome once auth has fully resolved
   // AND the user is confirmed authenticated. During loading, signed-out
@@ -45,22 +50,17 @@ export default function AuthenticatedShell() {
 
   return (
     <div className="flex h-screen bg-stone-50 relative">
-      {/* Desktop sidebar — persistent, collapsible, full-height */}
+      {/* Global nav drawer — full-height, far left, w-60 ↔ w-0.
+          This is the persistent Interactive navigation, NOT a page
+          workspace sidebar. Full viewport height (shell is h-screen). */}
       <aside className={`hidden md:flex flex-col bg-slate-900 text-white shrink-0 transition-all duration-200 overflow-hidden ${navOpen ? 'w-60' : 'w-0'}`}>
         <div className="w-60 flex flex-col h-full">
           <AuthenticatedSidebarContent />
         </div>
       </aside>
 
-      {/* Edge collapse control — right edge of the open left panel.
-          Complementary to the right-side filter drawer's chevron; only
-          shown on desktop (mobile uses the overlay Sheet's own close). */}
-      {navOpen && !isMobile && (
-        <NavCollapseControl onClose={() => setNavOpen(false)} className="left-60" />
-      )}
-
-      {/* Mobile sidebar — overlay drawer, same panel + state.
-          The Sheet's built-in close (X) is the single close control. */}
+      {/* Mobile drawer — overlay Sheet, same panel + state. The
+          Sheet's built-in close (X) is the mobile close control. */}
       {isMobile && (
         <Sheet open={navOpen} onOpenChange={setNavOpen}>
           <SheetContent side="left" className="w-60 bg-slate-900 text-white border-r-0 p-0 flex flex-col">
@@ -69,24 +69,27 @@ export default function AuthenticatedShell() {
         </Sheet>
       )}
 
-      {/* Compact edge expand control — left edge of main when the
-          sidebar is collapsed (desktop). Symmetric counterpart to the
-          NavCollapseControl on the open panel's right edge. */}
-      {!navOpen && !isMobile && (
-        <button
-          type="button"
-          onClick={() => setNavOpen(true)}
-          aria-label="Open navigation"
-          className="absolute top-8 left-0 translate-x-1/2 w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-sm hover:bg-stone-50 hover:border-stone-300 z-40 transition-colors"
-        >
-          <PanelLeftOpen className="w-4 h-4 text-stone-600" />
-        </button>
-      )}
+      {/* Content area — right of the global drawer: shared navbar on
+          top, page content below. Page-specific secondary sidebars
+          (e.g. Professional Workspace) render inside <Outlet/>, separate
+          from this global drawer. */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Shared top navbar — desktop only. Left: global nav trigger
+            (opens/closes the drawer); right: current page identity. */}
+        <div className="hidden md:block shrink-0">
+          <AuthenticatedTopNav
+            pageIcon={identity.icon}
+            pageLabel={identity.label}
+            navOpen={navOpen}
+            onToggleNav={toggleNav}
+          />
+        </div>
 
-      {/* Main content — route content renders beside the sidebar */}
-      <main className="flex-1 overflow-auto relative">
-        <Outlet />
-      </main>
+        {/* Page content */}
+        <main className="flex-1 overflow-auto relative">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
