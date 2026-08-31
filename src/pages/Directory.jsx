@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
 import { geocodeOrigin } from '@/lib/geo';
-import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight } from 'lucide-react';
+import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
@@ -33,7 +33,6 @@ export default function Directory() {
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(true);
   const [publicNavOpen, setPublicNavOpen] = useState(false);
 
   // Parse URL search params once on mount — initializes both draft
@@ -259,16 +258,6 @@ export default function Directory() {
     }
   };
 
-  // Single Filters button handler. On desktop (lg+) it toggles the
-  // right-side aside drawer; on mobile/tablet it opens the filter Sheet.
-  const handleFiltersClick = () => {
-    if (window.matchMedia('(min-width: 1024px)').matches) {
-      setDrawerOpen(v => !v);
-    } else {
-      setFiltersOpen(true);
-    }
-  };
-
   const filterProps = {
     query, setQuery,
     typeFilter, setTypeFilter: handleTypeChange,
@@ -346,7 +335,7 @@ export default function Directory() {
             )}
           </div>
           <button
-            onClick={handleFiltersClick}
+            onClick={() => setFiltersOpen(true)}
             className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
           >
             <SlidersHorizontal className="w-4 h-4" />
@@ -416,24 +405,6 @@ export default function Directory() {
             }
           </div>
 
-          {/* Desktop filter drawer — right side. Toggled by the Filters
-              button in the top row (handleFiltersClick). Only rendered
-              when open; the close chevron on its left edge also closes. */}
-          {drawerOpen && (
-            <aside className="hidden lg:block w-80 shrink-0 relative">
-              {/* Close chevron on drawer left edge */}
-              <button
-                onClick={() => setDrawerOpen(false)}
-                className="absolute left-0 top-8 -translate-x-1/2 w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-sm hover:bg-stone-50 hover:border-stone-300 z-10 transition-colors"
-                aria-label="Collapse filter drawer"
-              >
-                <ChevronRight className="w-4 h-4 text-stone-600" />
-              </button>
-              <div className="sticky top-24 bg-white border border-stone-200 rounded-xl p-5 max-h-[calc(100vh-8rem)] overflow-y-auto">
-                <DirectoryFilters {...filterProps} />
-              </div>
-            </aside>
-          )}
         </div>
       </div>
 
@@ -443,7 +414,7 @@ export default function Directory() {
           desktop filter drawer's right-side origin. Never enters from
           the left. */}
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="right" className="w-[85%] sm:max-w-md overflow-y-auto">
+        <SheetContent side="right" transparentOverlay className="w-[85%] sm:max-w-md overflow-y-auto">
           <SheetHeader className="mb-4 text-left">
             <SheetTitle>Filters</SheetTitle>
           </SheetHeader>
