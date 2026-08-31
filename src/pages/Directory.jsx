@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { useNav } from '@/lib/NavContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
 import { geocodeOrigin } from '@/lib/geo';
 import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -33,7 +34,8 @@ export default function Directory() {
   const [reloading, setReloading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
-  const [navOpen, setNavOpen] = useState(false);
+  const [publicNavOpen, setPublicNavOpen] = useState(false);
+  const { toggleNav } = useNav();
 
   // Parse URL search params once on mount — initializes both draft
   // and applied filter state so the Directory restores the exact
@@ -291,7 +293,7 @@ export default function Directory() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           {/* Logo → opens nav drawer (does NOT navigate to Dashboard) */}
           <button
-            onClick={() => setNavOpen(true)}
+            onClick={() => user ? toggleNav() : setPublicNavOpen(true)}
             className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
             aria-label="Open navigation menu">
             
@@ -439,8 +441,9 @@ export default function Directory() {
         </SheetContent>
       </Sheet>
 
-      {/* Navigation drawer (opened by logo click) */}
-      <DirectoryNavDrawer open={navOpen} onOpenChange={setNavOpen} />
+      {/* Public navigation drawer — signed-out only. Authenticated
+          visitors use the shared persistent sidebar (AuthenticatedShell). */}
+      {!user && <DirectoryNavDrawer open={publicNavOpen} onOpenChange={setPublicNavOpen} />}
     </div>);
 
 }

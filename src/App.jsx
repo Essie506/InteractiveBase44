@@ -13,6 +13,8 @@ import ForgotPassword from '@/pages/ForgotPassword';
 import ResetPassword from '@/pages/ResetPassword';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AppLayout from '@/components/AppLayout';
+import AuthenticatedShell from '@/components/AuthenticatedShell';
+import { NavProvider } from '@/lib/NavContext';
 import Landing from '@/pages/Landing';
 import Onboarding from '@/pages/Onboarding';
 import Dashboard from '@/pages/Dashboard';
@@ -84,57 +86,65 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/directory" element={<Directory />} />
       <Route path="/p/:screenName" element={<PublicProfile />} />
       <Route path="/u/:screenName" element={<PublicPersonalProfile />} />
       <Route path="/b/:businessId" element={<PublicBusinessProfile />} />
       <Route path="/e/:eventId" element={<PublicEventPage />} />
+      {/* Persistent authenticated shell — one sidebar survives navigation
+          between /directory and AppLayout routes. Signed-out visitors get
+          a plain Outlet (Directory renders its own public drawer). */}
+      <Route element={<AuthenticatedShell />}>
+        <Route path="/directory" element={<Directory />} />
+        <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/invitations" element={<InvitationsPage />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/availability" element={<AvailabilityPage />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/messages/:conversationId" element={<ConversationPage />} />
+            <Route path="/professional-profile" element={<ProfessionalProfilePage />} />
+            <Route path="/verify-professional" element={<VerificationPage />} />
+            <Route path="/business/:id" element={<BusinessWorkspace />} />
+            <Route path="/business/:id/verify" element={<VerificationPage />} />
+            <Route path="/business/:id/staff" element={<BusinessStaff />} />
+            <Route path="/business/:id/profile" element={<BusinessProfilePage />} />
+            {/* Professional Workspace — sidebar + pages */}
+            <Route path="/professional" element={<ProfessionalWorkspace />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<ProfessionalOverview />} />
+              <Route path="bookings" element={<ProfessionalBookings />} />
+              <Route path="services" element={<ProfessionalServices />} />
+              <Route path="availability" element={<AvailabilityPage />} />
+              <Route path="verification" element={<VerificationPage />} />
+            </Route>
+            {/* Business Workspace — sidebar + pages */}
+            <Route path="/business/:id/workspace" element={<BusinessWorkspaceShell />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<BusinessOverview />} />
+              <Route path="bookings" element={<BusinessBookings />} />
+              <Route path="services" element={<BusinessServicesFacilities />} />
+              <Route path="availability" element={<BusinessAvailability />} />
+              <Route path="verification" element={<VerificationPage />} />
+              <Route path="staff" element={<BusinessStaff />} />
+            </Route>
+            <Route path="/specifications" element={<Specifications />} />
+            <Route path="/specifications/:id" element={<SpecificationDetail />} />
+            <Route path="/upload" element={<UploadPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/book/:screenName" element={<BookingPage />} />
+          </Route>
+        </Route>
+      </Route>
+      {/* Chrome-free authenticated routes (no persistent sidebar) */}
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/activate-professional" element={<ProfessionalActivation />} />
         <Route path="/create-business" element={<BusinessCreation />} />
         <Route path="/admin/verify" element={<VerificationReview />} />
-        <Route element={<AppLayout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/invitations" element={<InvitationsPage />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/availability" element={<AvailabilityPage />} />
-          <Route path="/messages" element={<Messages />} />
-          <Route path="/messages/:conversationId" element={<ConversationPage />} />
-          <Route path="/professional-profile" element={<ProfessionalProfilePage />} />
-          <Route path="/verify-professional" element={<VerificationPage />} />
-          <Route path="/business/:id" element={<BusinessWorkspace />} />
-          <Route path="/business/:id/verify" element={<VerificationPage />} />
-          <Route path="/business/:id/staff" element={<BusinessStaff />} />
-          <Route path="/business/:id/profile" element={<BusinessProfilePage />} />
-          {/* Professional Workspace — sidebar + pages */}
-          <Route path="/professional" element={<ProfessionalWorkspace />}>
-            <Route index element={<Navigate to="overview" replace />} />
-            <Route path="overview" element={<ProfessionalOverview />} />
-            <Route path="bookings" element={<ProfessionalBookings />} />
-            <Route path="services" element={<ProfessionalServices />} />
-            <Route path="availability" element={<AvailabilityPage />} />
-            <Route path="verification" element={<VerificationPage />} />
-          </Route>
-          {/* Business Workspace — sidebar + pages */}
-          <Route path="/business/:id/workspace" element={<BusinessWorkspaceShell />}>
-            <Route index element={<Navigate to="overview" replace />} />
-            <Route path="overview" element={<BusinessOverview />} />
-            <Route path="bookings" element={<BusinessBookings />} />
-            <Route path="services" element={<BusinessServicesFacilities />} />
-            <Route path="availability" element={<BusinessAvailability />} />
-            <Route path="verification" element={<VerificationPage />} />
-            <Route path="staff" element={<BusinessStaff />} />
-          </Route>
-          <Route path="/specifications" element={<Specifications />} />
-          <Route path="/specifications/:id" element={<SpecificationDetail />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/book/:screenName" element={<BookingPage />} />
-        </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
@@ -149,7 +159,9 @@ function App() {
       <QueryClientProvider client={queryClientInstance}>
         <Router>
           <ScrollToTop />
-          <AuthenticatedApp />
+          <NavProvider>
+            <AuthenticatedApp />
+          </NavProvider>
         </Router>
         <Toaster />
       </QueryClientProvider>
