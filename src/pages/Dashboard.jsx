@@ -314,7 +314,7 @@ export default function Dashboard() {
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       {/* Header — Welcome + compact verification indicator for the
-           current operating context only. */}
+            current operating context only. */}
       <div className="mb-8">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium mb-3">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -346,9 +346,9 @@ export default function Dashboard() {
       }
 
       {/* Primary context card — current operating context, shown first.
-           Sized to match the grid cards below (one column of the 2-col grid).
-           In business context the "Create Another Business" card sits to the
-           right of the current business, filling the grid's second column. */}
+            Sized to match the grid cards below (one column of the 2-col grid).
+            In business context the "Create Another Business" card sits to the
+            right of the current business, filling the grid's second column. */}
       <div className="grid sm:grid-cols-2 gap-4 mb-6">
         {PrimaryCard}
         {activeContext === 'business' && createAnotherBusinessCard}
@@ -362,13 +362,13 @@ export default function Dashboard() {
 
       {/* Quick actions */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <Link to="/profile" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all hidden">
-          <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center mb-3 transition-colors">
-            <UserIcon className="w-5 h-5 text-indigo-600" />
-          </div>
-          <h3 className="font-semibold text-stone-800 mb-1">Personal Profile</h3>
-          <p className="text-sm text-stone-500">View and edit your personal profile</p>
-        </Link>
+        
+
+
+
+
+
+        
         <Link to="/settings" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
           <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center mb-3 transition-colors">
             <Settings className="w-5 h-5 text-indigo-600" />
