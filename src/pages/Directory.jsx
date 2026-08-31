@@ -450,9 +450,13 @@ export default function Directory() {
         </div>
       </div>
 
-      {/* Mobile filter drawer */}
+      {/* Mobile filter drawer — anchored to the RIGHT edge on every
+          viewport. The Sheet's right variant slides in from the right
+          (translateX(100%) → 0) and slides out to the right, matching the
+          desktop filter drawer's right-side origin. Never enters from
+          the left. */}
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="left" className="w-[85%] sm:max-w-md overflow-y-auto">
+        <SheetContent side="right" className="w-[85%] sm:max-w-md overflow-y-auto">
           <SheetHeader className="mb-4 text-left">
             <SheetTitle>Filters</SheetTitle>
           </SheetHeader>
