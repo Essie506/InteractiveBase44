@@ -1,11 +1,11 @@
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useNav } from '@/lib/NavContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
-import { PanelLeftOpen } from 'lucide-react';
 import NavCollapseControl from '@/components/nav/NavCollapseControl';
+import NavTrigger from '@/components/nav/NavTrigger';
 
 // Persistent authenticated navigation shell.
 // ───────────────────────────────────────────────────────────
@@ -25,16 +25,13 @@ import NavCollapseControl from '@/components/nav/NavCollapseControl';
 // Toggleable on all viewports:
 //   - Desktop (md+): a collapsible <aside> (w-60 ↔ w-0). When open, a
 //     small edge collapse control (NavCollapseControl) sits on the
-//     panel's right edge; when collapsed, an expand button floats at
-//     the top-left of main (hidden on /directory, where the page
-//     header NavTrigger toggles instead).
+//     panel's right edge; when collapsed, a shared NavTrigger sits
+//     in-flow at the top of main (consistent spacing, not floating).
 //   - Mobile: the same panel as an overlay Sheet, same state.
 export default function AuthenticatedShell() {
   const { user, isLoadingAuth } = useAuth();
-  const { navOpen, setNavOpen, toggleNav } = useNav();
+  const { navOpen, setNavOpen } = useNav();
   const isMobile = useIsMobile();
-  const location = useLocation();
-  const isDirectory = location.pathname === '/directory';
 
   // Only render the authenticated chrome once auth has fully resolved
   // AND the user is confirmed authenticated. During loading, signed-out
@@ -70,16 +67,15 @@ export default function AuthenticatedShell() {
         </Sheet>
       )}
 
-      {/* Main content — route content renders beside the sidebar */}
+      {/* Main content — route content renders beside the sidebar.
+          When the sidebar is closed, a shared NavTrigger sits in-flow at
+          the top of main (desktop) with consistent spacing — deliberately
+          positioned, not floating. Mobile uses each route's own trigger. */}
       <main className="flex-1 overflow-auto relative">
-        {!navOpen && !isDirectory && (
-          <button
-            onClick={toggleNav}
-            className="hidden md:flex absolute top-3 left-3 z-40 w-8 h-8 items-center justify-center rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 shadow-sm"
-            aria-label="Open navigation"
-          >
-            <PanelLeftOpen className="w-4 h-4" />
-          </button>
+        {!navOpen && !isMobile && (
+          <div className="px-6 md:px-10 pt-6 md:pt-10">
+            <NavTrigger />
+          </div>
         )}
         <Outlet />
       </main>

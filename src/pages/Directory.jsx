@@ -289,34 +289,46 @@ export default function Directory() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header */}
-      <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {/* Nav drawer trigger — shown only when the drawer is closed.
-              When open, the panel's edge collapse control takes over
-              (no duplicate "Interactive" beside the open navigation).
-              Wrapper div preserves the justify-between layout when hidden. */}
-          <div className="flex items-center gap-2.5">
-            {(user ? !navOpen : !publicNavOpen) && (
-              <NavTrigger onOpen={user ? toggleNav : () => setPublicNavOpen(true)} />
-            )}
-          </div>
-          {/* Page title (not a Dashboard link) — compass icon + Directory */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Compass className="w-6 h-6 text-indigo-600" />
-              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
+      {/* Signed-out: full-width public Interactive header (preserved).
+          Signed-in: no public navbar — the authenticated app shell owns
+          navigation (sidebar + NavTrigger). A mobile-only trigger below
+          opens the sidebar on small viewports. */}
+      {!user && (
+        <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              {!publicNavOpen && <NavTrigger onOpen={() => setPublicNavOpen(true)} />}
             </div>
-            {!user && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Compass className="w-6 h-6 text-indigo-600" />
+                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
+              </div>
               <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
                 Sign In
               </Link>
-            )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      {/* Signed-in mobile trigger — opens the persistent sidebar.
+          Desktop uses the shell's in-flow NavTrigger instead. */}
+      {user && !navOpen && (
+        <div className="md:hidden px-4 sm:px-6 pt-6">
+          <NavTrigger onOpen={toggleNav} />
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6">
+        {/* Signed-in page heading — sits directly in the main content
+            area (no public navbar). Signed-out keeps its header above. */}
+        {user && (
+          <div className="flex items-center gap-2 mb-6">
+            <Compass className="w-6 h-6 text-indigo-600" />
+            <h1 className="text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
+          </div>
+        )}
         {isDemoMode && (
           <div className="mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
             <span className="w-2 h-2 bg-amber-400 rounded-full"></span>
