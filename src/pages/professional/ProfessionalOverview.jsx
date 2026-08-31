@@ -52,7 +52,7 @@ export default function ProfessionalOverview() {
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-stone-800 mb-1 hidden">Overview</h1>
+        
         <p className="text-stone-500 text-sm">Your professional workspace at a glance.</p>
       </div>
 

@@ -82,7 +82,7 @@ export default function CalendarPage() {
     <div className="p-6 md:p-10 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-stone-800 mb-1 hidden">{contextLabel} Calendar</h1>
+          
           <p className="text-stone-500">Your authoritative Interactive calendar</p>
         </div>
         <button
