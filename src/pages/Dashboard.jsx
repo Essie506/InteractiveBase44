@@ -158,8 +158,11 @@ export default function Dashboard() {
           )
         )}
 
-        {/* Business creation */}
-        {businesses.length === 0 ? (
+        {/* Business creation — shown in the context grid only when the user
+            has no businesses yet. When businesses already exist, the
+            "Create Another Business" card lives inside the "Your Businesses"
+            grid below, next to the existing business cards. */}
+        {businesses.length === 0 && (
           <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
@@ -169,18 +172,6 @@ export default function Dashboard() {
                 <h3 className="font-semibold text-stone-800 mb-1">Create a Business</h3>
                 <p className="text-sm text-stone-500 mb-2">Set up a business workspace</p>
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
-              </div>
-            </div>
-          </Link>
-        ) : (
-          <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
-                <Plus className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-stone-800 mb-1">Create Another Business</h3>
-                <p className="text-sm text-stone-500">Add another business workspace to your identity</p>
               </div>
             </div>
           </Link>
@@ -248,6 +239,17 @@ export default function Dashboard() {
                 </div>
               </button>
             ))}
+            <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
+                  <Plus className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-stone-800 mb-1">Create Another Business</h3>
+                  <p className="text-sm text-stone-500">Add another business workspace to your identity</p>
+                </div>
+              </div>
+            </Link>
           </div>
         </div>
       )}
