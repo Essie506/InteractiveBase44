@@ -21,17 +21,17 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getPersonalProfile(user.id),
-      getProfessionalProfile(user.id),
-      getUserSettings(user.id),
-      getUserBusinesses(user.id),
-      getInvitationsForEmail(user.email),
-    ]).then(([profile, proProfile, userSettings, userBusinesses, invites]) => {
+    getPersonalProfile(user.id),
+    getProfessionalProfile(user.id),
+    getUserSettings(user.id),
+    getUserBusinesses(user.id),
+    getInvitationsForEmail(user.email)]
+    ).then(([profile, proProfile, userSettings, userBusinesses, invites]) => {
       if (profile) setProfile(profile);
       if (proProfile) setProProfile(proProfile);
       if (userSettings) setSettings(userSettings);
       setBusinesses(userBusinesses);
-      setPendingInvites(invites.filter(i => i.status === 'sent' || i.status === 'delivered').length);
+      setPendingInvites(invites.filter((i) => i.status === 'sent' || i.status === 'delivered').length);
     }).finally(() => setLoading(false));
   }, [user]);
 
@@ -39,16 +39,16 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
-      </div>
-    );
+      </div>);
+
   }
 
   const activeContext = user?.active_context || 'personal';
   const contextLabel = activeContext.charAt(0).toUpperCase() + activeContext.slice(1);
   const isProfessionalActive = user?.professional_activated || user?.professional_onboarding_status === 'active';
   const activeBusinessId = user?.active_business_id;
-  const activeBusiness = businesses.find(b => b.id === activeBusinessId) || null;
-  const otherBusinesses = businesses.filter(b => b.id !== activeBusinessId);
+  const activeBusiness = businesses.find((b) => b.id === activeBusinessId) || null;
+  const otherBusinesses = businesses.filter((b) => b.id !== activeBusinessId);
 
   // Context-switch handlers — semantics unchanged.
   const switchToPersonal = async () => {
@@ -71,11 +71,11 @@ export default function Dashboard() {
   // Represents ONLY the current operating context. Personal has no
   // Trust verification flow, so no indicator is shown in personal context.
   const headerVerification =
-    activeContext === 'professional' ? (
-      <VerificationBadge state={proProfile?.verification_state} to="/verify-professional" size="md" />
-    ) : activeContext === 'business' && activeBusiness ? (
-      <VerificationBadge state={activeBusiness.verification_state} to={`/business/${activeBusiness.id}/verify`} size="md" />
-    ) : null;
+  activeContext === 'professional' ?
+  <VerificationBadge state={proProfile?.verification_state} to="/verify-professional" size="md" /> :
+  activeContext === 'business' && activeBusiness ?
+  <VerificationBadge state={activeBusiness.verification_state} to={`/business/${activeBusiness.id}/verify`} size="md" /> :
+  null;
 
   // ── Primary context card (current operating context, shown first) ──
   const PrimaryCard = (() => {
@@ -94,8 +94,8 @@ export default function Dashboard() {
               <p className="text-sm text-stone-500">You're operating in your personal context</p>
             </div>
           </div>
-        </div>
-      );
+        </div>);
+
     }
     if (activeContext === 'professional') {
       return (
@@ -112,8 +112,8 @@ export default function Dashboard() {
               <p className="text-sm text-stone-500">{proProfile?.headline || 'Open your Professional Dashboard'}</p>
             </div>
           </div>
-        </div>
-      );
+        </div>);
+
     }
     // business context — the currently operating business, visually obvious
     if (activeContext === 'business' && activeBusiness) {
@@ -134,8 +134,8 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-        </div>
-      );
+        </div>);
+
     }
     return null;
   })();
@@ -144,12 +144,12 @@ export default function Dashboard() {
   // The verification badge is a sibling Link positioned over the card's
   // top-right corner, so clicking it navigates to that business's
   // verification route WITHOUT triggering the card's context switch.
-  const renderBusinessCard = (biz) => (
-    <div key={biz.id} className="relative">
+  const renderBusinessCard = (biz) =>
+  <div key={biz.id} className="relative">
       <button
-        onClick={() => switchToBusiness(biz.id)}
-        className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
-      >
+      onClick={() => switchToBusiness(biz.id)}
+      className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full">
+      
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
             <Building2 className="w-5 h-5 text-indigo-600" />
@@ -169,11 +169,11 @@ export default function Dashboard() {
       <div className="absolute top-3 right-3">
         <VerificationBadge state={biz.verification_state} to={`/business/${biz.id}/verify`} />
       </div>
-    </div>
-  );
+    </div>;
 
-  const createAnotherBusinessCard = (
-    <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+
+  const createAnotherBusinessCard =
+  <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
           <Plus className="w-5 h-5 text-indigo-600" />
@@ -183,11 +183,11 @@ export default function Dashboard() {
           <p className="text-sm text-stone-500">Add another business workspace to your identity</p>
         </div>
       </div>
-    </Link>
-  );
+    </Link>;
 
-  const createBusinessCard = (
-    <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+
+  const createBusinessCard =
+  <Link to="/create-business" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
           <Building2 className="w-5 h-5 text-indigo-600" />
@@ -198,48 +198,48 @@ export default function Dashboard() {
           <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
         </div>
       </div>
-    </Link>
-  );
+    </Link>;
+
 
   // ── Businesses section — depends on context ──
   // Personal/Professional: "Your Businesses" lists all businesses + Create Another.
   // Business: current business is the primary card (above); "Other Businesses"
   // lists the remaining ones (current is never duplicated). Create Another
   // stays available. Empty "Other Businesses" section is omitted.
-  const businessesSection = activeContext === 'business' ? (
-    otherBusinesses.length > 0 ? (
-      <div className="mb-6">
+  const businessesSection = activeContext === 'business' ?
+  otherBusinesses.length > 0 ?
+  <div className="mb-6">
         <h2 className="font-semibold text-stone-800 mb-3">Other Businesses</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           {otherBusinesses.map(renderBusinessCard)}
         </div>
-      </div>
-    ) : null
-  ) : (
-    <div className="mb-6">
+      </div> :
+  null :
+
+  <div className="mb-6">
       <h2 className="font-semibold text-stone-800 mb-3">Your Businesses</h2>
       <div className="grid sm:grid-cols-2 gap-4">
-        {businesses.length > 0 ? (
-          <>
+        {businesses.length > 0 ?
+      <>
             {businesses.map(renderBusinessCard)}
             {createAnotherBusinessCard}
-          </>
-        ) : (
-          createBusinessCard
-        )}
+          </> :
+
+      createBusinessCard
+      }
       </div>
-    </div>
-  );
+    </div>;
+
 
   // ── Secondary context cards ──
   // Personal → Professional secondary.
   // Professional → Personal secondary.
   // Business → Professional (if activated) + Personal.
-  const professionalSecondary = isProfessionalActive ? (
-    <button
-      onClick={switchToProfessional}
-      className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
-    >
+  const professionalSecondary = isProfessionalActive ?
+  <button
+    onClick={switchToProfessional}
+    className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full">
+    
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
           <Briefcase className="w-5 h-5 text-indigo-600" />
@@ -249,9 +249,9 @@ export default function Dashboard() {
           <p className="text-sm text-stone-500">Open Professional Dashboard</p>
         </div>
       </div>
-    </button>
-  ) : activeContext !== 'business' ? (
-    <Link to="/activate-professional" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+    </button> :
+  activeContext !== 'business' ?
+  <Link to="/activate-professional" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
           <Briefcase className="w-5 h-5 text-indigo-600" />
@@ -262,14 +262,14 @@ export default function Dashboard() {
           <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
         </div>
       </div>
-    </Link>
-  ) : null;
+    </Link> :
+  null;
 
-  const personalSecondary = profile ? (
-    <button
-      onClick={switchToPersonal}
-      className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full"
-    >
+  const personalSecondary = profile ?
+  <button
+    onClick={switchToPersonal}
+    className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all text-left w-full">
+    
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
           <UserIcon className="w-5 h-5 text-indigo-600" />
@@ -279,9 +279,9 @@ export default function Dashboard() {
           <p className="text-sm text-stone-500">Open Personal Dashboard</p>
         </div>
       </div>
-    </button>
-  ) : (
-    <Link to="/onboarding" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+    </button> :
+
+  <Link to="/onboarding" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center transition-colors">
           <UserIcon className="w-5 h-5 text-indigo-600" />
@@ -295,26 +295,26 @@ export default function Dashboard() {
           <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
         </div>
       </div>
-    </Link>
-  );
+    </Link>;
 
-  const secondaryCards = (
-    <div className="grid sm:grid-cols-2 gap-4 mb-6">
+
+  const secondaryCards =
+  <div className="grid sm:grid-cols-2 gap-4 mb-6">
       {activeContext === 'personal' && professionalSecondary}
       {activeContext === 'professional' && personalSecondary}
-      {activeContext === 'business' && (
-        <div className="space-y-4">
+      {activeContext === 'business' &&
+    <div className="space-y-4">
           {professionalSecondary}
           {personalSecondary}
         </div>
-      )}
-    </div>
-  );
+    }
+    </div>;
+
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       {/* Header — Welcome + compact verification indicator for the
-          current operating context only. */}
+           current operating context only. */}
       <div className="mb-8">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium mb-3">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -330,8 +330,8 @@ export default function Dashboard() {
       </div>
 
       {/* Pending invitations */}
-      {pendingInvites > 0 && (
-        <Link to="/invitations" className="block bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 hover:bg-indigo-100 transition-colors">
+      {pendingInvites > 0 &&
+      <Link to="/invitations" className="block bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 hover:bg-indigo-100 transition-colors">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
               <Mail className="w-5 h-5 text-indigo-600" />
@@ -343,12 +343,12 @@ export default function Dashboard() {
             <ArrowRight className="w-4 h-4 text-indigo-600" />
           </div>
         </Link>
-      )}
+      }
 
       {/* Primary context card — current operating context, shown first.
-          Sized to match the grid cards below (one column of the 2-col grid).
-          In business context the "Create Another Business" card sits to the
-          right of the current business, filling the grid's second column. */}
+           Sized to match the grid cards below (one column of the 2-col grid).
+           In business context the "Create Another Business" card sits to the
+           right of the current business, filling the grid's second column. */}
       <div className="grid sm:grid-cols-2 gap-4 mb-6">
         {PrimaryCard}
         {activeContext === 'business' && createAnotherBusinessCard}
@@ -362,7 +362,7 @@ export default function Dashboard() {
 
       {/* Quick actions */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <Link to="/profile" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
+        <Link to="/profile" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all hidden">
           <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center mb-3 transition-colors">
             <UserIcon className="w-5 h-5 text-indigo-600" />
           </div>
@@ -403,12 +403,12 @@ export default function Dashboard() {
               <span className="text-sm">Professional</span>
             </div>
             <span className="text-xs text-slate-400">
-              {isProfessionalActive ? (activeContext === 'professional' ? 'Active' : 'Available') : 'Not activated'}
+              {isProfessionalActive ? activeContext === 'professional' ? 'Active' : 'Available' : 'Not activated'}
             </span>
           </div>
-          {businesses.length > 0 ? (
-            businesses.map(biz => (
-              <div key={biz.id} className={`flex items-center justify-between px-3 py-2.5 rounded-lg ${activeContext === 'business' && activeBusinessId === biz.id ? 'bg-indigo-600' : 'bg-slate-800'}`}>
+          {businesses.length > 0 ?
+          businesses.map((biz) =>
+          <div key={biz.id} className={`flex items-center justify-between px-3 py-2.5 rounded-lg ${activeContext === 'business' && activeBusinessId === biz.id ? 'bg-indigo-600' : 'bg-slate-800'}`}>
                 <div className="flex items-center gap-2 min-w-0">
                   <Building2 className="w-4 h-4 text-indigo-400 shrink-0" />
                   <span className="text-sm truncate">{biz.name}</span>
@@ -417,18 +417,18 @@ export default function Dashboard() {
                   {activeContext === 'business' && activeBusinessId === biz.id ? 'Active' : 'Available'}
                 </span>
               </div>
-            ))
-          ) : (
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-800/50 opacity-60">
+          ) :
+
+          <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-slate-800/50 opacity-60">
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-indigo-400" />
                 <span className="text-sm">Business</span>
               </div>
               <span className="text-xs text-slate-500">Not created</span>
             </div>
-          )}
+          }
         </div>
       </div>
-    </div>
-  );
+    </div>);
+
 }
