@@ -16,24 +16,24 @@ export default function ProfessionalOverview() {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      getProfessionalProfile(user.id),
-      listProviderBookings(user.id).catch(() => []),
-      getAvailabilityRules(user.id, 'professional').catch(() => []),
-    ])
-      .then(([p, bks, rules]) => {
-        setProfile(p);
-        setBookings(bks);
-        setAvailabilityCount(rules.length);
-      })
-      .finally(() => setLoading(false));
+    getProfessionalProfile(user.id),
+    listProviderBookings(user.id).catch(() => []),
+    getAvailabilityRules(user.id, 'professional').catch(() => [])]
+    ).
+    then(([p, bks, rules]) => {
+      setProfile(p);
+      setBookings(bks);
+      setAvailabilityCount(rules.length);
+    }).
+    finally(() => setLoading(false));
   }, [user]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <Loader2 className="w-6 h-6 text-stone-300 animate-spin" />
-      </div>
-    );
+      </div>);
+
   }
 
   const upcomingBookings = bookings.filter(
@@ -41,18 +41,18 @@ export default function ProfessionalOverview() {
   );
 
   const verificationLabel =
-    profile?.verification_state === 'verified' ? 'Verified' :
-    profile?.verification_state === 'pending_review' ? 'Pending' :
-    profile?.verification_state === 'additional_info_required' ? 'Action Required' :
-    'Not Verified';
+  profile?.verification_state === 'verified' ? 'Verified' :
+  profile?.verification_state === 'pending_review' ? 'Pending' :
+  profile?.verification_state === 'additional_info_required' ? 'Action Required' :
+  'Not Verified';
 
   const verificationAccent =
-    profile?.verification_state === 'verified' ? 'emerald' : 'amber';
+  profile?.verification_state === 'verified' ? 'emerald' : 'amber';
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-stone-800 mb-1">Overview</h1>
+        <h1 className="text-2xl font-bold text-stone-800 mb-1 hidden">Overview</h1>
         <p className="text-stone-500 text-sm">Your professional workspace at a glance.</p>
       </div>
 
@@ -65,27 +65,27 @@ export default function ProfessionalOverview() {
 
       <div>
         <h2 className="font-semibold text-stone-800 mb-3">Recent Bookings</h2>
-        {bookings.length === 0 ? (
-          <div className="bg-white rounded-xl border border-stone-200 p-8 text-center text-sm text-stone-500">
+        {bookings.length === 0 ?
+        <div className="bg-white rounded-xl border border-stone-200 p-8 text-center text-sm text-stone-500">
             No bookings yet.
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-stone-200 divide-y divide-stone-100">
-            {bookings.slice(0, 5).map((b) => (
-              <div key={b.id} className="flex items-center justify-between p-4">
+          </div> :
+
+        <div className="bg-white rounded-xl border border-stone-200 divide-y divide-stone-100">
+            {bookings.slice(0, 5).map((b) =>
+          <div key={b.id} className="flex items-center justify-between p-4">
                 <div>
                   <div className="text-sm font-medium text-stone-800">
                     {new Date(b.start_time).toLocaleDateString('en-GB', {
-                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-                    })}
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                })}
                   </div>
                   <div className="text-xs text-stone-500 mt-0.5">{b.status}</div>
                 </div>
               </div>
-            ))}
+          )}
           </div>
-        )}
+        }
       </div>
-    </div>
-  );
+    </div>);
+
 }
