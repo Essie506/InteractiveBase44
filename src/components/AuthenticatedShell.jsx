@@ -4,7 +4,8 @@ import { useNav } from '@/lib/NavContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarContent';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftOpen } from 'lucide-react';
+import NavCollapseControl from '@/components/nav/NavCollapseControl';
 
 // Persistent authenticated navigation shell.
 // ───────────────────────────────────────────────────────────
@@ -22,10 +23,11 @@ import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 // ProtectedRoute-gated, so a signed-out user never reaches them here.
 //
 // Toggleable on all viewports:
-//   - Desktop (md+): a collapsible <aside> (w-60 ↔ w-0). A "Collapse"
-//     button sits at the bottom of the panel; when collapsed, an
-//     expand button floats at the top-left of main (hidden on
-//     /directory, where the page logo toggles instead).
+//   - Desktop (md+): a collapsible <aside> (w-60 ↔ w-0). When open, a
+//     small edge collapse control (NavCollapseControl) sits on the
+//     panel's right edge; when collapsed, an expand button floats at
+//     the top-left of main (hidden on /directory, where the page
+//     header NavTrigger toggles instead).
 //   - Mobile: the same panel as an overlay Sheet, same state.
 export default function AuthenticatedShell() {
   const { user, isLoadingAuth } = useAuth();
@@ -42,34 +44,28 @@ export default function AuthenticatedShell() {
     return <Outlet />;
   }
 
-  const collapseButton = (
-    <div className="px-3 pb-3 shrink-0">
-      <button
-        onClick={() => setNavOpen(false)}
-        className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
-      >
-        <PanelLeftClose className="w-4 h-4" />
-        Collapse
-      </button>
-    </div>
-  );
-
   return (
-    <div className="flex h-screen bg-stone-50">
+    <div className="flex h-screen bg-stone-50 relative">
       {/* Desktop sidebar — persistent, collapsible */}
       <aside className={`hidden md:flex flex-col bg-slate-900 text-white shrink-0 transition-all duration-200 overflow-hidden ${navOpen ? 'w-60' : 'w-0'}`}>
         <div className="w-60 flex flex-col h-full">
           <AuthenticatedSidebarContent />
-          {collapseButton}
         </div>
       </aside>
 
-      {/* Mobile sidebar — overlay drawer, same panel + state */}
+      {/* Edge collapse control — right edge of the open left panel.
+          Complementary to the right-side filter drawer's chevron; only
+          shown on desktop (mobile uses the overlay Sheet's own close). */}
+      {navOpen && !isMobile && (
+        <NavCollapseControl onClose={() => setNavOpen(false)} className="left-60" />
+      )}
+
+      {/* Mobile sidebar — overlay drawer, same panel + state.
+          The Sheet's built-in close (X) is the single close control. */}
       {isMobile && (
         <Sheet open={navOpen} onOpenChange={setNavOpen}>
-          <SheetContent side="left" hideClose className="w-60 bg-slate-900 text-white border-r-0 p-0 flex flex-col">
+          <SheetContent side="left" className="w-60 bg-slate-900 text-white border-r-0 p-0 flex flex-col">
             <AuthenticatedSidebarContent />
-            {collapseButton}
           </SheetContent>
         </Sheet>
       )}

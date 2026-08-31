@@ -8,6 +8,7 @@ import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
+import NavTrigger from '@/components/nav/NavTrigger';
 import ProfessionalResultCard from '@/components/directory/ProfessionalResultCard';
 import BusinessResultCard from '@/components/directory/BusinessResultCard';
 import EventResultCard from '@/components/directory/EventResultCard';
@@ -35,7 +36,7 @@ export default function Directory() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [publicNavOpen, setPublicNavOpen] = useState(false);
-  const { toggleNav } = useNav();
+  const { navOpen, toggleNav } = useNav();
 
   // Parse URL search params once on mount — initializes both draft
   // and applied filter state so the Directory restores the exact
@@ -291,17 +292,15 @@ export default function Directory() {
       {/* Header */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          {/* Logo → opens nav drawer (does NOT navigate to Dashboard) */}
-          <button
-            onClick={() => user ? toggleNav() : setPublicNavOpen(true)}
-            className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
-            aria-label="Open navigation menu">
-            
-            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">I</span>
-            </div>
-            <span className="font-semibold text-stone-800">Interactive</span>
-          </button>
+          {/* Nav drawer trigger — shown only when the drawer is closed.
+              When open, the panel's edge collapse control takes over
+              (no duplicate "Interactive" beside the open navigation).
+              Wrapper div preserves the justify-between layout when hidden. */}
+          <div className="flex items-center gap-2.5">
+            {(user ? !navOpen : !publicNavOpen) && (
+              <NavTrigger onOpen={user ? toggleNav : () => setPublicNavOpen(true)} />
+            )}
+          </div>
           {/* Page title (not a Dashboard link) — compass icon + Directory */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
