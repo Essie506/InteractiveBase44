@@ -87,6 +87,7 @@ export default function AuthenticatedShell() {
           <AuthenticatedTopNav
             pageIcon={identity.icon}
             pageLabel={identity.label}
+            navOpen={navOpen}
             onToggleNav={toggleNav}
           />
         </div>
