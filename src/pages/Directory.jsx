@@ -314,9 +314,18 @@ export default function Directory() {
         {/* Signed-in page heading — mobile only (desktop shows the page
             identity in the shared navbar). Signed-out keeps its header. */}
         {user && (
-          <div className="flex items-center gap-2 mb-6 md:hidden">
-            <Compass className="w-6 h-6 text-indigo-600" />
-            <h1 className="text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
+          <div className="flex items-center justify-between gap-2 mb-3 md:hidden">
+            <div className="flex items-center gap-2 min-w-0">
+              <Compass className="w-6 h-6 text-indigo-600 shrink-0" />
+              <h1 className="text-2xl font-bold tracking-tight text-stone-800 truncate">Directory</h1>
+            </div>
+            <button
+              onClick={() => setFiltersOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+            </button>
           </div>
         )}
         {isDemoMode && (
@@ -338,7 +347,7 @@ export default function Directory() {
               </div>
               <button
                 onClick={() => setFiltersOpen(true)}
-                className="lg:hidden inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
+                className={`${user ? 'hidden md:inline-flex lg:hidden' : 'lg:hidden'} inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0`}
               >
                 <SlidersHorizontal className="w-4 h-4" />
                 Filters

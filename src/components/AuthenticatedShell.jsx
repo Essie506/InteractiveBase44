@@ -72,7 +72,7 @@ export default function AuthenticatedShell() {
           Sheet's built-in close (X) is the mobile close control. */}
       {isMobile && (
         <Sheet open={navOpen} onOpenChange={setNavOpen}>
-          <SheetContent side="left" className="w-60 bg-slate-900 text-white border-r-0 p-0 flex flex-col">
+          <SheetContent side="left" transparentOverlay className="w-60 bg-slate-900 text-white border-r-0 p-0 flex flex-col">
             <AuthenticatedSidebarContent />
           </SheetContent>
         </Sheet>
