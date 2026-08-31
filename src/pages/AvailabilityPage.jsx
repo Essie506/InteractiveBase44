@@ -92,7 +92,7 @@ export default function AvailabilityPage() {
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-stone-800 mb-1 hidden">Availability</h1>
+        
         <p className="text-stone-500">Configure your professional working hours. This is the authoritative availability state that future Booking will consume.</p>
       </div>
 
