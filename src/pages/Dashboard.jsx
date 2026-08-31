@@ -299,11 +299,15 @@ export default function Dashboard() {
   );
 
   const secondaryCards = (
-    <div className={`grid gap-4 mb-6 ${activeContext === 'business' ? 'sm:grid-cols-1' : 'sm:grid-cols-2'}`}>
+    <div className="grid sm:grid-cols-2 gap-4 mb-6">
       {activeContext === 'personal' && professionalSecondary}
       {activeContext === 'professional' && personalSecondary}
-      {activeContext === 'business' && professionalSecondary}
-      {activeContext === 'business' && personalSecondary}
+      {activeContext === 'business' && (
+        <div className="space-y-4">
+          {professionalSecondary}
+          {personalSecondary}
+        </div>
+      )}
     </div>
   );
 
