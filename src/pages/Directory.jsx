@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
 import { geocodeOrigin } from '@/lib/geo';
-import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, ChevronRight } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
@@ -259,6 +259,16 @@ export default function Directory() {
     }
   };
 
+  // Single Filters button handler. On desktop (lg+) it toggles the
+  // right-side aside drawer; on mobile/tablet it opens the filter Sheet.
+  const handleFiltersClick = () => {
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      setDrawerOpen(v => !v);
+    } else {
+      setFiltersOpen(true);
+    }
+  };
+
   const filterProps = {
     query, setQuery,
     typeFilter, setTypeFilter: handleTypeChange,
@@ -311,23 +321,6 @@ export default function Directory() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6">
-        {/* Signed-in page heading — mobile only (desktop shows the page
-            identity in the shared navbar). Signed-out keeps its header. */}
-        {user && (
-          <div className="flex items-center justify-between gap-2 mb-3 md:hidden">
-            <div className="flex items-center gap-2 min-w-0">
-              <Compass className="w-6 h-6 text-indigo-600 shrink-0" />
-              <h1 className="text-2xl font-bold tracking-tight text-stone-800 truncate">Directory</h1>
-            </div>
-            <button
-              onClick={() => setFiltersOpen(true)}
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              Filters
-            </button>
-          </div>
-        )}
         {isDemoMode && (
           <div className="mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
             <span className="w-2 h-2 bg-amber-400 rounded-full"></span>
@@ -335,24 +328,34 @@ export default function Directory() {
             <span className="text-amber-600">— local seed listings for UI testing. Not from Firebase.</span>
           </div>
         )}
+        {/* Top row — a single Filters button, responsively positioned.
+            Mobile (authenticated): [Directory H1] [Filters] then [count] on its own line.
+            Desktop/tablet: [count] [Filters] (H1 hidden; navbar shows page identity).
+            Signed-out mobile: [count] [Filters] on one line (no H1 in content). */}
+        <div className="flex flex-wrap items-center gap-y-2 gap-x-2 mb-3">
+          {user && (
+            <div className="flex items-center gap-2 min-w-0 md:hidden">
+              <Compass className="w-6 h-6 text-indigo-600 shrink-0" />
+              <h1 className="text-2xl font-bold tracking-tight text-stone-800 truncate">Directory</h1>
+            </div>
+          )}
+          <div className={`text-sm text-stone-500 flex items-center gap-2 flex-wrap ${user ? 'order-last md:order-none w-full md:w-auto' : 'w-auto'}`}>
+            <span>{loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</span>
+            {appliedFilters.origin && appliedFilters.locationText && (
+              <span className="text-stone-400">within {appliedFilters.distance} miles of {appliedFilters.origin.label}</span>
+            )}
+          </div>
+          <button
+            onClick={handleFiltersClick}
+            className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            Filters
+          </button>
+        </div>
         <div className="flex gap-6">
           {/* Results — majority width */}
           <div className="flex-1 min-w-0">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="text-sm text-stone-500 flex items-center gap-2 flex-wrap">
-                <span>{loading ? 'Loading…' : `${results.length} result${results.length === 1 ? '' : 's'}`}</span>
-                {appliedFilters.origin && appliedFilters.locationText && (
-                  <span className="text-stone-400">within {appliedFilters.distance} miles of {appliedFilters.origin.label}</span>
-                )}
-              </div>
-              <button
-                onClick={() => setFiltersOpen(true)}
-                className={`${user ? 'hidden md:inline-flex lg:hidden' : 'lg:hidden'} inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0`}
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-                Filters
-              </button>
-            </div>
             {/* Distance-sort hint */}
             {appliedFilters.sort === 'distance' && !appliedFilters.origin && !loading &&
             <div className="mb-3 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
@@ -413,31 +416,24 @@ export default function Directory() {
             }
           </div>
 
-          {/* Desktop filter drawer — right side, collapsible */}
-          {drawerOpen ?
-          <aside className="hidden lg:block w-80 shrink-0 relative">
+          {/* Desktop filter drawer — right side. Toggled by the Filters
+              button in the top row (handleFiltersClick). Only rendered
+              when open; the close chevron on its left edge also closes. */}
+          {drawerOpen && (
+            <aside className="hidden lg:block w-80 shrink-0 relative">
               {/* Close chevron on drawer left edge */}
               <button
-              onClick={() => setDrawerOpen(false)}
-              className="absolute left-0 top-8 -translate-x-1/2 w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-sm hover:bg-stone-50 hover:border-stone-300 z-10 transition-colors"
-              aria-label="Collapse filter drawer">
-              
+                onClick={() => setDrawerOpen(false)}
+                className="absolute left-0 top-8 -translate-x-1/2 w-7 h-7 bg-white border border-stone-200 rounded-full flex items-center justify-center shadow-sm hover:bg-stone-50 hover:border-stone-300 z-10 transition-colors"
+                aria-label="Collapse filter drawer"
+              >
                 <ChevronRight className="w-4 h-4 text-stone-600" />
               </button>
               <div className="sticky top-24 bg-white border border-stone-200 rounded-xl p-5 max-h-[calc(100vh-8rem)] overflow-y-auto">
                 <DirectoryFilters {...filterProps} />
               </div>
-            </aside> :
-
-          <button
-            onClick={() => setDrawerOpen(true)}
-            className="hidden lg:flex items-center gap-2 px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-600 hover:bg-stone-50 hover:border-stone-300 self-start sticky top-24 transition-colors"
-            aria-label="Expand filter drawer">
-            
-              <ChevronLeft className="w-4 h-4" />
-              Filters
-            </button>
-          }
+            </aside>
+          )}
         </div>
       </div>
 
