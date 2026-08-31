@@ -28,13 +28,17 @@ import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 //     /directory, where the page logo toggles instead).
 //   - Mobile: the same panel as an overlay Sheet, same state.
 export default function AuthenticatedShell() {
-  const { user } = useAuth();
+  const { user, isLoadingAuth } = useAuth();
   const { navOpen, setNavOpen, toggleNav } = useNav();
   const isMobile = useIsMobile();
   const location = useLocation();
   const isDirectory = location.pathname === '/directory';
 
-  if (!user) {
+  // Only render the authenticated chrome once auth has fully resolved
+  // AND the user is confirmed authenticated. During loading, signed-out
+  // Directory, or any unresolved/redirecting auth state, render plain
+  // content — no sidebar/chrome flash.
+  if (isLoadingAuth || !user) {
     return <Outlet />;
   }
 
