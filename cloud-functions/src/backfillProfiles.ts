@@ -6,9 +6,13 @@
 // so the public collections contain identical field selection.
 //
 // Admin-only. Idempotent: safe to run multiple times.
-// Does NOT modify private source data — only writes to the public
-// projection collections. Ineligible records that have a stale
-// projection are cleaned up (projection deleted).
+// Does NOT modify private source data EXCEPT for the one-time
+// Professional directory_visibility migration, which explicitly writes
+// the field to private professionalProfiles records so existing
+// publicly-listable Professionals retain their Directory presence.
+// Otherwise only writes to the public projection collections.
+// Ineligible records that have a stale projection are cleaned up
+// (projection deleted).
 //
 // Returns:
 //   { personal, professional, business, events }
@@ -18,10 +22,9 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, requireAdmin, resolveProfessionalReferences } from './shared';
 import { buildPersonalPublicProjection } from './personalProfileProjection';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
-import { buildPublicProjection, buildDirectoryEntry } from './professionalProfile';
-import { isProfessionalListable, isProfessionalDirectoryListable } from './projectionEligibility';
-import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
+import { fetchBusinessPublicGeo } from './geo';
 import { maintainProjection } from './calendarEvent';
+import { runProfessionalBackfill } from './professionalBackfill';
 
 export const backfillPublicProfiles = onCall(
   { region: 'europe-west2', cors: allowedOrigins, timeoutSeconds: 300 },
@@ -33,7 +36,7 @@ export const backfillPublicProfiles = onCall(
 
     const results = {
       personal: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
-      professional: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
+      professional: { total: 0, projected: 0, directoryEntriesProjected: 0, directoryVisibilityMigrated: 0, skipped: 0, skippedDetails: [] as string[] },
       business: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
       events: { total: 0, projected: 0, skipped: 0, skippedDetails: [] as string[] },
     };
@@ -68,101 +71,20 @@ export const backfillPublicProfiles = onCall(
     }
 
     // ── Professional (canonical: doc ID == normalized screen name) ──
-    // Two independent projections are maintained:
-    //   professionalProfilesPublic — full public profile (visibility=public)
-    //   professionalDirectoryEntries — discovery advert (directory_visibility=listed)
-    //
-    // ── Backward-compatible directory_visibility migration ──
-    // The directory_visibility field is new. Existing profiles do not
-    // carry it. To avoid existing publicly-listable Professionals
-    // disappearing from the Directory merely because the field was
-    // absent, this one-time migration explicitly writes the field:
-    //   - profiles that were publicly listable BEFORE this change
-    //     (visibility=public && active && screen_name) → 'listed'
-    //   - all other profiles → 'unlisted' (safe default — no exposure)
-    // This is an EXPLICIT migration write to the private profile, not a
-    // silent reinterpretation of missing values. After the migration
-    // every profile carries the field and the save function + projection
-    // logic work normally. The save function treats a missing field as
-    // 'unlisted', so running this backfill is required to preserve
-    // existing Directory presence.
-    const proSnap = await db.collection('professionalProfiles').get();
-    results.professional.total = proSnap.size;
-
-    for (const doc of proSnap.docs) {
-      let data = doc.data();
-      const rawScreenName = data.screen_name || null;
-      const canonicalScreenName = rawScreenName
-        ? String(rawScreenName).toLowerCase().trim()
-        : null;
-
-      // ── One-time directory_visibility migration ──
-      if (data.directory_visibility === undefined) {
-        const wasListable = isProfessionalListable(data, canonicalScreenName);
-        const migratedVisibility = wasListable ? 'listed' : 'unlisted';
-        await doc.ref.update({ directory_visibility: migratedVisibility });
-        data = { ...data, directory_visibility: migratedVisibility };
-      }
-
-      const isPublicEligible = isProfessionalListable(data, canonicalScreenName);
-      const isDirectoryEligible = isProfessionalDirectoryListable(data, canonicalScreenName);
-
-      // ── professionalProfilesPublic (full public profile) ──
-      if (isPublicEligible && canonicalScreenName) {
-        const locationGeo = await fetchProfessionalPublicGeo(db, data.service_area_location_id, data.location_id);
-        const projection = buildPublicProjection(data.identity_id, doc.id, data, locationGeo);
-        await db.collection('professionalProfilesPublic').doc(canonicalScreenName).set(projection);
-        results.professional.projected++;
-        const staleSnap = await db.collection('professionalProfilesPublic')
-          .where('identity_id', '==', data.identity_id)
-          .get();
-        for (const staleDoc of staleSnap.docs) {
-          if (staleDoc.id !== canonicalScreenName) {
-            await staleDoc.ref.delete().catch(() => {});
-          }
-        }
-      } else {
-        const staleSnap = await db.collection('professionalProfilesPublic')
-          .where('identity_id', '==', data.identity_id)
-          .get();
-        for (const staleDoc of staleSnap.docs) {
-          await staleDoc.ref.delete().catch(() => {});
-        }
-      }
-
-      // ── professionalDirectoryEntries (discovery advert) ──
-      // Independent of the public profile projection. A connections-only
-      // or private profile can still have a directory advert.
-      if (isDirectoryEligible && canonicalScreenName) {
-        const locationGeo = await fetchProfessionalPublicGeo(db, data.service_area_location_id, data.location_id);
-        const advert = buildDirectoryEntry(data.identity_id, doc.id, data, locationGeo);
-        await db.collection('professionalDirectoryEntries').doc(canonicalScreenName).set(advert);
-        const staleAdSnap = await db.collection('professionalDirectoryEntries')
-          .where('identity_id', '==', data.identity_id)
-          .get();
-        for (const staleDoc of staleAdSnap.docs) {
-          if (staleDoc.id !== canonicalScreenName) {
-            await staleDoc.ref.delete().catch(() => {});
-          }
-        }
-      } else {
-        const staleAdSnap = await db.collection('professionalDirectoryEntries')
-          .where('identity_id', '==', data.identity_id)
-          .get();
-        for (const staleDoc of staleAdSnap.docs) {
-          await staleDoc.ref.delete().catch(() => {});
-        }
-      }
-
-      if (!isPublicEligible) {
-        results.professional.skipped++;
-        const reasons: string[] = [];
-        if (data.visibility !== 'public') reasons.push(`visibility=${data.visibility}`);
-        if (data.lifecycle_state !== 'active') reasons.push(`lifecycle=${data.lifecycle_state}`);
-        if (!canonicalScreenName) reasons.push('no screen_name');
-        results.professional.skippedDetails.push(`${doc.id}: ${reasons.join(', ')}`);
-      }
-    }
+    // Delegated to the shared Professional-only helper so the broad
+    // backfill and the dedicated backfillProfessionalDirectory callable
+    // use identical logic. The helper performs the one-time
+    // directory_visibility migration (only when the field is undefined),
+    // maintains professionalProfilesPublic and professionalDirectoryEntries
+    // independently, and cleans up stale projections. See
+    // professionalBackfill.ts for the full contract.
+    const professional = await runProfessionalBackfill();
+    results.professional.total = professional.total;
+    results.professional.projected = professional.projected;
+    results.professional.directoryEntriesProjected = professional.directoryEntriesProjected;
+    results.professional.directoryVisibilityMigrated = professional.directoryVisibilityMigrated;
+    results.professional.skipped = professional.skipped;
+    results.professional.skippedDetails = professional.skippedDetails;
 
     // ── Business ──────────────────────────────────────────────
     const businessSnap = await db.collection('businessProfiles').get();

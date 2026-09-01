@@ -39,3 +39,7 @@ export { saveCalendarEvent } from './calendarEvent';
 
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';
+
+// Dedicated Professional-only Directory/Advert migration (admin-only).
+// Does NOT run Personal/Business/Event backfill.
+export { backfillProfessionalDirectory } from './backfillProfessionalDirectory';
