@@ -166,3 +166,29 @@ export async function callSaveBusinessProfile(data) {
   const result = await callable('saveBusinessProfile')(data);
   return result.data;
 }
+
+// ── Relationship System — Connections ──
+// A Connection is an explicit identity-to-identity relationship,
+// separate from Messaging. All transitions are server-only.
+export async function callCreateConnectionRequest(data) {
+  const result = await callable('createConnectionRequest')(data);
+  return result.data;
+}
+
+export async function callRespondConnectionRequest(data) {
+  const result = await callable('respondConnectionRequest')(data);
+  return result.data;
+}
+
+export async function callDisconnectConnection(data) {
+  const result = await callable('disconnectConnection')(data);
+  return result.data;
+}
+
+// Server-side Professional Profile access resolver. Enforces the
+// public / connections / private visibility tiers using the
+// authoritative Connection relationship.
+export async function callResolveProfessionalAccess(data) {
+  const result = await callable('resolveProfessionalAccess')(data);
+  return result.data;
+}

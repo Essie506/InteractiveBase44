@@ -1,0 +1,64 @@
+{
+  "name": "ConnectionRequest",
+  "type": "object",
+  "properties": {
+    "requester_id": {
+      "type": "string",
+      "title": "Requester ID",
+      "description": "Stable reference to the Interactive identity requesting the connection"
+    },
+    "target_id": {
+      "type": "string",
+      "title": "Target ID",
+      "description": "Stable reference to the Interactive identity receiving the request"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "declined",
+        "expired"
+      ],
+      "default": "pending",
+      "title": "Status"
+    },
+    "requester_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "personal",
+      "title": "Requester Context",
+      "description": "Provenance/context at the time of the request. Does NOT make the resulting Connection context-specific \u2014 Interactive has one authenticated identity, and the accepted person-to-person Connection belongs to the identities."
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Requested At"
+    },
+    "responded_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Responded At"
+    },
+    "request_message": {
+      "type": "string",
+      "title": "Request Message",
+      "description": "Optional introductory message submitted with the connection request"
+    }
+  },
+  "required": [
+    "requester_id",
+    "target_id",
+    "status"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

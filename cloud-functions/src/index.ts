@@ -36,3 +36,13 @@ export { saveCalendarEvent } from './calendarEvent';
 
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';
+
+// Relationship System — Connections (identity-to-identity relationship,
+// separate from Messaging). Profile access (resolveProfessionalAccess)
+// checks the authoritative Connection relationship, never conversations.
+export {
+  createConnectionRequest,
+  respondConnectionRequest,
+  disconnectConnection,
+  resolveProfessionalAccess,
+} from './connections';

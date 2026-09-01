@@ -72,6 +72,34 @@ export async function isBlocked(identityA: string, identityB: string): Promise<b
   return !bBlocksA.empty;
 }
 
+// ── Connection relationship ─────────────────────────────────
+// A Connection is an explicit identity-to-identity relationship,
+// SEPARATE from Messaging. The canonical Connection doc ID is the
+// two sorted identity IDs joined by '__', so there is at most one
+// Connection relationship per identity pair. An active block in
+// either direction overrides a Connection for access purposes.
+
+/** Deterministic canonical Connection doc ID for an identity pair. */
+export function connectionPairId(identityA: string, identityB: string): string {
+  return [identityA, identityB].sort().join('__');
+}
+
+/**
+ * Returns true iff an active, unblocked Connection exists between two
+ * identities. This is the semantic helper profile access code depends
+ * on — not raw collection reads — so the relationship implementation
+ * can evolve without rewriting access checks.
+ */
+export async function hasAcceptedConnection(identityA: string, identityB: string): Promise<boolean> {
+  if (!identityA || !identityB || identityA === identityB) return false;
+  const blocked = await isBlocked(identityA, identityB);
+  if (blocked) return false;
+  const pairId = connectionPairId(identityA, identityB);
+  const doc = await db.collection('connections').doc(pairId).get();
+  if (!doc.exists) return false;
+  return doc.data()!.status === 'active';
+}
+
 // ── Business membership ────────────────────────────────────
 
 /** Gets a business membership record, or null if not a member. */

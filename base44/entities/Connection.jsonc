@@ -1,0 +1,51 @@
+{
+  "name": "Connection",
+  "type": "object",
+  "properties": {
+    "identity_a_id": {
+      "type": "string",
+      "title": "Identity A ID",
+      "description": "The lexicographically-smaller of the two connected Interactive identity IDs"
+    },
+    "identity_b_id": {
+      "type": "string",
+      "title": "Identity B ID",
+      "description": "The lexicographically-larger of the two connected Interactive identity IDs"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "disconnected"
+      ],
+      "default": "active",
+      "title": "Status"
+    },
+    "established_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Established At"
+    },
+    "disconnected_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Disconnected At"
+    },
+    "source_request_id": {
+      "type": "string",
+      "title": "Source Request ID",
+      "description": "Provenance reference to the connectionRequest that established this connection. Optional but useful for audit."
+    }
+  },
+  "required": [
+    "identity_a_id",
+    "identity_b_id",
+    "status"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

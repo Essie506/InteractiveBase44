@@ -1,7 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { profileRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
-import { callSaveProfessionalProfile, callValidateScreenName, callSavePersonalProfile, callValidatePersonalScreenName } from '@/services/firebaseFunctions';
+import { callSaveProfessionalProfile, callValidateScreenName, callSavePersonalProfile, callValidatePersonalScreenName, callResolveProfessionalAccess } from '@/services/firebaseFunctions';
 
 // Interactive Profile Service — M3: routes to Firebase when configured.
 
@@ -83,6 +83,16 @@ export async function saveProfessionalProfile(identityId, data) {
 export async function getPublicProfessionalProfile(screenName) {
   requireFirebase('getPublicProfessionalProfile');
   return profileRepository.getPublicProfessionalProfile(screenName);
+}
+
+// Server-side Professional Profile access resolver — enforces the
+// public / connections / private visibility tiers using the authoritative
+// Connection relationship. The owner can view their own profile regardless
+// of visibility; an active Connection can view a connections-only profile;
+// everyone else is denied. Returns { access, profile, is_owner }.
+export async function resolveProfessionalAccess(screenName) {
+  requireFirebase('resolveProfessionalAccess');
+  return callResolveProfessionalAccess({ screen_name: screenName });
 }
 
 // Public projection read for Personal — used by the /u/:screenName route.
