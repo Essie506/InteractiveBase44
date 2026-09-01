@@ -70,7 +70,7 @@ export default function PublicProfile() {
         <AlertCircle className="w-10 h-10 text-stone-400 mb-3" />
         <h1 className="text-xl font-semibold text-stone-800 mb-1">Profile not found</h1>
         <p className="text-stone-500 mb-4">This professional profile isn't available.</p>
-        <Link to="/search" className="text-indigo-600 font-medium">Browse professionals</Link>
+        <Link to="/directory?type=professional" className="text-indigo-600 font-medium">Browse professionals</Link>
       </div>
     );
   }

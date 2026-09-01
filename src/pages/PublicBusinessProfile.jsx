@@ -71,7 +71,7 @@ export default function PublicBusinessProfile() {
         <AlertCircle className="w-10 h-10 text-stone-400 mb-3" />
         <h1 className="text-xl font-semibold text-stone-800 mb-1">Business not found</h1>
         <p className="text-stone-500 mb-4">This business profile isn't available.</p>
-        <Link to="/search" className="text-indigo-600 font-medium">Browse businesses</Link>
+        <Link to="/directory?type=business" className="text-indigo-600 font-medium">Browse businesses</Link>
       </div>
     );
   }
