@@ -114,6 +114,14 @@ export default function ProfessionalActivation() {
         screen_name: screenName.toLowerCase().trim() || null,
         visibility,
         onboarding_status: 'awaiting_verification',
+        // TEMPORARY DENORMALISED COMPATIBILITY STATE:
+        // verification_state is owned by Trust & Reputation, but the public
+        // Professional projection (professionalProfilesPublic) currently reads
+        // professionalProfiles.verification_state and there is not yet a
+        // confirmed Trust → Professional Profile sync path after review.
+        // This direct write is retained intentionally to avoid regressing
+        // verification display. TODO: remove this write once the authoritative
+        // Trust → public/profile projection mechanism is established.
         verification_state: 'pending_review',
         lifecycle_state: 'active',
         activated_at: new Date().toISOString(),
