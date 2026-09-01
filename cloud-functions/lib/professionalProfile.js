@@ -108,6 +108,17 @@ exports.saveProfessionalProfile = (0, https_1.onCall)({ region: 'europe-west2', 
     // Merge incoming data over existing (client sends full field set)
     const merged = { ...existingData, ...body, identity_id: identityId, screen_name: screenName };
     delete merged.id;
+    // ── Server-side contract enforcement ──
+    // An active Professional must carry a canonical screen_name: it is the
+    // public URL key (/p/:screenName) and the professionalProfilesPublic
+    // doc ID. Without it the profile can never be publicly listable and the
+    // public route cannot resolve. This guard prevents activation or editor
+    // saves from persisting an active profile with a null screen_name, and
+    // blocks editor saves that would re-null an existing active profile's
+    // screen_name (the root cause of profiles disappearing from the Directory).
+    if (merged.lifecycle_state === 'active' && !screenName) {
+        throw new https_1.HttpsError('invalid-argument', 'A screen name is required for an active professional profile');
+    }
     // ── screen_name uniqueness ──
     // The projection doc ID == lowercased screen_name. If a projection
     // already exists for a different identity, refuse.
