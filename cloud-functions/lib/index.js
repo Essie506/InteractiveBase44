@@ -9,7 +9,7 @@
 //   - cors: explicit approved-origin regex (not cors: true)
 //   - request.auth for Firebase-verified identity
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.backfillPublicProfiles = exports.saveCalendarEvent = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
+exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = exports.backfillPublicProfiles = exports.saveCalendarEvent = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
 var identity_1 = require("./identity");
 Object.defineProperty(exports, "resolveIdentity", { enumerable: true, get: function () { return identity_1.resolveIdentity; } });
 var conversations_1 = require("./conversations");
@@ -62,4 +62,12 @@ Object.defineProperty(exports, "saveCalendarEvent", { enumerable: true, get: fun
 // Backfill — one-time population of public projections
 var backfillProfiles_1 = require("./backfillProfiles");
 Object.defineProperty(exports, "backfillPublicProfiles", { enumerable: true, get: function () { return backfillProfiles_1.backfillPublicProfiles; } });
+// Relationship System — Connections (identity-to-identity relationship,
+// separate from Messaging). Profile access (resolveProfessionalAccess)
+// checks the authoritative Connection relationship, never conversations.
+var connections_1 = require("./connections");
+Object.defineProperty(exports, "createConnectionRequest", { enumerable: true, get: function () { return connections_1.createConnectionRequest; } });
+Object.defineProperty(exports, "respondConnectionRequest", { enumerable: true, get: function () { return connections_1.respondConnectionRequest; } });
+Object.defineProperty(exports, "disconnectConnection", { enumerable: true, get: function () { return connections_1.disconnectConnection; } });
+Object.defineProperty(exports, "resolveProfessionalAccess", { enumerable: true, get: function () { return connections_1.resolveProfessionalAccess; } });
 //# sourceMappingURL=index.js.map
