@@ -21,7 +21,7 @@
 // Profile access (resolveProfessionalAccess) uses hasAcceptedConnection
 // (this module's helper in shared.ts) — never conversations or messages.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = void 0;
+exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const crypto_1 = require("crypto");
 const shared_1 = require("./shared");
@@ -275,21 +275,141 @@ exports.resolveProfessionalAccess = (0, https_1.onCall)({ region: 'europe-west2'
             is_owner: false,
         };
     }
+    const directoryVisibility = profileData.directory_visibility || 'unlisted';
     if (visibility === 'connections') {
         if (!callerId) {
+            // Signed-out visitor: restricted advert if listed, else denied.
+            if (directoryVisibility === 'listed') {
+                return { access: 'restricted', profile: (0, professionalProfile_1.buildDirectoryEntry)(ownerId, profileId, profileData, null), is_owner: false };
+            }
             return { access: 'denied', profile: null, is_owner: false };
         }
         const connected = await (0, shared_1.hasAcceptedConnection)(callerId, ownerId);
-        if (!connected) {
-            return { access: 'denied', profile: null, is_owner: false };
+        if (connected) {
+            return {
+                access: 'connection',
+                profile: (0, professionalProfile_1.buildPublicProjection)(ownerId, profileId, profileData, null),
+                is_owner: false,
+            };
         }
-        return {
-            access: 'connection',
-            profile: (0, professionalProfile_1.buildPublicProjection)(ownerId, profileId, profileData, null),
-            is_owner: false,
-        };
+        // Non-connection: restricted advert if listed, else denied.
+        if (directoryVisibility === 'listed') {
+            return { access: 'restricted', profile: (0, professionalProfile_1.buildDirectoryEntry)(ownerId, profileId, profileData, null), is_owner: false };
+        }
+        return { access: 'denied', profile: null, is_owner: false };
     }
-    // private — owner only (already handled above); everyone else denied.
+    // private — owner only (already handled above). A listed private
+    // profile still publishes a discovery advert to everyone else; an
+    // unlisted private profile is denied to everyone except the owner.
+    if (directoryVisibility === 'listed') {
+        return { access: 'restricted', profile: (0, professionalProfile_1.buildDirectoryEntry)(ownerId, profileId, profileData, null), is_owner: false };
+    }
     return { access: 'denied', profile: null, is_owner: false };
 });
+// ── resolveConnectionStatus ─────────────────────────────────
+// Server-side relationship-status read for Connect/Pending/Connected
+// UI states. The frontend must NOT infer relationship state from
+// conversations or raw collection queries. Returns a semantic state:
+//   self | blocked | connected | pending_outgoing | pending_incoming
+//   | disconnected | none
+//
+// An active block in either direction overrides every other state and
+// returns 'blocked' — the Connect action must be unavailable.
+//
+// Request: { target_id }
+// Returns: { status }
+exports.resolveConnectionStatus = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
+    const callerId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const { target_id } = request.data || {};
+    if (!target_id) {
+        throw new https_1.HttpsError('invalid-argument', 'target_id is required');
+    }
+    const map = await computeStatusMap(callerId, [target_id]);
+    return { status: map[target_id] || 'none' };
+});
+// ── resolveConnectionStatuses ───────────────────────────────
+// Batch relationship-status read — used by the Directory to resolve
+// Connect/Pending/Connected states for many professional cards in a
+// single call (avoids N round-trips). Uses a small fixed set of
+// single-field queries (auto-indexed by Firestore) and resolves the
+// per-target state in memory.
+//
+// Request: { target_ids: string[] }
+// Returns: { statuses: Record<target_id, status> }
+exports.resolveConnectionStatuses = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
+    const callerId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const targetIds = Array.isArray(request.data?.target_ids) ? request.data.target_ids : [];
+    if (targetIds.length === 0) {
+        return { statuses: {} };
+    }
+    const statuses = await computeStatusMap(callerId, targetIds);
+    return { statuses };
+});
+// ── computeStatusMap (shared by single + batch) ─────────────
+// Performs a fixed set of single-field queries (no composite indexes
+// required) and resolves the semantic status for each target_id in
+// memory. Status priority: blocked > connected > pending_outgoing >
+// pending_incoming > disconnected > none.
+async function computeStatusMap(callerId, targetIds) {
+    const [outgoingSnap, incomingSnap, connASnap, connBSnap, blockOutSnap, blockInSnap] = await Promise.all([
+        shared_1.db.collection(REQUESTS).where('requester_id', '==', callerId).get(),
+        shared_1.db.collection(REQUESTS).where('target_id', '==', callerId).get(),
+        shared_1.db.collection(CONNECTIONS).where('identity_a_id', '==', callerId).get(),
+        shared_1.db.collection(CONNECTIONS).where('identity_b_id', '==', callerId).get(),
+        shared_1.db.collection('blockRecords').where('blocker_id', '==', callerId).get(),
+        shared_1.db.collection('blockRecords').where('blocked_id', '==', callerId).get(),
+    ]);
+    const outgoingPending = new Set(outgoingSnap.docs
+        .map((d) => d.data())
+        .filter((d) => d.status === 'pending')
+        .map((d) => d.target_id));
+    const incomingPending = new Set(incomingSnap.docs
+        .map((d) => d.data())
+        .filter((d) => d.status === 'pending')
+        .map((d) => d.requester_id));
+    const connStatus = new Map();
+    for (const doc of [...connASnap.docs, ...connBSnap.docs]) {
+        const data = doc.data();
+        const other = data.identity_a_id === callerId ? data.identity_b_id : data.identity_a_id;
+        connStatus.set(other, data.status);
+    }
+    const blockedByCaller = new Set(blockOutSnap.docs.map((d) => d.data().blocked_id));
+    const blockedCaller = new Set(blockInSnap.docs.map((d) => d.data().blocker_id));
+    const results = {};
+    for (const tid of targetIds) {
+        if (tid === callerId) {
+            results[tid] = 'self';
+            continue;
+        }
+        if (blockedByCaller.has(tid) || blockedCaller.has(tid)) {
+            results[tid] = 'blocked';
+            continue;
+        }
+        const cs = connStatus.get(tid);
+        if (cs === 'active') {
+            results[tid] = 'connected';
+            continue;
+        }
+        if (outgoingPending.has(tid)) {
+            results[tid] = 'pending_outgoing';
+            continue;
+        }
+        if (incomingPending.has(tid)) {
+            results[tid] = 'pending_incoming';
+            continue;
+        }
+        if (cs === 'disconnected') {
+            results[tid] = 'disconnected';
+            continue;
+        }
+        results[tid] = 'none';
+    }
+    return results;
+}
 //# sourceMappingURL=connections.js.map
