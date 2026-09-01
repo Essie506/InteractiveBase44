@@ -178,7 +178,7 @@
         ]
       },
       "title": "Session Types",
-      "description": "Structured session type selections from the shared SessionTypeDefinition taxonomy (standardSessionTypes). Canonical entries carry an id for Directory filter matching; custom entries have id=null. Describes how sessions are delivered (e.g. 1-to-1, Group, Online, Outdoor)."
+      "description": "Structured session type selections from the SessionTypeDefinition taxonomy (standardSessionTypes). Canonical entries carry an id for Directory filter matching; custom entries have id=null. Describes how sessions are delivered (e.g. 1-to-1, Group, Online, Outdoor)."
     },
     "services": {
       "type": "array",
@@ -223,16 +223,92 @@
     },
     "contact_email": {
       "type": "string",
-      "title": "Contact Email"
+      "title": "Contact Email",
+      "description": "Private account contact email. Never projected to any public collection. Use public_contact.email for the advert-facing email."
     },
     "contact_phone": {
       "type": "string",
-      "title": "Contact Phone"
+      "title": "Contact Phone",
+      "description": "Private account contact phone. Never projected to any public collection. Use public_contact.phone for the advert-facing phone."
     },
     "website": {
       "type": "string",
       "title": "Website",
-      "description": "Optional public website URL"
+      "description": "Single authoritative Professional website URL. Exposed in the Directory advert only when public_contact.website_visible is true."
+    },
+    "public_contact": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "title": "Public Professional Email",
+          "description": "Explicit public contact email for the Directory advert. Separate from the private account contact_email."
+        },
+        "email_visible": {
+          "type": "boolean",
+          "default": false,
+          "title": "Public Email Visible"
+        },
+        "phone": {
+          "type": "string",
+          "title": "Public Professional Phone",
+          "description": "Explicit public contact phone for the Directory advert. Separate from the private account contact_phone."
+        },
+        "phone_visible": {
+          "type": "boolean",
+          "default": false,
+          "title": "Public Phone Visible"
+        },
+        "website_visible": {
+          "type": "boolean",
+          "default": false,
+          "title": "Website Visible in Directory",
+          "description": "Controls whether the top-level website field is exposed in the Directory advert. The website field remains the single source of truth for the URL."
+        }
+      },
+      "title": "Public Professional Contact",
+      "description": "Explicit Professional-controlled public contact information for the Directory advert. Separate from private account contact_email/contact_phone. Only projected to professionalDirectoryEntries when the corresponding *_visible flag is true."
+    },
+    "public_hours": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "enum": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri",
+              "sat",
+              "sun"
+            ],
+            "title": "Day"
+          },
+          "open": {
+            "type": "string",
+            "title": "Open",
+            "description": "Opening time, HH:MM 24h"
+          },
+          "close": {
+            "type": "string",
+            "title": "Close",
+            "description": "Closing time, HH:MM 24h"
+          },
+          "closed": {
+            "type": "boolean",
+            "default": false,
+            "title": "Closed"
+          }
+        },
+        "required": [
+          "day"
+        ]
+      },
+      "title": "Public / Contact Hours",
+      "description": "Informational public contact hours (when the professional is usually contactable). NOT Calendar availability \u2014 these are not bookable slots."
     },
     "visibility": {
       "type": "string",
@@ -242,7 +318,18 @@
         "private"
       ],
       "default": "public",
-      "title": "Visibility"
+      "title": "Profile Visibility",
+      "description": "Controls who can view the FULL Professional Profile. public = anyone; connections = owner + accepted Connections; private = owner only. Independent of directory_visibility."
+    },
+    "directory_visibility": {
+      "type": "string",
+      "enum": [
+        "listed",
+        "unlisted"
+      ],
+      "default": "unlisted",
+      "title": "Directory Visibility",
+      "description": "Controls whether a public Professional advert is published to the Directory. Independent of profile visibility. 'listed' publishes a discovery-safe advert to professionalDirectoryEntries; 'unlisted' removes the advert but does not change who can view the full profile."
     },
     "onboarding_status": {
       "type": "string",

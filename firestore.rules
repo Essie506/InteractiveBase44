@@ -209,6 +209,23 @@ service cloud.firestore {
       allow write: if false; // Server-only — projection maintained by Cloud Function
     }
 
+    match /professionalDirectoryEntries/{screenName} {
+      // Directory advert projection — discovery-safe advert fields only.
+      // Independent of professionalProfilesPublic: a profile appears here
+      // when lifecycle_state === 'active' && directory_visibility === 'listed',
+      // regardless of profile visibility (public / connections / private).
+      // Contains ONLY advert-safe data (no legal_name, no private
+      // contact_email/contact_phone, no away_message, no onboarding fields,
+      // no bio, no gallery). Public contact (email/phone/website) is included
+      // ONLY when the professional has explicitly enabled the corresponding
+      // *_visible flag.
+      // Readable by anyone (including unauthenticated guests) so listed
+      // professionals can be discovered in the Directory.
+      // Maintained by the saveProfessionalProfile Cloud Function (server-only).
+      allow read: if true;
+      allow write: if false; // Server-only — projection maintained by Cloud Function
+    }
+
     // ═══════════════════════════════════════════════════════════
     // BUSINESSES
     // ═══════════════════════════════════════════════════════════

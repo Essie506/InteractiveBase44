@@ -15,6 +15,7 @@ import { fetchProfessionalPublicGeo } from './geo';
 
 const PROFILES = 'professionalProfiles';
 const PUBLIC = 'professionalProfilesPublic';
+const DIRECTORY = 'professionalDirectoryEntries';
 
 const SCREEN_NAME_RE = /^[a-z0-9_]{3,20}$/;
 
@@ -65,6 +66,63 @@ export function buildPublicProjection(identityId: string, profileId: string, dat
     gallery_media_ids: Array.isArray(data.gallery_media_ids) ? data.gallery_media_ids : [],
     verification_state: data.verification_state || 'not_verified',
     visibility: data.visibility || 'public',
+    lifecycle_state: data.lifecycle_state || 'draft',
+    _updated_date: new Date().toISOString(),
+  };
+}
+
+// Directory advert projection — discovery-safe advert fields only.
+// Independent of buildPublicProjection: this is the public Professional
+// advert/business-card, NOT the full public profile. It is written to
+// professionalDirectoryEntries/{screenName} when the professional has
+// opted into the Directory (directory_visibility === 'listed') and is
+// active with a screen_name — regardless of profile visibility.
+//
+// Contains ONLY advert-safe fields. Never includes:
+//   legal_name, bio, gallery_media_ids, contact_email, contact_phone,
+//   away_message, onboarding_status, activated_at.
+// Public contact (email/phone/website) is included ONLY when the
+// professional has explicitly enabled the corresponding *_visible flag.
+export function buildDirectoryEntry(identityId: string, profileId: string, data: any, locationGeo?: { latitude: number; longitude: number } | null): Record<string, any> {
+  const pc = data.public_contact || {};
+  const websiteVisible = !!pc.website_visible;
+  const emailVisible = !!pc.email_visible;
+  const phoneVisible = !!pc.phone_visible;
+  return {
+    identity_id: identityId,
+    profile_id: profileId,
+    screen_name: data.screen_name || null,
+    display_name: data.display_name || null,
+    business_name: data.business_name || null,
+    avatar_url: data.avatar_url || null,
+    avatar_media_id: data.avatar_media_id || null,
+    avatar_position_x: data.avatar_position_x ?? 0.5,
+    avatar_position_y: data.avatar_position_y ?? 0.5,
+    avatar_zoom: data.avatar_zoom ?? 1,
+    cover_url: data.cover_url || null,
+    cover_media_id: data.cover_media_id || null,
+    cover_position_x: data.cover_position_x ?? 0.5,
+    cover_position_y: data.cover_position_y ?? 0.5,
+    cover_zoom: data.cover_zoom ?? 1,
+    headline: data.headline || null,
+    profession: data.profession || null,
+    professional_category: data.professional_category || null,
+    professional_type: data.professional_type || null,
+    services: Array.isArray(data.services) ? data.services : [],
+    specialisms: Array.isArray(data.specialisms) ? data.specialisms : [],
+    session_types: Array.isArray(data.session_types) ? data.session_types : [],
+    service_area: data.service_area || null,
+    location: data.location || null,
+    location_geo: locationGeo || null,
+    verification_state: data.verification_state || 'not_verified',
+    // Public contact — only when explicitly enabled by the professional
+    website: websiteVisible ? (data.website || null) : null,
+    public_email: emailVisible ? (pc.email || null) : null,
+    public_phone: phoneVisible ? (pc.phone || null) : null,
+    public_hours: Array.isArray(data.public_hours) ? data.public_hours : [],
+    // Provenance for the frontend (access tier resolution)
+    visibility: data.visibility || 'public',
+    directory_visibility: data.directory_visibility || 'unlisted',
     lifecycle_state: data.lifecycle_state || 'draft',
     _updated_date: new Date().toISOString(),
   };
@@ -145,16 +203,26 @@ export const saveProfessionalProfile = onCall(
     // Write the private profile doc
     await db.collection(PROFILES).doc(profileId).set(merged, { merge: true });
 
-    // ── Maintain the public projection (race-free) ──
+    // ── Maintain BOTH projections independently ──
+    // professionalProfilesPublic: full public profile. Eligibility:
+    //   visibility === 'public' && active && screen_name.
+    // professionalDirectoryEntries: discovery advert. Eligibility:
+    //   active && screen_name && directory_visibility === 'listed'
+    //   (INDEPENDENT of visibility — a connections/private profile can
+    //   still publish an advert).
+    // Changing profile visibility must NOT affect the directory entry,
+    // and changing directory_visibility must NOT affect the public profile.
     const isPubliclyListable = merged.visibility === 'public'
       && merged.lifecycle_state === 'active'
       && !!screenName;
+    const isDirectoryListable = merged.lifecycle_state === 'active'
+      && merged.directory_visibility === 'listed'
+      && !!screenName;
 
-    // Defensive cleanup: query ALL existing projections for this identity
-    // and delete any that don't match the target screen name. This catches
-    // projections orphaned by screen_name changes, partial updates that
-    // previously lost the screen_name, or direct writes to the public
-    // collection that bypassed the cloud function.
+    // Derive public-safe coordinates once — shared by both projections.
+    const locationGeo = await fetchProfessionalPublicGeo(db, merged.service_area_location_id, merged.location_id);
+
+    // ── professionalProfilesPublic cleanup + write ──
     const existingProjections = await db.collection(PUBLIC)
       .where('identity_id', '==', identityId)
       .get();
@@ -163,17 +231,9 @@ export const saveProfessionalProfile = onCall(
         await doc.ref.delete().catch(() => {});
       }
     }
-
     if (isPubliclyListable) {
-      // Derive public-safe coordinates from the service area / location.
-      // Only exposes coordinates when precision_level is 'exact' or
-      // 'approximate' (user consented). city_only/region_only never
-      // expose their potentially private stored coordinates.
-      const locationGeo = await fetchProfessionalPublicGeo(db, merged.service_area_location_id, merged.location_id);
       const projection = buildPublicProjection(identityId, profileId, merged, locationGeo);
       const projRef = db.collection(PUBLIC).doc(screenName!);
-      // Transaction: re-check uniqueness atomically with the write
-      // to prevent two identities claiming the same screen name.
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(projRef);
         if (snap.exists && snap.data()?.identity_id !== identityId) {
@@ -181,6 +241,23 @@ export const saveProfessionalProfile = onCall(
         }
         tx.set(projRef, projection);
       });
+    }
+
+    // ── professionalDirectoryEntries cleanup + write ──
+    // Independent of the public profile projection. Cleanup removes
+    // any advert for this identity whose doc ID doesn't match the
+    // target screen_name (orphaned by screen_name changes).
+    const existingAdverts = await db.collection(DIRECTORY)
+      .where('identity_id', '==', identityId)
+      .get();
+    for (const doc of existingAdverts.docs) {
+      if (!isDirectoryListable || doc.id !== screenName) {
+        await doc.ref.delete().catch(() => {});
+      }
+    }
+    if (isDirectoryListable) {
+      const advert = buildDirectoryEntry(identityId, profileId, merged, locationGeo);
+      await db.collection(DIRECTORY).doc(screenName!).set(advert);
     }
 
     return { id: profileId, ...merged };

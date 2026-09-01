@@ -192,3 +192,17 @@ export async function callResolveProfessionalAccess(data) {
   const result = await callable('resolveProfessionalAccess')(data);
   return result.data;
 }
+
+// ── Relationship status read ──
+// Single + batch semantic relationship state for Connect/Pending/
+// Connected UI. The frontend must NOT infer relationship state from
+// conversations or raw collection queries.
+export async function callResolveConnectionStatus(data) {
+  const result = await callable('resolveConnectionStatus')(data);
+  return result.data;
+}
+
+export async function callResolveConnectionStatuses(data) {
+  const result = await callable('resolveConnectionStatuses')(data);
+  return result.data;
+}

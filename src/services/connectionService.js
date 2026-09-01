@@ -18,6 +18,8 @@ import {
   callCreateConnectionRequest,
   callRespondConnectionRequest,
   callDisconnectConnection,
+  callResolveConnectionStatus,
+  callResolveConnectionStatuses,
 } from '@/services/firebaseFunctions';
 
 // Create a pending connection request to target_id.
@@ -34,4 +36,20 @@ export async function respondConnectionRequest({ request_id, response }) {
 // Disconnect an existing connection. Either participant may disconnect.
 export async function disconnectConnection({ target_id }) {
   return callDisconnectConnection({ target_id });
+}
+
+// Resolve the semantic relationship status for a single target.
+// Returns { status } where status is one of:
+//   self | blocked | connected | pending_outgoing | pending_incoming
+//   | disconnected | none
+// Respects active blocks (returns 'blocked'). The frontend must use
+// this — never infer state from conversations or raw queries.
+export async function resolveConnectionStatus({ target_id } = {}) {
+  return callResolveConnectionStatus({ target_id });
+}
+
+// Batch relationship-status read for Directory cards.
+// Returns { statuses: { [target_id]: status } }.
+export async function resolveConnectionStatuses({ target_ids } = {}) {
+  return callResolveConnectionStatuses({ target_ids });
 }

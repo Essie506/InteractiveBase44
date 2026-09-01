@@ -27,3 +27,20 @@ export function isBusinessListable(
     && data?.lifecycle_state === 'active'
     && !!businessId;
 }
+
+// ── Directory advert eligibility ────────────────────────────
+// A profile is Directory-listable (has a professionalDirectoryEntries
+// advert) when it is active, has a screen_name, AND the professional
+// has explicitly opted into the Directory (directory_visibility ===
+// 'listed'). This is INDEPENDENT of profile visibility — a
+// connections-only or private profile can still publish a discovery
+// advert. Profile visibility controls full-profile access; directory
+// visibility controls advert presence.
+export function isProfessionalDirectoryListable(
+  data: { lifecycle_state?: string; directory_visibility?: string } | null | undefined,
+  screenName: string | null | undefined,
+): boolean {
+  return data?.lifecycle_state === 'active'
+    && data?.directory_visibility === 'listed'
+    && !!screenName;
+}

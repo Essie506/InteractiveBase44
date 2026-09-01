@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { loadDirectory, filterResults } from '@/services/discoveryService';
+import { resolveConnectionStatuses } from '@/services/connectionService';
 import { geocodeOrigin } from '@/lib/geo';
 import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -34,6 +35,7 @@ export default function Directory() {
   const [reloading, setReloading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [publicNavOpen, setPublicNavOpen] = useState(false);
+  const [connectionStatuses, setConnectionStatuses] = useState({});
 
   // Parse URL search params once on mount — initializes both draft
   // and applied filter state so the Directory restores the exact
@@ -176,6 +178,29 @@ export default function Directory() {
     }),
     [data, appliedFilters]
   );
+
+  // ── Batch relationship-status fetch ──
+  // Resolves Connect/Pending/Connected states for all visible professional
+  // cards in a single server call (resolveConnectionStatuses). Signed-out
+  // visitors get no status (cards show "Connect" which redirects to login).
+  useEffect(() => {
+    if (!user) {
+      setConnectionStatuses({});
+      return;
+    }
+    const proIds = results
+      .filter((r) => r._type === 'professional' && r.identity_id)
+      .map((r) => r.identity_id);
+    if (proIds.length === 0) {
+      setConnectionStatuses({});
+      return;
+    }
+    let cancelled = false;
+    resolveConnectionStatuses({ target_ids: proIds })
+      .then((res) => { if (!cancelled) setConnectionStatuses(res?.statuses || {}); })
+      .catch(() => { if (!cancelled) setConnectionStatuses({}); });
+    return () => { cancelled = true; };
+  }, [results, user]);
 
   // ── Source-unavailable reporting ──
   // Each discovery source (professionals / businesses / events) loads
@@ -396,7 +421,7 @@ export default function Directory() {
             <div className="space-y-4">
                 {results.map((r) =>
               r._type === 'professional' ?
-              <ProfessionalResultCard key={`p-${r.identity_id}`} profile={r} isDemo={isDemoMode} /> :
+              <ProfessionalResultCard key={`p-${r.identity_id}`} profile={r} isDemo={isDemoMode} connectionStatus={connectionStatuses[r.identity_id]} /> :
               r._type === 'event' ?
               <EventResultCard key={`e-${r.event_id}`} profile={r} isDemo={isDemoMode} /> :
               <BusinessResultCard key={`b-${r.business_id}`} profile={r} isDemo={isDemoMode} />

@@ -2,15 +2,17 @@
  * Discovery Service — reusable Directory + Search layer.
  * ───────────────────────────────────────────────────────────
  * Reads the existing public profile projections:
- *   professionalProfilesPublic/{screenName}  (public-read, public fields only)
+ *   professionalDirectoryEntries/{screenName} (public-read, advert-safe fields)
  *   businessProfilesPublic/{businessId}     (public-read, public fields only)
  *   calendarEventsPublic/{eventId}          (public-read, public fields only)
  *
- * These projections are maintained by the saveProfessionalProfile /
- * saveBusinessProfile / saveCalendarEvent Cloud Functions and only
- * contain docs when visibility=public AND lifecycle_state is listable,
- * so every doc in them is safe to show in the directory — including
- * to signed-out visitors.
+ * Professional discovery uses the Directory advert projection
+ * (professionalDirectoryEntries), which is independent of profile
+ * visibility: a doc exists when lifecycle_state=active &&
+ * directory_visibility=listed, regardless of whether the full profile
+ * is public, connections-only, or private. The advert contains only
+ * discovery-safe fields — no bio, gallery, or private contact.
+ * businessProfilesPublic and calendarEventsPublic remain as before.
  *
  * Directory and Search both consume this single layer:
  *   loadDirectory()   → fetch once
@@ -34,7 +36,7 @@ import { resolveDateRange, isEventInRange } from '@/lib/eventDateRanges';
 import { compareEventsByPrice } from '@/lib/eventPriceSort';
 import { isPriceSort } from '@/lib/directorySortOptions';
 
-const PROFESSIONAL_PUBLIC = 'professionalProfilesPublic';
+const PROFESSIONAL_DIRECTORY = 'professionalDirectoryEntries';
 const BUSINESS_PUBLIC = 'businessProfilesPublic';
 const EVENTS_PUBLIC = 'calendarEventsPublic';
 
@@ -48,7 +50,7 @@ export async function loadDirectory() {
   if (!useFirebase) return { professionals: [], businesses: [], events: [], sourceErrors: {} };
 
   const [proRes, bizRes, evtRes] = await Promise.allSettled([
-    getDocs(collection(db, PROFESSIONAL_PUBLIC)),
+    getDocs(collection(db, PROFESSIONAL_DIRECTORY)),
     getDocs(collection(db, BUSINESS_PUBLIC)),
     getDocs(collection(db, EVENTS_PUBLIC)),
   ]);

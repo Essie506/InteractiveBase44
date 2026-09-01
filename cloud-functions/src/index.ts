@@ -22,6 +22,9 @@ export { createBookingDraft, createPaymentIntent, confirmFreeBooking } from './b
 export { stripeWebhook } from './stripeWebhook';
 export { cancelBooking, rescheduleBooking, reportNoShow, completeBooking } from './bookingLifecycle';
 
+// Relationship System — Connections + Professional access
+export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses } from './connections';
+
 // Professional Profile — public projection + screen name uniqueness
 export { saveProfessionalProfile, validateScreenName } from './professionalProfile';
 
@@ -36,13 +39,3 @@ export { saveCalendarEvent } from './calendarEvent';
 
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';
-
-// Relationship System — Connections (identity-to-identity relationship,
-// separate from Messaging). Profile access (resolveProfessionalAccess)
-// checks the authoritative Connection relationship, never conversations.
-export {
-  createConnectionRequest,
-  respondConnectionRequest,
-  disconnectConnection,
-  resolveProfessionalAccess,
-} from './connections';

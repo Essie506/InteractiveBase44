@@ -2,63 +2,83 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { resolveProfessionalAccess } from '@/services/profileService';
-import { createConnectionRequest } from '@/services/connectionService';
-import { MessageSquare, CalendarPlus, Pencil, Loader2, AlertCircle, Check, UserPlus } from 'lucide-react';
+import { createConnectionRequest, resolveConnectionStatus } from '@/services/connectionService';
+import { CalendarPlus, Pencil, Loader2, AlertCircle } from 'lucide-react';
 import ProfessionalProfileView from '@/components/professional/ProfessionalProfileView';
+import ProfessionalAdvertView from '@/components/professional/ProfessionalAdvertView';
+import ConnectionActions from '@/components/directory/ConnectionActions';
 
 // Public Professional profile page — /p/:screenName
 // ───────────────────────────────────────────────────────────
-// Routes through the server-side resolveProfessionalAccess resolver
-// so the three visibility tiers (public / connections / private) are
-// enforced server-side. The owner can view their own profile at this
-// route regardless of visibility; a Connection can view a connections-
-// only profile; everyone else is denied.
+// Routes through the server-side resolveProfessionalAccess resolver.
+// Access tiers:
+//   owner      → full profile + edit controls
+//   public     → full public profile
+//   connection → full profile (accepted Connection)
+//   restricted → discovery advert only (listed, but full profile is
+//                connections-only or private and viewer is not a Connection)
+//   denied     → no advert (unlisted non-public non-connection)
+//   not_found  → no such profile
 //
-// The "Connect" action uses the Relationship System (createConnectionRequest)
-// — it does NOT create a conversation. Messaging is owned separately.
+// The Connect action uses the Relationship System (createConnectionRequest)
+// — it does NOT create a conversation. Ask About is a disabled placeholder
+// until the typed Professional enquiry exists (Messaging pass).
 export default function PublicProfile() {
   const { screenName } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
+  const [access, setAccess] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [connectState, setConnectState] = useState('idle'); // idle | sending | sent | already_connected | error
+  const [connectionStatus, setConnectionStatus] = useState(null);
+  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    setNotFound(false);
-    setConnectState('idle');
+    setConnectionStatus(null);
     resolveProfessionalAccess(screenName)
       .then((res) => {
         if (!res || !res.profile || res.access === 'not_found' || res.access === 'denied') {
-          setNotFound(true);
+          setAccess('denied');
+          setProfile(null);
         } else {
           setProfile(res.profile);
+          setAccess(res.access);
           setIsOwner(!!res.is_owner);
         }
       })
-      .catch(() => setNotFound(true))
+      .catch(() => setAccess('denied'))
       .finally(() => setLoading(false));
   }, [screenName]);
+
+  // Resolve relationship status for the Connect button (signed-in viewers
+  // on non-owner profiles). Uses the server-side resolver — never inferred
+  // from conversations or raw queries.
+  useEffect(() => {
+    if (!user || !profile || isOwner) {
+      setConnectionStatus(null);
+      return;
+    }
+    resolveConnectionStatus({ target_id: profile.identity_id })
+      .then((res) => setConnectionStatus(res?.status || 'none'))
+      .catch(() => setConnectionStatus('none'));
+  }, [user, profile, isOwner]);
 
   const handleConnect = async () => {
     if (!user) {
       navigate(`/login?returnTo=${encodeURIComponent(`/p/${screenName}`)}`);
       return;
     }
-    if (isOwner) return;
-    setConnectState('sending');
+    if (isOwner || !profile) return;
+    setConnecting(true);
     try {
       const result = await createConnectionRequest({ target_id: profile.identity_id });
-      if (result.status === 'already_connected') {
-        setConnectState('already_connected');
-      } else {
-        setConnectState('sent');
-      }
-    } catch (err) {
-      setConnectState('error');
+      setConnectionStatus(result.status === 'already_connected' ? 'connected' : 'pending_outgoing');
+    } catch {
+      setConnectionStatus('none');
+    } finally {
+      setConnecting(false);
     }
   };
 
@@ -78,7 +98,7 @@ export default function PublicProfile() {
     );
   }
 
-  if (notFound) {
+  if (access === 'denied') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50 p-6">
         <AlertCircle className="w-10 h-10 text-stone-400 mb-3" />
@@ -89,56 +109,19 @@ export default function PublicProfile() {
     );
   }
 
-  const connectButton = (() => {
-    switch (connectState) {
-      case 'sent':
-        return (
-          <button
-            disabled
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-sm font-medium cursor-default"
-          >
-            <Check className="w-4 h-4" /> Request sent
-          </button>
-        );
-      case 'already_connected':
-        return (
-          <button
-            disabled
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-stone-100 border border-stone-200 text-stone-500 rounded-lg text-sm font-medium cursor-default"
-          >
-            <Check className="w-4 h-4" /> Connected
-          </button>
-        );
-      case 'sending':
-        return (
-          <button
-            disabled
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-800 rounded-lg text-sm font-medium disabled:opacity-50"
-          >
-            <Loader2 className="w-4 h-4 animate-spin" /> Connecting...
-          </button>
-        );
-      case 'error':
-        return (
-          <button
-            onClick={handleConnect}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
-          >
-            <UserPlus className="w-4 h-4" /> Try again
-          </button>
-        );
-      default:
-        return (
-          <button
-            onClick={handleConnect}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-800 rounded-lg text-sm font-medium hover:bg-stone-50"
-          >
-            <UserPlus className="w-4 h-4" /> Connect
-          </button>
-        );
-    }
-  })();
+  // Restricted tier — discovery advert only (no full profile content).
+  if (access === 'restricted') {
+    return (
+      <ProfessionalAdvertView
+        profile={profile}
+        connectionStatus={connectionStatus}
+        onConnect={handleConnect}
+        connecting={connecting}
+      />
+    );
+  }
 
+  // owner / public / connection — full profile view.
   const actions = isOwner ? (
     <Link
       to="/professional-profile"
@@ -147,8 +130,12 @@ export default function PublicProfile() {
       <Pencil className="w-3.5 h-3.5" /> Edit profile
     </Link>
   ) : (
-    <div className="flex gap-2 sm:pb-2">
-      {connectButton}
+    <div className="flex flex-wrap items-center gap-2 sm:pb-2">
+      <ConnectionActions
+        status={connectionStatus}
+        onConnect={handleConnect}
+        connecting={connecting}
+      />
       <button
         onClick={handleBook}
         className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"

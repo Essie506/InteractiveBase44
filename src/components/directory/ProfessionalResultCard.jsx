@@ -1,17 +1,38 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
 import { MapPin, ArrowRight, ShieldCheck } from 'lucide-react';
 import { formatDistance } from '@/lib/geo';
+import { createConnectionRequest } from '@/services/connectionService';
 import MatchBadge from './MatchBadge';
+import ConnectionActions from './ConnectionActions';
 
-// Horizontal image-led directory card for a Professional public profile.
-// Click-through navigates to the existing /p/:screenName route.
+// Horizontal image-led directory card for a Professional advert.
+// Consumes the professionalDirectoryEntries advert projection —
+// discovery-safe fields only. Click-through navigates to /p/:screenName,
+// where resolveProfessionalAccess determines whether the viewer gets the
+// full profile, the restricted advert, or denied.
+//
+// Card actions:
+//   View Profile → /p/:screenName
+//   Connect      → Relationship System (createConnectionRequest)
+//   Ask About    → disabled placeholder (Messaging pass)
+//
+// connectionStatus: initial semantic status from the Directory's batch
+// resolveConnectionStatuses fetch (Connect/Pending/Connected). After a
+// local Connect action, the card updates its own status without
+// re-fetching.
 //
 // When isDemo is true (dev ?demo=1 mode), the card renders visually
-// identically but as a non-navigating <div> with a "Demo" badge
-// instead of the "View Profile" link — demo listings are local seed
-// data, not real Firebase profiles, so navigation would produce a
-// misleading "Profile not found" page.
-export default function ProfessionalResultCard({ profile, isDemo }) {
+// identically but as a non-navigating <div> with a "Demo" badge and no
+// action buttons — demo listings are local seed data, not real Firebase
+// profiles.
+export default function ProfessionalResultCard({ profile, isDemo, connectionStatus }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [localStatus, setLocalStatus] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+
   const services = profile.services || [];
   const visibleServices = services.slice(0, 4);
   const extraServices = services.length - visibleServices.length;
@@ -20,15 +41,39 @@ export default function ProfessionalResultCard({ profile, isDemo }) {
   const listingImage = profile.cover_url || profile.avatar_url;
   const verified = profile.verification_state === 'verified';
 
+  const status = localStatus || connectionStatus || null;
+
+  const handleConnect = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!user) {
+      navigate(`/login?returnTo=${encodeURIComponent(`/directory`)}`);
+      return;
+    }
+    if (!profile.identity_id) return;
+    setConnecting(true);
+    try {
+      const result = await createConnectionRequest({ target_id: profile.identity_id });
+      setLocalStatus(result.status === 'already_connected' ? 'connected' : 'pending_outgoing');
+    } catch {
+      setLocalStatus('none');
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   const footerRight = isDemo ? (
     <span className="inline-flex items-center text-xs px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full font-medium">
       Demo
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 group-hover:gap-2 transition-all">
+    <Link
+      to={`/p/${profile.screen_name}`}
+      className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 group-hover:gap-2 transition-all"
+    >
       View Profile
       <ArrowRight className="w-4 h-4" />
-    </span>
+    </Link>
   );
 
   const cardBody = (
@@ -90,9 +135,18 @@ export default function ProfessionalResultCard({ profile, isDemo }) {
           </div>
         )}
 
-        <div className="mt-auto pt-2 flex items-center justify-between">
+        <div className="mt-auto pt-2 flex items-center justify-between gap-2 flex-wrap">
           <MatchBadge matchScore={profile._matchScore} />
-          {footerRight}
+          <div className="flex items-center gap-2">
+            {!isDemo && (
+              <ConnectionActions
+                status={status}
+                onConnect={handleConnect}
+                connecting={connecting}
+              />
+            )}
+            {footerRight}
+          </div>
         </div>
       </div>
     </>

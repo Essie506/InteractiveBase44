@@ -18,8 +18,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, requireAdmin, resolveProfessionalReferences } from './shared';
 import { buildPersonalPublicProjection } from './personalProfileProjection';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
-import { buildPublicProjection } from './professionalProfile';
-import { isProfessionalListable } from './projectionEligibility';
+import { buildPublicProjection, buildDirectoryEntry } from './professionalProfile';
+import { isProfessionalListable, isProfessionalDirectoryListable } from './projectionEligibility';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
 import { maintainProjection } from './calendarEvent';
 
@@ -67,37 +67,52 @@ export const backfillPublicProfiles = onCall(
       }
     }
 
-    // ── Professional (canonical: doc ID == normalized screen_name) ──
-    // For each professional profile:
-    //   - eligible: write projection to professionalProfilesPublic/{normalizedScreenName}
-    //     then delete any stale projections for the same identity_id
-    //     whose doc ID != normalizedScreenName (catches legacy migration
-    //     docs that used the Base44 entity ID as doc ID)
-    //   - ineligible: delete ALL projections for this identity_id
-    //     (connections/private/inactive must have no public projection)
+    // ── Professional (canonical: doc ID == normalized screen name) ──
+    // Two independent projections are maintained:
+    //   professionalProfilesPublic — full public profile (visibility=public)
+    //   professionalDirectoryEntries — discovery advert (directory_visibility=listed)
+    //
+    // ── Backward-compatible directory_visibility migration ──
+    // The directory_visibility field is new. Existing profiles do not
+    // carry it. To avoid existing publicly-listable Professionals
+    // disappearing from the Directory merely because the field was
+    // absent, this one-time migration explicitly writes the field:
+    //   - profiles that were publicly listable BEFORE this change
+    //     (visibility=public && active && screen_name) → 'listed'
+    //   - all other profiles → 'unlisted' (safe default — no exposure)
+    // This is an EXPLICIT migration write to the private profile, not a
+    // silent reinterpretation of missing values. After the migration
+    // every profile carries the field and the save function + projection
+    // logic work normally. The save function treats a missing field as
+    // 'unlisted', so running this backfill is required to preserve
+    // existing Directory presence.
     const proSnap = await db.collection('professionalProfiles').get();
     results.professional.total = proSnap.size;
 
     for (const doc of proSnap.docs) {
-      const data = doc.data();
+      let data = doc.data();
       const rawScreenName = data.screen_name || null;
       const canonicalScreenName = rawScreenName
         ? String(rawScreenName).toLowerCase().trim()
         : null;
-      const isEligible = isProfessionalListable(data, canonicalScreenName);
 
-      // isProfessionalListable requires !!screenName, so isEligible already
-      // implies canonicalScreenName is a non-empty string. The explicit
-      // && canonicalScreenName guard narrows the type for .doc() use and is
-      // provably behaviour-neutral (isEligible => canonicalScreenName truthy).
-      if (isEligible && canonicalScreenName) {
+      // ── One-time directory_visibility migration ──
+      if (data.directory_visibility === undefined) {
+        const wasListable = isProfessionalListable(data, canonicalScreenName);
+        const migratedVisibility = wasListable ? 'listed' : 'unlisted';
+        await doc.ref.update({ directory_visibility: migratedVisibility });
+        data = { ...data, directory_visibility: migratedVisibility };
+      }
+
+      const isPublicEligible = isProfessionalListable(data, canonicalScreenName);
+      const isDirectoryEligible = isProfessionalDirectoryListable(data, canonicalScreenName);
+
+      // ── professionalProfilesPublic (full public profile) ──
+      if (isPublicEligible && canonicalScreenName) {
         const locationGeo = await fetchProfessionalPublicGeo(db, data.service_area_location_id, data.location_id);
         const projection = buildPublicProjection(data.identity_id, doc.id, data, locationGeo);
-        // Write to canonical doc ID == normalized screen_name
         await db.collection('professionalProfilesPublic').doc(canonicalScreenName).set(projection);
         results.professional.projected++;
-        // Remove stale projections for this identity whose doc ID
-        // doesn't match the canonical screen_name
         const staleSnap = await db.collection('professionalProfilesPublic')
           .where('identity_id', '==', data.identity_id)
           .get();
@@ -107,19 +122,45 @@ export const backfillPublicProfiles = onCall(
           }
         }
       } else {
-        results.professional.skipped++;
-        const reasons: string[] = [];
-        if (data.visibility !== 'public') reasons.push(`visibility=${data.visibility}`);
-        if (data.lifecycle_state !== 'active') reasons.push(`lifecycle=${data.lifecycle_state}`);
-        if (!canonicalScreenName) reasons.push('no screen_name');
-        results.professional.skippedDetails.push(`${doc.id}: ${reasons.join(', ')}`);
-        // Remove ALL public projections for this ineligible identity
         const staleSnap = await db.collection('professionalProfilesPublic')
           .where('identity_id', '==', data.identity_id)
           .get();
         for (const staleDoc of staleSnap.docs) {
           await staleDoc.ref.delete().catch(() => {});
         }
+      }
+
+      // ── professionalDirectoryEntries (discovery advert) ──
+      // Independent of the public profile projection. A connections-only
+      // or private profile can still have a directory advert.
+      if (isDirectoryEligible && canonicalScreenName) {
+        const locationGeo = await fetchProfessionalPublicGeo(db, data.service_area_location_id, data.location_id);
+        const advert = buildDirectoryEntry(data.identity_id, doc.id, data, locationGeo);
+        await db.collection('professionalDirectoryEntries').doc(canonicalScreenName).set(advert);
+        const staleAdSnap = await db.collection('professionalDirectoryEntries')
+          .where('identity_id', '==', data.identity_id)
+          .get();
+        for (const staleDoc of staleAdSnap.docs) {
+          if (staleDoc.id !== canonicalScreenName) {
+            await staleDoc.ref.delete().catch(() => {});
+          }
+        }
+      } else {
+        const staleAdSnap = await db.collection('professionalDirectoryEntries')
+          .where('identity_id', '==', data.identity_id)
+          .get();
+        for (const staleDoc of staleAdSnap.docs) {
+          await staleDoc.ref.delete().catch(() => {});
+        }
+      }
+
+      if (!isPublicEligible) {
+        results.professional.skipped++;
+        const reasons: string[] = [];
+        if (data.visibility !== 'public') reasons.push(`visibility=${data.visibility}`);
+        if (data.lifecycle_state !== 'active') reasons.push(`lifecycle=${data.lifecycle_state}`);
+        if (!canonicalScreenName) reasons.push('no screen_name');
+        results.professional.skippedDetails.push(`${doc.id}: ${reasons.join(', ')}`);
       }
     }
 
