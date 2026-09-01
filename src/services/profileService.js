@@ -42,45 +42,47 @@ export async function savePersonalProfile(identityId, data) {
 }
 
 // --- Professional Profile ---
+// Firebase is the production source of truth for Professional Profiles.
+// There is NO Base44 fallback: if Firebase is not configured, professional
+// profile operations fail explicitly rather than silently writing to a
+// competing Base44 store.
+
+function requireFirebase(op) {
+  if (!useFirebase) {
+    throw new Error(
+      `${op}: Firebase is not configured. Professional profiles require Firebase (production source of truth).`,
+    );
+  }
+}
 
 export async function getProfessionalProfile(identityId) {
-  if (useFirebase) return profileRepository.getProfessionalProfile(identityId);
-  const profiles = await base44.entities.ProfessionalProfile.filter({ identity_id: identityId });
-  return profiles.length > 0 ? profiles[0] : null;
+  requireFirebase('getProfessionalProfile');
+  return profileRepository.getProfessionalProfile(identityId);
 }
 
 export async function createProfessionalProfile(data) {
-  if (useFirebase) return profileRepository.createProfessionalProfile(data);
-  return base44.entities.ProfessionalProfile.create(data);
+  requireFirebase('createProfessionalProfile');
+  return profileRepository.createProfessionalProfile(data);
 }
 
 export async function updateProfessionalProfile(profileId, data) {
-  if (useFirebase) return profileRepository.updateProfessionalProfile(profileId, data);
-  return base44.entities.ProfessionalProfile.update(profileId, data);
+  requireFirebase('updateProfessionalProfile');
+  return profileRepository.updateProfessionalProfile(profileId, data);
 }
 
 export async function saveProfessionalProfile(identityId, data) {
-  if (useFirebase) {
-    // Authoritative server-side save: writes the private profile,
-    // enforces screen_name uniqueness, and maintains the
-    // professionalProfilesPublic projection (public fields only).
-    return callSaveProfessionalProfile({ ...data, identity_id: identityId });
-  }
-  const existing = await getProfessionalProfile(identityId);
-  if (existing) {
-    return base44.entities.ProfessionalProfile.update(existing.id, data);
-  }
-  return base44.entities.ProfessionalProfile.create({
-    identity_id: identityId,
-    ...data,
-  });
+  requireFirebase('saveProfessionalProfile');
+  // Authoritative server-side save: writes the private profile,
+  // enforces screen_name uniqueness, and maintains the
+  // professionalProfilesPublic projection (public fields only).
+  return callSaveProfessionalProfile({ ...data, identity_id: identityId });
 }
 
 // Public projection read — used by the /p/:screenName route.
 // Returns only public fields; readable by guests.
 export async function getPublicProfessionalProfile(screenName) {
-  if (useFirebase) return profileRepository.getPublicProfessionalProfile(screenName);
-  return null;
+  requireFirebase('getPublicProfessionalProfile');
+  return profileRepository.getPublicProfessionalProfile(screenName);
 }
 
 // Public projection read for Personal — used by the /u/:screenName route.
@@ -93,16 +95,14 @@ export async function getPublicPersonalProfile(screenName) {
 // the Business profile to display staff/professionals from membership
 // references without reading the private professionalProfiles collection.
 export async function getPublicProfessionalProfileByIdentity(identityId) {
-  if (useFirebase) return profileRepository.getPublicProfessionalProfileByIdentity(identityId);
-  return null;
+  requireFirebase('getPublicProfessionalProfileByIdentity');
+  return profileRepository.getPublicProfessionalProfileByIdentity(identityId);
 }
 
 // Live screen-name validation (format + server-side uniqueness).
 export async function validateScreenName(screenName, currentScreenName) {
-  if (useFirebase) {
-    return callValidateScreenName({ screen_name: screenName, current_screen_name: currentScreenName });
-  }
-  return { available: true };
+  requireFirebase('validateScreenName');
+  return callValidateScreenName({ screen_name: screenName, current_screen_name: currentScreenName });
 }
 
 export async function validatePersonalScreenName(screenName, currentScreenName) {

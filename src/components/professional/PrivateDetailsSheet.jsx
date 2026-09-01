@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Check, AlertCircle } from 'lucide-react';
 import { validateScreenName } from '@/services/profileService';
+import { STANDARD_PROFESSIONAL_TYPES } from '@/data/standardProfessionalTypes';
 
 /**
  * Owner-only side drawer for private/account-level professional data:
@@ -19,7 +20,9 @@ export default function PrivateDetailsSheet({ open, onClose, profile, onSave }) 
   const [snStatus, setSnStatus] = useState(null);
   const [snChecking, setSnChecking] = useState(false);
   const [profession, setProfession] = useState('');
+  const [professionalType, setProfessionalType] = useState(null);
   const [visibility, setVisibility] = useState('public');
+  const [snError, setSnError] = useState(null);
 
   useEffect(() => {
     if (open && profile) {
@@ -27,8 +30,10 @@ export default function PrivateDetailsSheet({ open, onClose, profile, onSave }) 
       setBusinessName(profile.business_name || '');
       setScreenName(profile.screen_name || '');
       setProfession(profile.profession || profile.professional_category || '');
+      setProfessionalType(profile.professional_type || null);
       setVisibility(profile.visibility || 'public');
       setSnStatus(null);
+      setSnError(null);
     }
   }, [open, profile]);
 
@@ -46,12 +51,22 @@ export default function PrivateDetailsSheet({ open, onClose, profile, onSave }) 
   };
 
   const handleSave = () => {
+    const sn = screenName.toLowerCase().trim();
+    // An active Professional must have a screen_name (server-enforced, but
+    // validated client-side first for clear UX). This is the repair path for
+    // migrated profiles that arrived with screen_name = null.
+    if (profile?.lifecycle_state === 'active' && !sn) {
+      setSnError('A screen name is required for an active professional profile');
+      return;
+    }
+    setSnError(null);
     onSave({
       legal_name: legalName,
       business_name: businessName,
-      screen_name: screenName.toLowerCase().trim() || null,
+      screen_name: sn || null,
       profession,
       professional_category: profession,
+      professional_type: professionalType,
       visibility,
     });
     onClose();
@@ -97,10 +112,32 @@ export default function PrivateDetailsSheet({ open, onClose, profile, onSave }) 
               </p>
             )}
             <p className="text-xs text-stone-400 mt-1">3-20 chars: lowercase letters, numbers, underscores.</p>
+            {snError && (
+              <p className="text-xs mt-1 flex items-center gap-1 text-red-500">
+                <AlertCircle className="w-3 h-3" />
+                {snError}
+              </p>
+            )}
           </div>
           <div>
             <Label className="mb-1.5 block">Profession</Label>
             <Input value={profession} onChange={(e) => setProfession(e.target.value)} placeholder="e.g. Personal Trainer" />
+          </div>
+          <div>
+            <Label className="mb-1.5 block">Professional type <span className="text-xs font-normal text-stone-400">(structured)</span></Label>
+            <select
+              value={professionalType?.id || ''}
+              onChange={(e) => {
+                const opt = STANDARD_PROFESSIONAL_TYPES.find((o) => o.id === e.target.value);
+                setProfessionalType(opt ? { id: opt.id, label: opt.label } : null);
+              }}
+              className={inputClass}
+            >
+              <option value="">Select a type…</option>
+              {STANDARD_PROFESSIONAL_TYPES.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
           </div>
           <div>
             <Label className="mb-1.5 block">Profile visibility</Label>

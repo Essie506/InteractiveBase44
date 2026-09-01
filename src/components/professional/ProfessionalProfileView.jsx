@@ -30,6 +30,8 @@ export default function ProfessionalProfileView({
   onEditAvatar,
   onEditField,
   onEditServices,
+  onEditSpecialisms,
+  onEditSessionTypes,
   onEditContact,
   onOpenPrivateDetails,
   onSaveMedia,
@@ -94,6 +96,24 @@ export default function ProfessionalProfileView({
             <TagList tags={profile.services} />
           ) : (
             editable && <p className="text-stone-400 text-sm">Add the services you offer…</p>
+          )}
+        </ProfileSection>
+
+        {/* Specialisms */}
+        <ProfileSection title="Specialisms" onEdit={editable ? onEditSpecialisms : null}>
+          {profile.specialisms?.length > 0 ? (
+            <TagList tags={profile.specialisms} />
+          ) : (
+            editable && <p className="text-stone-400 text-sm">Add your areas of expertise…</p>
+          )}
+        </ProfileSection>
+
+        {/* Session Types */}
+        <ProfileSection title="Session Types" onEdit={editable ? onEditSessionTypes : null}>
+          {profile.session_types?.length > 0 ? (
+            <TagList tags={profile.session_types} />
+          ) : (
+            editable && <p className="text-stone-400 text-sm">Add how you deliver sessions…</p>
           )}
         </ProfileSection>
 

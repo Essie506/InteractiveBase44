@@ -8,6 +8,8 @@ import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
+import TaxonomySelectDialog from '@/components/profile/TaxonomySelectDialog';
+import { STANDARD_SERVICES } from '@/data/standardServices';
 
 export default function ProfessionalActivation() {
   const { user, checkUserAuth } = useAuth();
@@ -22,7 +24,7 @@ export default function ProfessionalActivation() {
   const [bio, setBio] = useState('');
   const [category, setCategory] = useState('');
   const [services, setServices] = useState([]);
-  const [serviceInput, setServiceInput] = useState('');
+  const [showServicesDialog, setShowServicesDialog] = useState(false);
   const [location, setLocation] = useState('');
   const [serviceArea, setServiceArea] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -51,7 +53,7 @@ export default function ProfessionalActivation() {
         setHeadline(p.headline || '');
         setBio(p.bio || '');
         setCategory(p.professional_category || p.profession || '');
-        setServices(p.services || []);
+        setServices((p.services || []).map((s) => (typeof s === 'string' ? { id: null, label: s } : s)));
         setLocation(p.location || '');
         setServiceArea(p.service_area || '');
         setContactEmail(p.contact_email || user.email || '');
@@ -63,14 +65,6 @@ export default function ProfessionalActivation() {
     });
   }, [user]);
 
-  const addService = () => {
-    const s = serviceInput.trim();
-    if (s && !services.includes(s)) {
-      setServices([...services, s]);
-      setServiceInput('');
-    }
-  };
-
   const validateStep = (step) => {
     const e = {};
     if (step === 'identity') {
@@ -78,6 +72,14 @@ export default function ProfessionalActivation() {
       if (!category.trim()) e.category = 'Professional category is required';
     }
     if (step === 'verification' && !termsAccepted) e.terms = 'You must accept the terms to continue';
+    if (step === 'settings') {
+      const sn = screenName.toLowerCase().trim();
+      if (!sn) {
+        e.screenName = 'Screen name is required to activate your professional profile';
+      } else if (!/^[a-z0-9_]{3,20}$/.test(sn)) {
+        e.screenName = 'Screen name must be 3-20 characters: lowercase letters, numbers, and underscores';
+      }
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -232,19 +234,18 @@ export default function ProfessionalActivation() {
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <h1 className="text-2xl font-bold text-stone-800 mb-2">Services & Specialisms</h1>
               <p className="text-stone-500 mb-6">What services do you offer?</p>
-              <div className="flex gap-2 mb-3">
-                <input type="text" value={serviceInput} onChange={e => setServiceInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addService())} placeholder="e.g. 1-on-1 Training, Nutrition Coaching" className={inputClass} />
-                <button onClick={addService} className="px-3 py-2.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors"><Plus className="w-4 h-4" /></button>
-              </div>
               <div className="flex flex-wrap gap-2 mb-6">
-                {services.map(s => (
-                  <span key={s} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm">
-                    {s}
+                {services.map((s, i) => (
+                  <span key={(s.id || s.label) + i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm">
+                    {s.label}
                     <button onClick={() => setServices(services.filter(x => x !== s))}><X className="w-3 h-3" /></button>
                   </span>
                 ))}
                 {services.length === 0 && <span className="text-sm text-stone-400">No services added yet</span>}
               </div>
+              <button onClick={() => setShowServicesDialog(true)} className="inline-flex items-center gap-2 px-4 py-2.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors mb-2">
+                <Plus className="w-4 h-4" /> Edit Services
+              </button>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
                 <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
@@ -318,12 +319,13 @@ export default function ProfessionalActivation() {
               <p className="text-stone-500 mb-6">Control your professional profile visibility.</p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1.5">Screen Name <span className="text-xs font-normal text-stone-400">(public handle)</span></label>
+                  <MandatoryLabel htmlFor="pa-screen-name" required>Screen Name</MandatoryLabel>
                   <div className="flex items-center gap-2">
                     <span className="text-stone-400 text-sm">@</span>
-                    <input type="text" value={screenName} onChange={e => setScreenName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="estherfitness" maxLength={20} className={inputClass} />
+                    <input id="pa-screen-name" type="text" value={screenName} onChange={e => setScreenName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} placeholder="estherfitness" maxLength={20} className={inputClass} />
                   </div>
                   <p className="text-xs text-stone-400 mt-1">3-20 characters. Your public profile: /p/{screenName || 'handle'}</p>
+                  <FieldError error={errors.screenName} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-1.5">Profile Visibility</label>
@@ -336,7 +338,7 @@ export default function ProfessionalActivation() {
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={completeActivation} disabled={loading} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                <button onClick={handleNext} disabled={loading} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
                   {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Activating...</> : <><Check className="w-4 h-4" /> Activate Professional</>}
                 </button>
               </div>
@@ -344,6 +346,16 @@ export default function ProfessionalActivation() {
           )}
         </div>
       </div>
+
+      <TaxonomySelectDialog
+        open={showServicesDialog}
+        onClose={() => setShowServicesDialog(false)}
+        title="Edit Services"
+        items={services}
+        standardOptions={STANDARD_SERVICES}
+        placeholder="Add a service..."
+        onSave={(next) => setServices(next)}
+      />
     </div>
   );
 }

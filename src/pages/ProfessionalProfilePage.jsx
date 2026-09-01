@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
 import { STANDARD_SERVICES } from '@/data/standardServices';
+import { STANDARD_SPECIALISMS } from '@/data/standardSpecialisms';
+import { STANDARD_SESSION_TYPES } from '@/data/standardSessionTypes';
 import { getMedia, getMediaUrl } from '@/lib/media';
 import { Loader2 } from 'lucide-react';
 import ProfessionalProfileView from '@/components/professional/ProfessionalProfileView';
@@ -46,6 +48,11 @@ function toPayload(p) {
     cover_position_y: p.cover_position_y,
     cover_zoom: p.cover_zoom,
     gallery_media_ids: p.gallery_media_ids,
+    professional_type: p.professional_type,
+    specialisms: p.specialisms,
+    session_types: p.session_types,
+    away_message: p.away_message,
+    away_message_enabled: p.away_message_enabled,
     visibility: p.visibility,
   };
 }
@@ -62,6 +69,11 @@ export default function ProfessionalProfilePage() {
     if (!user) return;
     getProfessionalProfile(user.id).then(async (p) => {
       if (p) {
+        // Normalize legacy string services to the structured {id,label} shape
+        // expected by the taxonomy editor, preserving existing values.
+        if (Array.isArray(p.services)) {
+          p.services = p.services.map((s) => (typeof s === 'string' ? { id: null, label: s } : s));
+        }
         if (p.avatar_media_id) {
           const a = await getMedia(p.avatar_media_id);
           if (a) { const u = await getMediaUrl(a); if (u) p.avatar_url = u; }
@@ -119,6 +131,8 @@ export default function ProfessionalProfilePage() {
         onEditAvatar={() => setDialog('avatar')}
         onEditField={(f) => setDialog(f)}
         onEditServices={() => setDialog('services')}
+        onEditSpecialisms={() => setDialog('specialisms')}
+        onEditSessionTypes={() => setDialog('session_types')}
         onEditContact={() => setDialog('contact')}
         onOpenPrivateDetails={() => setDialog('private')}
         onSaveMedia={(mediaIds) => persist({ gallery_media_ids: mediaIds })}
@@ -197,6 +211,28 @@ export default function ProfessionalProfilePage() {
           standardOptions={STANDARD_SERVICES}
           placeholder="Add a custom service"
           onSave={(services) => persist({ services })}
+        />
+      )}
+      {dialog === 'specialisms' && (
+        <TaxonomySelectDialog
+          open
+          onClose={() => setDialog(null)}
+          title="Edit specialisms"
+          items={profile.specialisms || []}
+          standardOptions={STANDARD_SPECIALISMS}
+          placeholder="Add a specialism"
+          onSave={(specialisms) => persist({ specialisms })}
+        />
+      )}
+      {dialog === 'session_types' && (
+        <TaxonomySelectDialog
+          open
+          onClose={() => setDialog(null)}
+          title="Edit session types"
+          items={profile.session_types || []}
+          standardOptions={STANDARD_SESSION_TYPES}
+          placeholder="Add a session type"
+          onSave={(session_types) => persist({ session_types })}
         />
       )}
       {dialog === 'contact' && (
