@@ -163,6 +163,14 @@
         { "fieldPath": "invited_identity_ids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "start_time", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "notificationDeliveries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "next_retry_at", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

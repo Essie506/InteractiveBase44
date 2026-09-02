@@ -388,6 +388,21 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // NOTIFICATION DELIVERIES (outbox)
+    // ───────────────────────────────────────────────────────────
+    // Server-only delivery/outbox records. Tracks per-channel delivery
+    // state (pending/processing/sent/failed/retryable) for the
+    // notification dispatcher. Clients never read or write this
+    // collection — the Admin SDK bypasses these rules, and the
+    // delivery worker + scheduled sweep are the only writers.
+    // The user-facing delivery surface is the optional delivery_summary
+    // denormalised onto notificationRecords, not this collection.
+    match /notificationDeliveries/{deliveryId} {
+      allow read: if false;  // Server-only
+      allow write: if false; // Server-only — Admin SDK bypasses
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // MEDIA ASSETS
     // ═══════════════════════════════════════════════════════════
 

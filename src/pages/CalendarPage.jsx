@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getAllEventsForIdentity, formatTimeRange, getLocalTimezone, cancelEvent } from '@/lib/calendar';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff } from 'lucide-react';
@@ -18,6 +18,11 @@ export default function CalendarPage() {
   const [editingEvent, setEditingEvent] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
   const { toast } = useToast();
+
+  // Deep-link: /calendar?event={eventId} — open/highlight the authorised
+  // event after Calendar data loads. No new route.
+  const focusEventId = useMemo(() => new URLSearchParams(window.location.search).get('event'), []);
+  const focusedRef = useRef(false);
 
   const activeContext = user?.active_context || 'personal';
   const activeBusinessId = user?.active_business_id;
@@ -41,6 +46,18 @@ export default function CalendarPage() {
   };
 
   useEffect(() => {loadEvents();}, [user, currentMonth, activeContext, activeBusinessId]);
+
+  // After events load, jump to + highlight the deep-linked event once.
+  useEffect(() => {
+    if (!focusEventId || focusedRef.current || loading || events.length === 0) return;
+    const ev = events.find((e) => e.id === focusEventId);
+    if (ev) {
+      const evDate = new Date(ev.start_time);
+      setCurrentMonth(new Date(evDate.getFullYear(), evDate.getMonth(), 1));
+      setSelectedDate(evDate);
+      focusedRef.current = true;
+    }
+  }, [focusEventId, events, loading]);
 
   // Generate calendar grid days
   const calendarDays = useMemo(() => {

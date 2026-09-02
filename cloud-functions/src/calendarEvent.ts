@@ -36,6 +36,9 @@ import { isEventListable, normalisePricing } from './eventProjectionEligibility'
 import { buildEventPublicProjection, EventHostInfo } from './calendarEventProjection';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
 import { CAPACITY_CONSUMING_STATES, sumAttendeeQuantity } from './eventCapacity';
+import { emitNotification } from './notifications/dispatcher';
+import { buildCalendarEmailPayload, CalendarEmailContext, CalendarEventType } from './notifications/email/payloads/calendar';
+import { diffEventChanges, computeUpdateVersion, computeRemovalVersion } from './calendarEventDiff';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
@@ -144,6 +147,175 @@ function dedupeStrings(arr: string[] | null | undefined): string[] {
   return out;
 }
 
+// ── Notification dispatch helpers ────────────────────────────
+// Calendar owns event/invitation state; the Notifications System owns
+// delivery. saveCalendarEvent emits semantic events after the
+// authoritative event write succeeds; the dispatcher creates the
+// NotificationRecord (in-app) and the email outbox delivery. Calendar
+// never imports a concrete email provider — it passes a safe
+// CalendarEmailContext to the dispatcher's provider-neutral builder.
+
+function formatWhen(data: any, timezone: string): { dateLabel: string; timeLabel: string } {
+  const tz = timezone || 'UTC';
+  const start = new Date(data.start_time);
+  const end = data.end_time ? new Date(data.end_time) : null;
+  const dateLabel = start.toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: tz,
+  });
+  const timeLabel = data.all_day
+    ? 'All day'
+    : `${start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz })}${end ? ' – ' + end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz }) : ''}`;
+  return { dateLabel, timeLabel };
+}
+
+async function emitCalendarNotification(
+  eventId: string,
+  eventType: CalendarEventType,
+  sourceId: string,
+  version: string,
+  title: string,
+  body: string,
+  recipientId: string | null,
+  recipientEmail: string | null,
+  emailCtx: CalendarEmailContext,
+): Promise<void> {
+  await emitNotification({
+    source_system: 'calendar',
+    event_type: eventType,
+    source_id: sourceId,
+    version,
+    category: 'calendar',
+    title,
+    body,
+    action_url: `/calendar?event=${eventId}`,
+    action_label: 'View Event',
+    recipient_id: recipientId,
+    recipient_email: recipientEmail,
+    emailContext: emailCtx,
+    emailPayloadBuilder: buildCalendarEmailPayload,
+  });
+}
+
+// Create path — invite all recipients (identities + guests).
+async function dispatchCreateNotifications(
+  eventId: string,
+  data: Record<string, any>,
+): Promise<void> {
+  const host = await resolveHost(data.owner_type, data.owner_id, data.operating_context);
+  const hostName = host?.display_name || null;
+  const locationLabel = await resolveLocationLabel(data.location_id);
+  const { dateLabel, timeLabel } = formatWhen(data, data.timezone);
+  const tz = data.timezone || 'UTC';
+  const eventLink = `/calendar?event=${eventId}`;
+  const baseCtx = (eventType: CalendarEventType): CalendarEmailContext => ({
+    eventTitle: data.title, hostDisplayName: hostName, dateLabel, timeLabel,
+    timezone: tz, safeLocationLabel: locationLabel, eventLink, eventType,
+  });
+  const whenLine = `${dateLabel}, ${timeLabel} (${tz})${locationLabel ? ' • ' + locationLabel : ''}`;
+  for (const rid of dedupeStrings(data.invited_identity_ids)) {
+    await emitCalendarNotification(eventId, 'calendar_event_invited',
+      `cal_invite:${eventId}:${rid}`, '1',
+      `${hostName || 'Someone'} invited you to "${data.title}"`,
+      whenLine, rid, null, baseCtx('calendar_event_invited'));
+  }
+  for (const gemail of dedupeStrings(data.invited_guest_emails)) {
+    await emitCalendarNotification(eventId, 'calendar_event_invited',
+      `cal_invite:${eventId}:guest:${gemail}`, '1',
+      `${hostName || 'Someone'} invited you to "${data.title}"`,
+      whenLine, null, gemail, baseCtx('calendar_event_invited'));
+  }
+}
+
+// Update path — diff-based. Booking-owned events are suppressed (Booking
+// owns cancellation; avoid duplicate/competing signals). No-op saves
+// emit nothing. Reschedule takes precedence over material update.
+async function dispatchUpdateNotifications(
+  eventId: string,
+  existing: Record<string, any>,
+  updatePayload: Record<string, any>,
+  mergedData: Record<string, any>,
+  nowIso: string,
+): Promise<void> {
+  if (existing.source_system === 'booking') return;
+
+  const diff = diffEventChanges(existing, updatePayload);
+  if (diff.isNoOp) return;
+
+  const host = await resolveHost(mergedData.owner_type, mergedData.owner_id, mergedData.operating_context);
+  const hostName = host?.display_name || null;
+  const locationLabel = await resolveLocationLabel(mergedData.location_id);
+  const { dateLabel, timeLabel } = formatWhen(mergedData, mergedData.timezone);
+  const tz = mergedData.timezone || 'UTC';
+  const eventLink = `/calendar?event=${eventId}`;
+  const baseCtx = (eventType: CalendarEventType): CalendarEmailContext => ({
+    eventTitle: mergedData.title, hostDisplayName: hostName, dateLabel, timeLabel,
+    timezone: tz, safeLocationLabel: locationLabel, eventLink, eventType,
+  });
+  const whenLine = `${dateLabel}, ${timeLabel} (${tz})${locationLabel ? ' • ' + locationLabel : ''}`;
+
+  if (diff.isCancellation) {
+    const recipients = dedupeStrings([
+      ...dedupeStrings(mergedData.invited_identity_ids),
+      ...dedupeStrings(existing.assigned_identity_ids),
+    ].filter((id) => id !== existing.owner_id && id !== existing.created_by_id));
+    for (const rid of recipients) {
+      await emitCalendarNotification(eventId, 'calendar_event_cancelled',
+        `cal_cancel:${eventId}:${rid}`, '1',
+        `"${mergedData.title}" has been cancelled`,
+        `${hostName || 'Someone'} cancelled the event scheduled for ${dateLabel}, ${timeLabel}.`,
+        rid, null, baseCtx('calendar_event_cancelled'));
+    }
+    return;
+  }
+
+  // Added invitees → invited
+  for (const rid of diff.addedInvitees) {
+    await emitCalendarNotification(eventId, 'calendar_event_invited',
+      `cal_invite:${eventId}:${rid}`, '1',
+      `${hostName || 'Someone'} invited you to "${mergedData.title}"`,
+      whenLine, rid, null, baseCtx('calendar_event_invited'));
+  }
+  const oldGuests = dedupeStrings(existing.invited_guest_emails);
+  for (const gemail of dedupeStrings(mergedData.invited_guest_emails).filter((g) => !oldGuests.includes(g))) {
+    await emitCalendarNotification(eventId, 'calendar_event_invited',
+      `cal_invite:${eventId}:guest:${gemail}`, '1',
+      `${hostName || 'Someone'} invited you to "${mergedData.title}"`,
+      whenLine, null, gemail, baseCtx('calendar_event_invited'));
+  }
+
+  // Removed invitees → invitation_removed
+  for (const rid of diff.removedInvitees) {
+    await emitCalendarNotification(eventId, 'calendar_invitation_removed',
+      `cal_remove:${eventId}:${rid}`, computeRemovalVersion(eventId, rid, nowIso),
+      `You were removed from "${mergedData.title}"`,
+      `${hostName || 'Someone'} removed you from this event.`,
+      rid, null, baseCtx('calendar_invitation_removed'));
+  }
+
+  // Remaining invitees → reschedule OR material update (reschedule wins).
+  const oldInvited = dedupeStrings(existing.invited_identity_ids);
+  const remaining = dedupeStrings(mergedData.invited_identity_ids).filter((id) => oldInvited.includes(id));
+  if (diff.isReschedule) {
+    const version = computeUpdateVersion(existing, updatePayload);
+    for (const rid of remaining) {
+      await emitCalendarNotification(eventId, 'calendar_event_rescheduled',
+        `cal_reschedule:${eventId}:${rid}`, version,
+        `"${mergedData.title}" has been rescheduled`,
+        `New time: ${dateLabel}, ${timeLabel} (${tz}).`,
+        rid, null, baseCtx('calendar_event_rescheduled'));
+    }
+  } else if (diff.isMaterialUpdate) {
+    const version = computeUpdateVersion(existing, updatePayload);
+    for (const rid of remaining) {
+      await emitCalendarNotification(eventId, 'calendar_event_updated',
+        `cal_update:${eventId}:${rid}`, version,
+        `"${mergedData.title}" has been updated`,
+        `${hostName || 'Someone'} updated this event. ${whenLine}.`,
+        rid, null, baseCtx('calendar_event_updated'));
+    }
+  }
+}
+
 // ── saveCalendarEvent ───────────────────────────────────────
 export const saveCalendarEvent = onCall(
   { region: 'europe-west2', cors: allowedOrigins },
@@ -226,6 +398,7 @@ export const saveCalendarEvent = onCall(
 
       const mergedData = { ...existing, ...updatePayload };
       await maintainProjection(eventId, mergedData);
+      await dispatchUpdateNotifications(eventId, existing, updatePayload, mergedData, nowIso);
       return { id: eventId, ...mergedData };
     }
 
@@ -326,6 +499,7 @@ export const saveCalendarEvent = onCall(
     }
 
     await maintainProjection(eventDocId, eventData);
+    await dispatchCreateNotifications(eventDocId, eventData);
 
     return { id: eventDocId, ...eventData };
   },

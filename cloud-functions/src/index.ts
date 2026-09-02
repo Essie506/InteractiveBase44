@@ -47,3 +47,9 @@ export { backfillProfessionalDirectory } from './backfillProfessionalDirectory';
 // Calendar Event ownership correction backfill (admin-only). Implemented
 // but NOT invoked — run via admin callable before production cutover.
 export { backfillCalendarOwnership } from './backfillCalendarOwnership';
+
+// Notifications — delivery foundation (dispatcher + outbox worker + retry sweep).
+// Domain systems emit semantic events via emitNotification (imported directly);
+// these exports are the delivery-side triggers that Firebase discovers.
+export { processDelivery } from './notifications/deliveryWorker';
+export { retryDeliveries } from './notifications/deliverySweep';
