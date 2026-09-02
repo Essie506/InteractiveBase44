@@ -18,10 +18,29 @@ import { CAPACITY_CONSUMING_STATES, sumAttendeeQuantity } from './eventCapacity'
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
+const IDEMPOTENCY = 'calendarEventIdempotency';
 
 // Booking statuses that count toward reserved capacity are defined once in
 // eventCapacity.ts (CAPACITY_CONSUMING_STATES) and shared by bookingPayment,
 // bookingLifecycle, and stripeWebhook so the contract never drifts.
+
+// ── Idempotency key ──────────────────────────────────────────
+// Deterministic key scoped by the authoritative ownership context
+// (owner_type + owner_id) + source_system + source_id — NOT caller
+// identity, because Business-owned events use the Business ID as
+// owner_id and caller authorisation is derived via Business membership.
+// All concurrent retries of the same logical Add contend on the same
+// Firestore document, so at most one authoritative event is created.
+export function idempotencyDocId(
+  ownerType: string,
+  ownerId: string,
+  sourceSystem: string,
+  sourceId: string,
+): string {
+  return [ownerType || 'identity', ownerId || '', sourceSystem || 'manual', sourceId || '']
+    .map((s) => String(s).replace(/\//g, '_'))
+    .join('__');
+}
 
 // ── Host resolution ──────────────────────────────────────────
 // Reads the public profile projection for the host (professional or
@@ -125,15 +144,68 @@ export const saveCalendarEvent = onCall(
     // ── Write the authoritative calendarEvents doc ──
     let eventDocId: string;
     if (eventId) {
+      // Update path — stable authoritative Event ID, no idempotency needed.
       await db.collection(EVENTS).doc(eventId).set(eventData, { merge: true });
       eventDocId = eventId;
     } else {
-      const ref = db.collection(EVENTS).doc();
-      await ref.set(eventData);
-      eventDocId = ref.id;
+      // Create path — deterministic transaction-safe idempotency.
+      // Two concurrent retries of the same logical Add (same
+      // owner_type + owner_id + source_system + source_id) contend on
+      // the same idempotency document, so exactly one authoritative
+      // event is created and both requests resolve to the same Event ID.
+      const sourceSystem = eventData.source_system || 'manual';
+      const sourceId = eventData.source_id || null;
+      if (!sourceId) {
+        throw new HttpsError(
+          'invalid-argument',
+          'source_id is required to create an event (idempotency key)',
+        );
+      }
+      const idempKey = idempotencyDocId(
+        eventData.owner_type || 'identity',
+        eventData.owner_id || '',
+        sourceSystem,
+        sourceId,
+      );
+      const idempRef = db.collection(IDEMPOTENCY).doc(idempKey);
+
+      let existingEventId: string | null = null;
+      eventDocId = '';
+      await db.runTransaction(async (tx) => {
+        const idempSnap = await tx.get(idempRef);
+        if (idempSnap.exists && idempSnap.data()?.event_id) {
+          // A concurrent retry already created the authoritative event.
+          existingEventId = idempSnap.data()!.event_id as string;
+          return;
+        }
+        // Allocate exactly one authoritative event doc and record the
+        // mapping atomically so a concurrent transaction sees it.
+        const eventRef = db.collection(EVENTS).doc();
+        eventDocId = eventRef.id;
+        const nowIso = new Date().toISOString();
+        tx.set(eventRef, { ...eventData, _created_date: nowIso, _updated_date: nowIso });
+        tx.set(idempRef, {
+          event_id: eventRef.id,
+          owner_type: eventData.owner_type || 'identity',
+          owner_id: eventData.owner_id || '',
+          source_system: sourceSystem,
+          source_id: sourceId,
+          _created_date: nowIso,
+          _updated_date: nowIso,
+        });
+      });
+
+      if (existingEventId) {
+        // Resolve to the already-created authoritative event.
+        eventDocId = existingEventId;
+      }
     }
 
     // ── Maintain the public projection ──
+    // Runs after the transaction commits. Projection maintenance does
+    // async host/geo/capacity reads and a derived write, so it cannot
+    // run inside the idempotency transaction. This matches the existing
+    // post-write projection pattern.
     await maintainProjection(eventDocId, eventData);
 
     return { id: eventDocId, ...eventData };

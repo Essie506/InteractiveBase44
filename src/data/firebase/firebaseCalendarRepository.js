@@ -23,12 +23,20 @@ export async function getEvent(eventId) {
   return fromFirestoreDoc(snap);
 }
 
-export async function listEventsForOwner(ownerId) {
-  const q = query(
-    collection(db, 'calendarEvents'),
+export async function listEventsForOwner(ownerId, ownerType) {
+  // Filter by owner_type as well as owner_id so Personal ('identity') and
+  // Professional ('professional') calendars — which can share the same
+  // identity ID as owner_id — return disjoint sets. Without this filter
+  // the same professional event is returned by both queries and merged
+  // twice in getAllEventsForIdentity.
+  const constraints = [
     where('owner_id', '==', ownerId),
     orderBy('start_time', 'asc'),
-  );
+  ];
+  if (ownerType) {
+    constraints.splice(1, 0, where('owner_type', '==', ownerType));
+  }
+  const q = query(collection(db, 'calendarEvents'), ...constraints);
   const snap = await getDocs(q);
   return snap.docs.map(fromFirestoreDoc);
 }
@@ -43,21 +51,12 @@ export async function listEventsForBusiness(businessId) {
   return snap.docs.map(fromFirestoreDoc);
 }
 
-export async function createEvent(data) {
-  const ref = doc(collection(db, 'calendarEvents'));
-  await setDoc(ref, toFirestoreDoc(data));
-  return { id: ref.id, ...data };
-}
-
-export async function updateEvent(id, data) {
-  const { id: _, ...updateData } = data;
-  await updateDoc(doc(db, 'calendarEvents', id), toFirestoreDoc(updateData));
-  return { id, ...data };
-}
-
-export async function deleteEvent(id) {
-  await deleteDoc(doc(db, 'calendarEvents', id));
-}
+// NOTE: direct client create/update/delete of calendarEvents has been
+// removed. All manual Calendar writes now flow through the canonical
+// saveCalendarEvent Cloud Function (see src/lib/calendar.js), which is
+// the sole authoritative writer and maintains the calendarEventsPublic
+// projection. Firestore rules deny direct client writes to calendarEvents.
+// Read functions below are retained.
 
 // ── Availability Rules ─────────────────────────────────────
 

@@ -1,13 +1,25 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Loader2, X } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 import { createEvent, updateEvent, getLocalTimezone } from '@/lib/calendar';
 
 // EventModal — create or edit a calendar event.
-// Calendar is authoritative for the event record.
+// Calendar is authoritative for the event record. Manual creates flow
+// through the canonical saveCalendarEvent Cloud Function, which uses a
+// deterministic idempotency key (owner_type + owner_id + source_system +
+// source_id) so concurrent retries of the same logical Add produce
+// exactly one authoritative event. The source_id is generated once per
+// Add operation and reused across retries.
 export default function EventModal({ ownerId, ownerType, operatingContext, createdBy, businessId, existingEvent, timezone, onClose, onSaved }) {
   const isEditing = !!existingEvent;
+  // One stable source_id per logical Add operation. Generated on first
+  // render of a create modal and preserved across retries; a genuinely
+  // new Add (reopening the modal) gets a new ref value.
+  const createSourceIdRef = useRef(null);
+  if (!isEditing && !createSourceIdRef.current) {
+    createSourceIdRef.current = crypto.randomUUID();
+  }
   const [title, setTitle] = useState(existingEvent?.title || '');
   const [description, setDescription] = useState(existingEvent?.description || '');
   const [date, setDate] = useState(
@@ -67,6 +79,11 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         visibility,
         business_id: businessId,
         created_by_id: createdBy,
+        source_system: 'manual',
+        // Stable across retries of the same logical Add; reused by the
+        // canonical writer's idempotency key so concurrent retries resolve
+        // to one authoritative event.
+        source_id: isEditing ? (existingEvent.source_id || existingEvent.id) : createSourceIdRef.current,
       };
 
       let saved;

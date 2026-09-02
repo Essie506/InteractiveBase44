@@ -193,6 +193,15 @@ export async function callResolveProfessionalAccess(data) {
   return result.data;
 }
 
+// ── Calendar Event (canonical authoritative writer) ──
+// The sole manual create/update/cancel path for calendarEvents.
+// Maintains the calendarEventsPublic projection server-side and
+// enforces price/free invariants + public discovery eligibility.
+export async function callSaveCalendarEvent(data) {
+  const result = await callable('saveCalendarEvent')(data);
+  return result.data;
+}
+
 // ── Relationship status read ──
 // Single + batch semantic relationship state for Connect/Pending/
 // Connected UI. The frontend must NOT infer relationship state from

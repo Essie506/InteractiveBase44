@@ -1,6 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { calendarRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
+import { callSaveCalendarEvent } from '@/services/firebaseFunctions';
 
 // Calendar System — M3: routes to Firebase when configured.
 // Firestore queries use owner_id/business_id filters (security-rule compatible).
@@ -33,7 +34,11 @@ export function formatTimeRange(startIso, endIso, timezone) {
   return end ? `${start} – ${end}` : start;
 }
 
-// Create a calendar event
+// Create a calendar event.
+// Firebase mode routes through the canonical saveCalendarEvent Cloud
+// Function — the sole authoritative writer — so the calendarEventsPublic
+// projection and price/free invariants are maintained server-side. The
+// Base44 fallback path is retained for non-Firebase environments.
 export async function createEvent(data) {
   const {
     owner_id, owner_type, operating_context, title, description,
@@ -64,17 +69,17 @@ export async function createEvent(data) {
     recurrence_rule: recurrence_rule || null,
   };
 
-  if (useFirebase) return calendarRepository.createEvent(eventData);
+  if (useFirebase) return callSaveCalendarEvent(eventData);
   return base44.entities.CalendarEvent.create(eventData);
 }
 
 export async function updateEvent(eventId, data) {
-  if (useFirebase) return calendarRepository.updateEvent(eventId, data);
+  if (useFirebase) return callSaveCalendarEvent({ ...data, id: eventId });
   return base44.entities.CalendarEvent.update(eventId, data);
 }
 
 export async function cancelEvent(eventId) {
-  if (useFirebase) return calendarRepository.updateEvent(eventId, { lifecycle_state: 'cancelled' });
+  if (useFirebase) return callSaveCalendarEvent({ id: eventId, lifecycle_state: 'cancelled' });
   return base44.entities.CalendarEvent.update(eventId, { lifecycle_state: 'cancelled' });
 }
 
@@ -82,8 +87,10 @@ export async function cancelEvent(eventId) {
 export async function getEvents(ownerId, ownerType, startDate, endDate) {
   let all;
   if (useFirebase) {
-    // Firestore: query by owner_id (security-rule compatible)
-    all = await calendarRepository.listEventsForOwner(ownerId);
+    // Firestore: query by owner_id + owner_type so Personal ('identity')
+    // and Professional ('professional') calendars return disjoint sets
+    // even when they share the same identity ID as owner_id.
+    all = await calendarRepository.listEventsForOwner(ownerId, ownerType);
     all = all.filter(e => e.lifecycle_state !== 'cancelled');
   } else {
     all = await base44.entities.CalendarEvent.filter({
@@ -108,6 +115,20 @@ export async function getEventsForDate(ownerId, ownerType, date) {
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
   return getEvents(ownerId, ownerType, startOfDay, endOfDay);
+}
+
+// De-duplicate a list of events by authoritative Event ID. A defensive
+// guard: the owner_type query filter is the primary fix for duplicate
+// professional events, but this ensures any residual overlap (e.g. a
+// business event also matched by an identity query) collapses to one row.
+export function dedupeEventsById(events) {
+  const byId = new Map();
+  for (const e of events) {
+    if (!e) continue;
+    const key = e.id;
+    if (!byId.has(key)) byId.set(key, e);
+  }
+  return Array.from(byId.values());
 }
 
 export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate) {
@@ -135,7 +156,7 @@ export async function getAllEventsForIdentity(identityId, activeContext, busines
     }
   }
 
-  return events.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  return dedupeEventsById(events).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 }
 
 // --- Availability ---

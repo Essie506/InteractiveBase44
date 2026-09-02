@@ -12,6 +12,15 @@
       "collectionGroup": "calendarEvents",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "owner_type", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "business_id", "order": "ASCENDING" },
         { "fieldPath": "start_time", "order": "ASCENDING" }
       ]
