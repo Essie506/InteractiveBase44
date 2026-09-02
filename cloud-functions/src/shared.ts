@@ -106,12 +106,12 @@ export async function hasAcceptedConnection(identityA: string, identityB: string
 export async function getBusinessMembership(
   businessId: string,
   identityId: string
-): Promise<{ role: string; lifecycle_state: string } | null> {
+): Promise<{ role: string; lifecycle_state: string; permissions?: string[] } | null> {
   const membershipId = `${businessId}_${identityId}`;
   const doc = await db.collection('businessMemberships').doc(membershipId).get();
   if (!doc.exists) return null;
   const data = doc.data()!;
-  return { role: data.role, lifecycle_state: data.lifecycle_state };
+  return { role: data.role, lifecycle_state: data.lifecycle_state, permissions: data.permissions };
 }
 
 /** Checks if an identity is an active member of a business with the given role(s). */
