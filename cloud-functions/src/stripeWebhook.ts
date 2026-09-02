@@ -39,6 +39,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getStripe } from './stripe';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
+import { appendScheduleHistory } from './calendarEventHistory';
 
 const db = getFirestore();
 
@@ -252,6 +253,8 @@ async function handlePaymentSuccess(paymentIntent: any) {
       _created_date: now,
       _updated_date: now,
     });
+    // Record schedule history (§48, §104) — Calendar's own change timeline.
+    await appendScheduleHistory({ event_id: calendarRef.id, change_type: 'created', previous_start_time: null, previous_end_time: null, new_start_time: booking.start_time, new_end_time: booking.end_time, changed_at: now, actor_id: booking.provider_identity_id, source_system: 'booking' });
     // Transition to scheduled (Calendar has an active event — Booking V2)
     await bookingRef.update({
       calendar_event_id: calendarRef.id,

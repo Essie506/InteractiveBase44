@@ -39,6 +39,7 @@ import { CAPACITY_CONSUMING_STATES, sumAttendeeQuantity } from './eventCapacity'
 import { emitNotification } from './notifications/dispatcher';
 import { buildCalendarEmailPayload, CalendarEmailContext, CalendarEventType } from './notifications/email/payloads/calendar';
 import { diffEventChanges, computeUpdateVersion, computeRemovalVersion } from './calendarEventDiff';
+import { appendScheduleHistory } from './calendarEventHistory';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
@@ -331,6 +332,42 @@ async function dispatchUpdateNotifications(
   }
 }
 
+// ── Schedule-change history (§48, §104, §105) ───────────────
+// Records the schedule-change timeline on the event. Uses the same diff
+// as notification dispatch so history and notifications classify changes
+// consistently. Append-only — never rewrites past entries. Does NOT
+// duplicate source-system audit history (Booking keeps its own
+// reschedule_history on the booking); this is Calendar's own timeline.
+async function recordScheduleHistoryFromDiff(
+  eventId: string,
+  existing: Record<string, any>,
+  mergedData: Record<string, any>,
+  updatePayload: Record<string, any>,
+  actorId: string,
+  nowIso: string,
+): Promise<void> {
+  const diff = diffEventChanges(existing, updatePayload);
+  if (diff.isNoOp) return;
+  const sourceSystem = mergedData.source_system || existing.source_system || 'manual';
+  const prevStart = existing.start_time || null;
+  const prevEnd = existing.end_time || null;
+  const newStart = mergedData.start_time || null;
+  const newEnd = mergedData.end_time || null;
+  if (diff.isCancellation) {
+    await appendScheduleHistory({ event_id: eventId, change_type: 'cancelled', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+    return;
+  }
+  if (diff.isReschedule) {
+    await appendScheduleHistory({ event_id: eventId, change_type: 'rescheduled', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+  }
+  if (diff.addedInvitees.length) {
+    await appendScheduleHistory({ event_id: eventId, change_type: 'participant_added', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+  }
+  if (diff.removedInvitees.length) {
+    await appendScheduleHistory({ event_id: eventId, change_type: 'participant_removed', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+  }
+}
+
 // ── saveCalendarEvent ───────────────────────────────────────
 export const saveCalendarEvent = onCall(
   { region: 'europe-west2', cors: allowedOrigins },
@@ -418,6 +455,7 @@ export const saveCalendarEvent = onCall(
       const mergedData = { ...existing, ...updatePayload };
       await maintainProjection(eventId, mergedData);
       await dispatchUpdateNotifications(eventId, existing, updatePayload, mergedData, nowIso);
+      await recordScheduleHistoryFromDiff(eventId, existing, mergedData, updatePayload, callerIdentityId, nowIso);
       return { id: eventId, ...mergedData };
     }
 
@@ -522,6 +560,17 @@ export const saveCalendarEvent = onCall(
 
     await maintainProjection(eventDocId, eventData);
     await dispatchCreateNotifications(eventDocId, eventData);
+    await appendScheduleHistory({
+      event_id: eventDocId,
+      change_type: 'created',
+      previous_start_time: null,
+      previous_end_time: null,
+      new_start_time: eventData.start_time || null,
+      new_end_time: eventData.end_time || null,
+      changed_at: nowIso,
+      actor_id: callerIdentityId,
+      source_system: eventData.source_system || 'manual',
+    });
 
     return { id: eventDocId, ...eventData };
   },

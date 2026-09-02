@@ -13,6 +13,7 @@ import { db, allowedOrigins, getIdentityId, hasBusinessRole, isAdmin } from './s
 import { getStripe } from './stripe';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
+import { appendScheduleHistory } from './calendarEventHistory';
 
 // ── cancelBooking ────────────────────────────────────────────
 // Evaluates the cancellation policy snapshot, determines the refund
@@ -161,6 +162,8 @@ export const cancelBooking = onCall(
         lifecycle_state: 'cancelled',
         _updated_date: nowIso,
       });
+      // Record schedule history (§48, §104) — Calendar's own change timeline.
+      await appendScheduleHistory({ event_id: booking.calendar_event_id, change_type: 'cancelled', previous_start_time: booking.start_time, previous_end_time: booking.end_time, new_start_time: booking.start_time, new_end_time: booking.end_time, changed_at: nowIso, actor_id: callerIdentityId, source_system: 'booking' });
     }
 
     // Refresh the public Event projection — event bookings release capacity on cancel.
@@ -361,6 +364,8 @@ export const rescheduleBooking = onCall(
         end_time: new_end_time,
         _updated_date: now,
       });
+      // Record schedule history (§48, §104) — Calendar's own change timeline.
+      await appendScheduleHistory({ event_id: booking.calendar_event_id, change_type: 'rescheduled', previous_start_time: booking.start_time, previous_end_time: booking.end_time, new_start_time: new_start_time, new_end_time: new_end_time, changed_at: now, actor_id: callerIdentityId, source_system: 'booking' });
     }
 
     // Release old hold

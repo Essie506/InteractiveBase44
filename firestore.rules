@@ -126,6 +126,23 @@ service cloud.firestore {
         && resource.data.email == request.auth.token.email;
     }
 
+    // Calendar event read authorization — owner, creator, business member,
+    // assigned/invited identity, or admin. Used by calendarEventHistory so
+    // history is readable exactly by those authorised to read the event.
+    function canReadCalendarEvent(eventId) {
+      return hasIdentityMapping()
+        && exists(/databases/$(database)/documents/calendarEvents/$(eventId))
+        && (
+          get(/databases/$(database)/documents/calendarEvents/$(eventId)).data.owner_id == getIdentityId()
+          || get(/databases/$(database)/documents/calendarEvents/$(eventId)).data.created_by_id == getIdentityId()
+          || getIdentityId() in get(/databases/$(database)/documents/calendarEvents/$(eventId)).data.get('assigned_identity_ids', [])
+          || getIdentityId() in get(/databases/$(database)/documents/calendarEvents/$(eventId)).data.get('invited_identity_ids', [])
+          || (get(/databases/$(database)/documents/calendarEvents/$(eventId)).data.business_id != null
+            && isBusinessMember(get(/databases/$(database)/documents/calendarEvents/$(eventId)).data.business_id))
+          || isAdmin()
+        );
+    }
+
     // ═══════════════════════════════════════════════════════════
     // IDENTITY MAPPINGS — Firebase Auth UID → Interactive Identity ID
     // Created by Cloud Function on first sign-in. Read-only for the
@@ -569,6 +586,14 @@ service cloud.firestore {
       // Clients never read or write this collection.
       allow read: if false;
       allow write: if false;
+    }
+
+    match /calendarEventHistory/{historyId} {
+      // Append-only schedule-change history (§48, §104, §105). Readable
+      // by anyone authorised to read the parent event; server-only writes
+      // (Cloud Function appends — clients cannot create/update/delete).
+      allow read: if canReadCalendarEvent(resource.data.event_id);
+      allow write: if false; // Server-only — Cloud Function appends
     }
 
     // ═══════════════════════════════════════════════════════════

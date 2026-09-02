@@ -15,6 +15,7 @@ import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount
 import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuantity, resolveEventPrice } from './eventCapacity';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
+import { appendScheduleHistory } from './calendarEventHistory';
 
 // ── Slot hold duration ───────────────────────────────────────
 const HOLD_DURATION_MINUTES = 15;
@@ -725,6 +726,8 @@ export const confirmFreeBooking = onCall(
       _created_date: now,
       _updated_date: now,
     });
+    // Record schedule history (§48, §104) — Calendar's own change timeline.
+    await appendScheduleHistory({ event_id: calendarRef.id, change_type: 'created', previous_start_time: null, previous_end_time: null, new_start_time: booking.start_time, new_end_time: booking.end_time, changed_at: now, actor_id: booking.provider_identity_id, source_system: 'booking' });
 
     // Transition to scheduled (Calendar has an active event — Booking V2)
     await bookingDoc.ref.update({
