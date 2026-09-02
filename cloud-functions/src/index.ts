@@ -43,3 +43,7 @@ export { backfillPublicProfiles } from './backfillProfiles';
 // Dedicated Professional-only Directory/Advert migration (admin-only).
 // Does NOT run Personal/Business/Event backfill.
 export { backfillProfessionalDirectory } from './backfillProfessionalDirectory';
+
+// Calendar Event ownership correction backfill (admin-only). Implemented
+// but NOT invoked — run via admin callable before production cutover.
+export { backfillCalendarOwnership } from './backfillCalendarOwnership';

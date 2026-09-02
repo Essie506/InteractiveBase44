@@ -263,7 +263,7 @@ async function maintainProjection(db, eventId) {
 
 async function setupEvent(db, eventId, overrides) {
   const defaults = {
-    owner_id: 'prov-id', owner_type: 'professional',
+    owner_id: 'prov-id', owner_type: 'identity', operating_context: 'professional',
     title: 'Yoga Class', visibility: 'public', lifecycle_state: 'scheduled',
     start_time: '2026-12-01T10:00:00Z', end_time: '2026-12-01T11:00:00Z',
     capacity: 10, price_pence: 0, is_free: true, currency: 'GBP',

@@ -127,6 +127,63 @@ export async function hasBusinessRole(
 }
 
 /**
+ * Business Calendar management permission. Reuses the existing
+ * BusinessMembership role + permissions architecture (businessPermissions
+ * taxonomy: 'manage_calendar'). owner/admin roles have manage_calendar by
+ * default; staff may be granted it via the permissions override array.
+ *
+ * This is the canonical Calendar event mutation capability — NOT a parallel
+ * permission system. Assignment/share status alone never satisfies this.
+ */
+export async function hasBusinessCalendarPermission(
+  businessId: string,
+  identityId: string
+): Promise<boolean> {
+  const membership = await getBusinessMembership(businessId, identityId);
+  if (!membership) return false;
+  if (membership.lifecycle_state !== 'active') return false;
+  if (['owner', 'admin'].includes(membership.role)) return true;
+  const extraPerms: string[] = Array.isArray(membership.permissions) ? membership.permissions : [];
+  return extraPerms.includes('manage_calendar');
+}
+
+/**
+ * Resolve a list of email addresses to stable Interactive identity IDs.
+ * Email is a discovery/invitation mechanism, NOT an ownership key.
+ *
+ * Resolution uses the canonical users collection by email (lowercased).
+ * Returns resolved identity IDs and the emails that did NOT resolve.
+ * Does NOT expose arbitrary identity lookup data — only the resulting
+ * association (identity IDs) is returned to the caller.
+ *
+ * Used by saveCalendarEvent to build invited_identity_ids /
+ * invited_guest_emails without inventing identities for unknown emails.
+ */
+export async function resolveEmailsToIdentities(
+  emails: string[]
+): Promise<{ resolved: Record<string, string>; unresolved: string[] }> {
+  const result: { resolved: Record<string, string>; unresolved: string[] } = {
+    resolved: {},
+    unresolved: [],
+  };
+  if (!Array.isArray(emails) || emails.length === 0) return result;
+  const seen = new Set<string>();
+  for (const raw of emails) {
+    if (!raw) continue;
+    const canonical = String(raw).toLowerCase().trim();
+    if (!canonical || seen.has(canonical)) continue;
+    seen.add(canonical);
+    const snap = await db.collection('users').where('email', '==', canonical).limit(1).get();
+    if (snap.empty) {
+      result.unresolved.push(canonical);
+    } else {
+      result.resolved[canonical] = snap.docs[0].id;
+    }
+  }
+  return result;
+}
+
+/**
  * Resolves professional reference [{ identity_id }] to display info
  * by reading the professionalProfilesPublic projection. Returns
  * [{ identity_id, display_name, headline, avatar_url, screen_name }]

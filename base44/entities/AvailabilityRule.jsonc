@@ -5,16 +5,27 @@
     "owner_id": {
       "type": "string",
       "title": "Owner ID",
-      "description": "Stable reference to the professional identity or business"
+      "description": "Stable reference to the identity (professional availability) or business. For professional availability this is the stable Interactive identity ID \u2014 Professional is an operating context, not a separate owner."
     },
     "owner_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Owner Type",
+      "description": "identity = professional availability owned by the Interactive identity (operating_context professional). business = business availability. 'professional' is NOT an owner type."
+    },
+    "operating_context": {
       "type": "string",
       "enum": [
         "professional",
         "business"
       ],
       "default": "professional",
-      "title": "Owner Type"
+      "title": "Operating Context",
+      "description": "Provenance: professional = the identity's professional availability (consumed by booking slot resolution). business = business availability."
     },
     "rule_type": {
       "type": "string",

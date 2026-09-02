@@ -5,17 +5,17 @@
     "owner_id": {
       "type": "string",
       "title": "Owner ID",
-      "description": "Stable reference to the identity or business that owns this calendar event"
+      "description": "Stable reference to the identity or business that owns this calendar event. For owner_type 'identity' this is the stable Interactive identity ID (Personal and Professional are operating contexts of ONE identity, NOT separate owners). For owner_type 'business' this is the businessId. Never an email."
     },
     "owner_type": {
       "type": "string",
       "enum": [
         "identity",
-        "professional",
         "business"
       ],
       "default": "identity",
-      "title": "Owner Type"
+      "title": "Owner Type",
+      "description": "identity = an Interactive identity owns the event (Personal/Professional are operating_context provenance, not separate owners). business = a Business organisation owns the event. 'professional' is NOT an owner type \u2014 Professional is an operating_context."
     },
     "operating_context": {
       "type": "string",
@@ -26,7 +26,7 @@
       ],
       "default": "personal",
       "title": "Operating Context",
-      "description": "The context in which this event was created"
+      "description": "Provenance/presentation: the context in which this event was created. NOT ownership. Personal and Professional are operating contexts of the same identity; switching context does not change the owner."
     },
     "title": {
       "type": "string",
@@ -133,13 +133,13 @@
     },
     "created_by_id": {
       "type": "string",
-      "title": "Created By ID",
-      "description": "The authenticated identity that created this event"
+      "title": "Created By Identity ID",
+      "description": "The stable Interactive identity ID that created this event. Canonical creator field \u2014 reused (not duplicated). Immutable after creation: a later authorised editor does NOT overwrite this. The creator retains edit/cancel/reschedule permission (subject to domain lifecycle restrictions such as Booking-owned events)."
     },
     "business_id": {
       "type": "string",
       "title": "Business ID",
-      "description": "Business context if applicable"
+      "description": "Business context if owner_type is business"
     },
     "recurrence_rule": {
       "type": "string",
@@ -201,6 +201,30 @@
       "minimum": 1,
       "title": "Capacity",
       "description": "Maximum number of attendees for a group event. Null/absent for non-capacity events (e.g. one-to-one slot-based bookings). When present, spaces_remaining is derived as capacity minus valid confirmed/reserved attendee quantity."
+    },
+    "assigned_identity_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Assigned Identity IDs",
+      "description": "Stable Interactive identity IDs the event is assigned/shared with (e.g. Business staff). Assignment grants VIEW/PARTICIPATION only \u2014 it NEVER grants edit/cancel/reschedule authority. Mutation authority comes from being the creator OR having Business Calendar management permission (manage_calendar). For Business-owned events these are typically staff identities; the event appears on their Calendar but they cannot mutate it unless they hold the management permission."
+    },
+    "invited_identity_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Invited Identity IDs",
+      "description": "Stable Interactive identity IDs invited to the event via email resolution. The event appears on their Calendar (one authoritative event, no duplication). Invitation grants VIEW/PARTICIPATION only \u2014 NEVER edit/cancel/reschedule authority. Edits/cancellations by the creator propagate to all invitees because there is one authoritative event."
+    },
+    "invited_guest_emails": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Invited Guest Emails",
+      "description": "Emails invited to the event that did NOT resolve to an existing Interactive identity at invite time. Preserved for future invitation/email communication when the recipient later joins Interactive. NEVER grants mutation permission. Email is a discovery/invitation mechanism, NOT an ownership key."
     }
   },
   "required": [

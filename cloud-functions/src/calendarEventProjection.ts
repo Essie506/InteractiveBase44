@@ -10,10 +10,12 @@
 //   - location_geo is derived via the existing privacy-first geo rules
 //     (deriveProfessionalPublicGeo / deriveBusinessPublicGeo).
 //   - Attendee identities and private Booking records are never included.
+//     assigned_identity_ids / invited_identity_ids / invited_guest_emails
+//     are NEVER projected — they are private participation associations.
 //   - availability is a DERIVED value (capacity minus reserved count), not
 //     an independently editable field.
 
-import { computeAvailability, normalisePricing } from './eventProjectionEligibility';
+import { computeAvailability, normalisePricing, deriveHostType } from './eventProjectionEligibility';
 
 export interface EventHostInfo {
   type: 'professional' | 'business';
@@ -35,6 +37,9 @@ export function buildEventPublicProjection(
 ): Record<string, any> {
   const pricing = normalisePricing(data.price_pence, data.is_free);
   const availability = computeAvailability(data.capacity, reservedCount);
+  // Host presentation type is derived from ownership + operating context,
+  // not stored as a separate owner_type. Consumers use host.type.
+  const hostType = host ? host.type : deriveHostType(data.owner_type, data.operating_context);
 
   return {
     event_id: eventId,
@@ -62,7 +67,9 @@ export function buildEventPublicProjection(
     capacity: data.capacity || null,
     spaces_remaining: availability ? availability.spaces_remaining : null,
     availability_state: availability ? availability.availability_state : null,
-    // Host — resolved from public profile projection
+    // Host — resolved from public profile projection. host.type is the
+    // presentation semantic (professional|business); owner_type on the
+    // authoritative event is identity|business.
     host: host ? {
       type: host.type,
       id: host.id,
@@ -71,11 +78,12 @@ export function buildEventPublicProjection(
       business_id: host.business_id,
       avatar_url: host.avatar_url,
       verification_state: host.verification_state,
-    } : null,
+    } : (hostType ? { type: hostType, id: null, display_name: null, screen_name: null, business_id: null, avatar_url: null, verification_state: 'not_verified' } : null),
     // Lifecycle / visibility for filtering
     visibility: data.visibility || 'private',
     lifecycle_state: data.lifecycle_state || 'scheduled',
     owner_type: data.owner_type || 'identity',
+    operating_context: data.operating_context || null,
     owner_id: data.owner_id || null,
     business_id: data.business_id || null,
     _updated_date: new Date().toISOString(),

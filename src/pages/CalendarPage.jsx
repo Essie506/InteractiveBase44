@@ -23,7 +23,10 @@ export default function CalendarPage() {
   const activeBusinessId = user?.active_business_id;
   const timezone = getLocalTimezone();
 
-  const ownerType = activeContext === 'business' ? 'business' : activeContext === 'professional' ? 'professional' : 'identity';
+  // Personal and Professional are operating CONTEXTS of one identity, not
+  // separate owners. Both use owner_type 'identity' + owner_id = identityId.
+  // Only Business is a separate (organisational) owner.
+  const ownerType = activeContext === 'business' ? 'business' : 'identity';
   const ownerId = activeContext === 'business' ? activeBusinessId : user?.id;
 
   // Load events for the current month

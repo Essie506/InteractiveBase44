@@ -133,30 +133,36 @@ export function dedupeEventsById(events) {
 
 export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate) {
   const events = [];
-  const personalEvents = await getEvents(identityId, 'identity', startDate, endDate);
-  events.push(...personalEvents);
 
-  if (activeContext === 'professional') {
-    const profEvents = await getEvents(identityId, 'professional', startDate, endDate);
-    events.push(...profEvents);
+  // ONE identity-owned event set — queried once. Personal and Professional
+  // are operating contexts of the same identity, NOT separate owners, so
+  // both contexts render the same identity-owned events.
+  events.push(...await getEvents(identityId, 'identity', startDate, endDate));
+
+  if (useFirebase) {
+    // Events assigned to this identity (e.g. Business staff assignments) —
+    // view/participation only, never edit authority.
+    events.push(...await calendarRepository.listEventsAssignedToIdentity(identityId));
+    // Events this identity was invited to via email resolution.
+    events.push(...await calendarRepository.listEventsInvitedToIdentity(identityId));
   }
 
+  // Business context adds the active Business's owned events. Business-owned
+  // events remain owned by businessId (a separate organisational owner).
   if (activeContext === 'business' && businessId) {
-    if (useFirebase) {
-      const bizEvents = await calendarRepository.listEventsForBusiness(businessId);
-      const startMs = startDate ? new Date(startDate).getTime() : 0;
-      const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;
-      events.push(...bizEvents.filter(e => {
-        const eventStart = new Date(e.start_time).getTime();
-        return eventStart >= startMs && eventStart <= endMs && e.lifecycle_state !== 'cancelled';
-      }));
-    } else {
-      const bizEvents = await getEvents(businessId, 'business', startDate, endDate);
-      events.push(...bizEvents);
-    }
+    events.push(...await getEvents(businessId, 'business', startDate, endDate));
   }
 
-  return dedupeEventsById(events).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  const deduped = dedupeEventsById(events);
+  const startMs = startDate ? new Date(startDate).getTime() : 0;
+  const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;
+  return deduped
+    .filter(e => e.lifecycle_state !== 'cancelled')
+    .filter(e => {
+      const eventStart = new Date(e.start_time).getTime();
+      return eventStart >= startMs && eventStart <= endMs;
+    })
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 }
 
 // --- Availability ---

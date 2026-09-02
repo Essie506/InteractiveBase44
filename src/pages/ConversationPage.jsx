@@ -368,7 +368,7 @@ function CalendarEventFromConversationModal({ user, activeContext, activeBusines
       const endIso = new Date(`${date}T${endTime}`).toISOString();
       await onCreate({
         owner_id: user.id,
-        owner_type: activeContext === 'business' ? 'business' : (activeContext === 'professional' ? 'professional' : 'identity'),
+        owner_type: activeContext === 'business' ? 'business' : 'identity',
         operating_context: activeContext,
         title: title.trim(),
         start_time: startIso,

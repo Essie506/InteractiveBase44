@@ -3,6 +3,8 @@ import { Loader2, X } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 import { createEvent, updateEvent, getLocalTimezone } from '@/lib/calendar';
+import InviteByEmailInput from '@/components/calendar/InviteByEmailInput';
+import StaffAssignPicker from '@/components/calendar/StaffAssignPicker';
 
 // EventModal — create or edit a calendar event.
 // Calendar is authoritative for the event record. Manual creates flow
@@ -37,6 +39,12 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const [visibility, setVisibility] = useState(existingEvent?.visibility || 'private');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [invitedEmails, setInvitedEmails] = useState(
+    existingEvent?.invited_guest_emails?.join(', ') || ''
+  );
+  const [assignedIdentityIds, setAssignedIdentityIds] = useState(
+    Array.isArray(existingEvent?.assigned_identity_ids) ? existingEvent.assigned_identity_ids : []
+  );
 
   const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
 
@@ -84,6 +92,11 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         // canonical writer's idempotency key so concurrent retries resolve
         // to one authoritative event.
         source_id: isEditing ? (existingEvent.source_id || existingEvent.id) : createSourceIdRef.current,
+        assigned_identity_ids: ownerType === 'business' ? assignedIdentityIds : [],
+        invited_emails: invitedEmails
+          .split(/[,\n]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
       };
 
       let saved;
@@ -169,6 +182,16 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
               {ownerType === 'business' && <option value="staff">Staff Only</option>}
             </select>
           </div>
+
+          <InviteByEmailInput value={invitedEmails} onChange={setInvitedEmails} />
+
+          {ownerType === 'business' && (
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">Assign to staff</label>
+              <StaffAssignPicker businessId={businessId} selected={assignedIdentityIds} onChange={setAssignedIdentityIds} />
+              <p className="text-xs text-stone-400 mt-1">Assigned staff can view the event. Only Calendar managers can edit it.</p>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 p-6 border-t border-stone-100">

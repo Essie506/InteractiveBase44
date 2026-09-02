@@ -30,7 +30,7 @@ export default function AvailabilityPage() {
   const loadRules = async () => {
     if (!user) return;
     setLoading(true);
-    const r = await getAvailabilityRules(user.id, 'professional');
+    const r = await getAvailabilityRules(user.id, 'identity');
     setRules(r);
     setLoading(false);
   };
@@ -69,7 +69,8 @@ export default function AvailabilityPage() {
     try {
       await createAvailabilityRule({
         owner_id: user.id,
-        owner_type: 'professional',
+        owner_type: 'identity',
+        operating_context: 'professional',
         rule_type: newRule.type,
         day_of_week: newRule.day,
         start_time: newRule.start,

@@ -24,11 +24,9 @@ export async function getEvent(eventId) {
 }
 
 export async function listEventsForOwner(ownerId, ownerType) {
-  // Filter by owner_type as well as owner_id so Personal ('identity') and
-  // Professional ('professional') calendars — which can share the same
-  // identity ID as owner_id — return disjoint sets. Without this filter
-  // the same professional event is returned by both queries and merged
-  // twice in getAllEventsForIdentity.
+  // owner_type is 'identity' (Personal/Professional are operating contexts
+  // of one identity, not separate owners) or 'business'. Filtering by
+  // owner_type keeps identity-owned and business-owned sets disjoint.
   const constraints = [
     where('owner_id', '==', ownerId),
     orderBy('start_time', 'asc'),
@@ -37,6 +35,29 @@ export async function listEventsForOwner(ownerId, ownerType) {
     constraints.splice(1, 0, where('owner_type', '==', ownerType));
   }
   const q = query(collection(db, 'calendarEvents'), ...constraints);
+  const snap = await getDocs(q);
+  return snap.docs.map(fromFirestoreDoc);
+}
+
+// Events assigned to an identity (Business staff assignment). These appear
+// on the identity's Calendar but grant VIEW only — never edit authority.
+export async function listEventsAssignedToIdentity(identityId) {
+  const q = query(
+    collection(db, 'calendarEvents'),
+    where('assigned_identity_ids', 'array-contains', identityId),
+    orderBy('start_time', 'asc'),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(fromFirestoreDoc);
+}
+
+// Events an identity was invited to (via email resolution). View only.
+export async function listEventsInvitedToIdentity(identityId) {
+  const q = query(
+    collection(db, 'calendarEvents'),
+    where('invited_identity_ids', 'array-contains', identityId),
+    orderBy('start_time', 'asc'),
+  );
   const snap = await getDocs(q);
   return snap.docs.map(fromFirestoreDoc);
 }

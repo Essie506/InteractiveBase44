@@ -2,15 +2,33 @@
 // ───────────────────────────────────────────────────────────
 // 1. saveCalendarEvent — authoritative write to calendarEvents
 //    + maintains the calendarEventsPublic projection (public fields only).
-//    Enforces the price/free invariant and resolves the host + location geo
-//    for the projection. Computes derived availability from capacity and
-//    the count of valid (confirmed/reserved) bookings for this event.
+//
+// OWNERSHIP MODEL (corrected):
+//   owner_type 'identity'  → an Interactive identity owns the event.
+//     Personal and Professional are operating_context provenance, NOT
+//     separate owners. The same identity-owned event appears in both
+//     Personal and Professional Calendar views. owner_id = identity ID.
+//   owner_type 'business'  → a Business organisation owns the event.
+//     owner_id = businessId. The creator identity (created_by_id) is
+//     preserved separately and retains edit rights.
+//
+// 'professional' is NOT an owner type.
+//
+// MUTATION PERMISSIONS:
+//   identity event → owner_id == caller identity ID.
+//   business event → creator (created_by_id) OR business member with
+//     manage_calendar permission (hasBusinessCalendarPermission).
+//   assigned_identity_ids / invited_identity_ids / invited_guest_emails
+//     grant VIEW/PARTICIPATION only — NEVER mutation authority.
+//   Booking-owned events (source_system 'booking') cannot be cancelled
+//     here — they go through the Booking cancellation flow.
 //
 // The public projection NEVER contains meeting_url, attendee identities,
-// or private booking records. Availability is a derived value.
+// assignment/invitation lists, or private booking records. Availability
+// is a derived value.
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
+import { db, allowedOrigins, getIdentityId, hasBusinessCalendarPermission, resolveEmailsToIdentities } from './shared';
 import { isEventListable, normalisePricing } from './eventProjectionEligibility';
 import { buildEventPublicProjection, EventHostInfo } from './calendarEventProjection';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
@@ -20,17 +38,17 @@ const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
 const IDEMPOTENCY = 'calendarEventIdempotency';
 
-// Booking statuses that count toward reserved capacity are defined once in
-// eventCapacity.ts (CAPACITY_CONSUMING_STATES) and shared by bookingPayment,
-// bookingLifecycle, and stripeWebhook so the contract never drifts.
+// Fields that are immutable after creation. A later authorised editor
+// (e.g. a business calendar manager editing another creator's event)
+// must NOT be able to overwrite ownership or the canonical creator.
+const IMMUTABLE_FIELDS = new Set([
+  'id', 'event_id',
+  'created_by_id', 'owner_id', 'owner_type', 'business_id',
+  'source_id', 'source_system',
+  '_created_date',
+]);
 
 // ── Idempotency key ──────────────────────────────────────────
-// Deterministic key scoped by the authoritative ownership context
-// (owner_type + owner_id) + source_system + source_id — NOT caller
-// identity, because Business-owned events use the Business ID as
-// owner_id and caller authorisation is derived via Business membership.
-// All concurrent retries of the same logical Add contend on the same
-// Firestore document, so at most one authoritative event is created.
 export function idempotencyDocId(
   ownerType: string,
   ownerId: string,
@@ -43,14 +61,16 @@ export function idempotencyDocId(
 }
 
 // ── Host resolution ──────────────────────────────────────────
-// Reads the public profile projection for the host (professional or
-// business). Returns null if no public host profile exists.
+// Resolves the public profile projection for the host. For an
+// identity-owned professional event (owner_type 'identity' +
+// operating_context 'professional') the host is the professional profile
+// (looked up by identity_id). For a business event, the business profile.
 async function resolveHost(
   ownerType: string,
   ownerId: string,
+  operatingContext?: string,
 ): Promise<EventHostInfo | null> {
-  if (ownerType === 'professional') {
-    // Find the professional's public projection by identity_id
+  if (ownerType === 'identity' && operatingContext === 'professional') {
     const snap = await db.collection('professionalProfilesPublic')
       .where('identity_id', '==', ownerId)
       .limit(1)
@@ -85,8 +105,6 @@ async function resolveHost(
 }
 
 // ── Reserved attendee count for an event ───────────────────
-// Counts bookings with event_id === eventId in a reserved status.
-// Attendee quantities are summed (each booking may carry attendee_quantity).
 async function countReservedAttendees(eventId: string): Promise<number> {
   const snap = await db.collection('bookings')
     .where('event_id', '==', eventId)
@@ -107,9 +125,23 @@ async function resolveLocationLabel(locationId: string | null | undefined): Prom
   }
 }
 
+// ── Normalise assignment/invitation lists ────────────────────
+function dedupeStrings(arr: string[] | null | undefined): string[] {
+  if (!Array.isArray(arr)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of arr) {
+    if (!v) continue;
+    const s = String(v);
+    if (!seen.has(s)) {
+      seen.add(s);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
 // ── saveCalendarEvent ───────────────────────────────────────
-// Request: { data: { ...event fields, identity_id } }
-// Returns: { id, ...data }
 export const saveCalendarEvent = onCall(
   { region: 'europe-west2', cors: allowedOrigins },
   async (request) => {
@@ -124,9 +156,6 @@ export const saveCalendarEvent = onCall(
     // ════════════════════════════════════════════════════════════
     // UPDATE PATH (existing event — includes Cancel)
     // ════════════════════════════════════════════════════════════
-    // Authorise against the STORED record, not the request payload, so a
-    // cancel-only payload (which omits owner_id/business_id) is still
-    // authorised correctly and clients cannot forge owner_id to pass.
     if (eventId) {
       const existingSnap = await db.collection(EVENTS).doc(eventId).get();
       if (!existingSnap.exists) {
@@ -135,20 +164,18 @@ export const saveCalendarEvent = onCall(
       const existing = existingSnap.data()!;
 
       // ── Ownership / permission checks (against stored record) ──
-      const isOwner = existing.owner_id === callerIdentityId;
-      let isBizAdmin = false;
-      if (existing.business_id) {
-        isBizAdmin = await hasBusinessRole(existing.business_id, callerIdentityId, ['owner', 'admin']);
+      const isCreator = existing.created_by_id === callerIdentityId;
+      const isIdentityOwner =
+        existing.owner_type === 'identity' && existing.owner_id === callerIdentityId;
+      let isBizCalendarManager = false;
+      if (existing.owner_type === 'business' && existing.business_id) {
+        isBizCalendarManager = await hasBusinessCalendarPermission(existing.business_id, callerIdentityId);
       }
-      if (!isOwner && !isBizAdmin) {
+      if (!isCreator && !isIdentityOwner && !isBizCalendarManager) {
         throw new HttpsError('permission-denied', 'Not authorised to update this event');
       }
 
       // ── Booking-authority guard ──
-      // Booking-owned events (source_system === 'booking') must be
-      // cancelled through the Booking cancellation flow (cancelBooking),
-      // which evaluates refund policy and releases the slot hold. The
-      // generic Calendar Cancel must not bypass Booking authority.
       if (existing.source_system === 'booking' && 'lifecycle_state' in data) {
         throw new HttpsError(
           'failed-precondition',
@@ -156,13 +183,10 @@ export const saveCalendarEvent = onCall(
         );
       }
 
-      // ── Partial update — only fields the client provided ──
-      // A cancel sends only { lifecycle_state: 'cancelled' }; it must
-      // not clobber existing price/fields. Pricing is normalised only
-      // when price fields are present in the request.
+      // ── Partial update — only mutable fields the client provided ──
       const updatePayload: Record<string, any> = {};
       for (const k of Object.keys(data)) {
-        if (k === 'id' || k === 'event_id') continue;
+        if (IMMUTABLE_FIELDS.has(k)) continue;
         updatePayload[k] = data[k];
       }
       if ('price_pence' in updatePayload || 'is_free' in updatePayload) {
@@ -173,14 +197,30 @@ export const saveCalendarEvent = onCall(
       if ('currency' in updatePayload && !updatePayload.currency) {
         updatePayload.currency = 'GBP';
       }
+      if ('assigned_identity_ids' in updatePayload) {
+        updatePayload.assigned_identity_ids = dedupeStrings(updatePayload.assigned_identity_ids);
+      }
+      if ('invited_identity_ids' in updatePayload) {
+        updatePayload.invited_identity_ids = dedupeStrings(updatePayload.invited_identity_ids);
+      }
+      // ── Email invitation resolution (merge into existing lists) ──
+      if (Array.isArray(data.invited_emails) && data.invited_emails.length) {
+        const { resolved, unresolved } = await resolveEmailsToIdentities(data.invited_emails);
+        const existingInvited = dedupeStrings(existing.invited_identity_ids);
+        const existingGuests = dedupeStrings(existing.invited_guest_emails);
+        const mergedInvited = dedupeStrings([
+          ...existingInvited,
+          ...Object.values(resolved),
+        ].filter((id) => id !== existing.owner_id && id !== existing.created_by_id));
+        const mergedGuests = dedupeStrings([...existingGuests, ...unresolved]);
+        updatePayload.invited_identity_ids = mergedInvited;
+        updatePayload.invited_guest_emails = mergedGuests;
+      }
       updatePayload._updated_date = nowIso;
 
       // Preserve the authoritative record — merge, never replace/delete.
       await db.collection(EVENTS).doc(eventId).set(updatePayload, { merge: true });
 
-      // Projection maintenance uses the merged record so eligibility/geo
-      // see the full event state. A cancel makes the event non-listable,
-      // so maintainProjection deletes any calendarEventsPublic projection.
       const mergedData = { ...existing, ...updatePayload };
       await maintainProjection(eventId, mergedData);
       return { id: eventId, ...mergedData };
@@ -189,44 +229,71 @@ export const saveCalendarEvent = onCall(
     // ════════════════════════════════════════════════════════════
     // CREATE PATH (new event)
     // ════════════════════════════════════════════════════════════
-    // Authorise against the request (the client is creating the event).
-    const isOwner = data.owner_id === callerIdentityId;
-    let isBizAdmin = false;
-    if (data.business_id) {
-      isBizAdmin = await hasBusinessRole(data.business_id, callerIdentityId, ['owner', 'admin']);
-    }
-    if (!isOwner && !isBizAdmin) {
-      throw new HttpsError('permission-denied', 'Not authorised to save this event');
+    const ownerType = data.owner_type === 'business' ? 'business' : 'identity';
+    let ownerId: string;
+    let businessId: string | null = null;
+    if (ownerType === 'business') {
+      businessId = data.business_id || null;
+      if (!businessId) {
+        throw new HttpsError('invalid-argument', 'business_id is required for business events');
+      }
+      const canManage = await hasBusinessCalendarPermission(businessId, callerIdentityId);
+      if (!canManage) {
+        throw new HttpsError('permission-denied', 'Not authorised to create business calendar events');
+      }
+      ownerId = businessId;
+    } else {
+      // Identity-owned event — owner is the creator's stable identity.
+      ownerId = callerIdentityId;
     }
 
     // ── Enforce price/free invariant ──
     const pricing = normalisePricing(data.price_pence, data.is_free);
-    const eventData = {
-      ...data,
-      price_pence: pricing.price_pence,
-      is_free: pricing.is_free,
-      currency: data.currency || 'GBP',
-    };
 
-    // Create path — deterministic transaction-safe idempotency.
-    // Two concurrent retries of the same logical Add (same
-    // owner_type + owner_id + source_system + source_id) contend on
-    // the same idempotency document, so exactly one authoritative
-    // event is created and both requests resolve to the same Event ID.
-    const sourceSystem = eventData.source_system || 'manual';
-    const sourceId = eventData.source_id || null;
+    // ── Assignment / invitation lists ──
+    const assignedIdentityIds = dedupeStrings(data.assigned_identity_ids);
+    let invitedIdentityIds = dedupeStrings(data.invited_identity_ids);
+    let invitedGuestEmails: string[] = [];
+    if (Array.isArray(data.invited_emails) && data.invited_emails.length) {
+      const { resolved, unresolved } = await resolveEmailsToIdentities(data.invited_emails);
+      invitedIdentityIds = dedupeStrings([...invitedIdentityIds, ...Object.values(resolved)]);
+      invitedGuestEmails = dedupeStrings(unresolved);
+    }
+    // Never invite/assign the owner or creator to their own event.
+    invitedIdentityIds = invitedIdentityIds.filter(
+      (id) => id !== ownerId && id !== callerIdentityId,
+    );
+    assignedIdentityIds.filter((id) => id !== callerIdentityId);
+
+    const sourceSystem = data.source_system || 'manual';
+    const sourceId = data.source_id || null;
     if (!sourceId) {
       throw new HttpsError(
         'invalid-argument',
         'source_id is required to create an event (idempotency key)',
       );
     }
-    const idempKey = idempotencyDocId(
-      eventData.owner_type || 'identity',
-      eventData.owner_id || '',
-      sourceSystem,
-      sourceId,
-    );
+
+    const eventData: Record<string, any> = {
+      ...data,
+      owner_type: ownerType,
+      owner_id: ownerId,
+      business_id: businessId,
+      // created_by_id is set server-side to the caller and is immutable
+      // thereafter — never trust a client-supplied creator.
+      created_by_id: callerIdentityId,
+      assigned_identity_ids: assignedIdentityIds,
+      invited_identity_ids: invitedIdentityIds,
+      invited_guest_emails: invitedGuestEmails,
+      price_pence: pricing.price_pence,
+      is_free: pricing.is_free,
+      currency: data.currency || 'GBP',
+      // Drop the client-only invited_emails envelope (not stored).
+      invited_emails: undefined as any,
+    };
+    delete eventData.invited_emails;
+
+    const idempKey = idempotencyDocId(ownerType, ownerId, sourceSystem, sourceId);
     const idempRef = db.collection(IDEMPOTENCY).doc(idempKey);
 
     let existingEventId: string | null = null;
@@ -234,19 +301,16 @@ export const saveCalendarEvent = onCall(
     await db.runTransaction(async (tx) => {
       const idempSnap = await tx.get(idempRef);
       if (idempSnap.exists && idempSnap.data()?.event_id) {
-        // A concurrent retry already created the authoritative event.
         existingEventId = idempSnap.data()!.event_id as string;
         return;
       }
-      // Allocate exactly one authoritative event doc and record the
-      // mapping atomically so a concurrent transaction sees it.
       const eventRef = db.collection(EVENTS).doc();
       eventDocId = eventRef.id;
       tx.set(eventRef, { ...eventData, _created_date: nowIso, _updated_date: nowIso });
       tx.set(idempRef, {
         event_id: eventRef.id,
-        owner_type: eventData.owner_type || 'identity',
-        owner_id: eventData.owner_id || '',
+        owner_type: ownerType,
+        owner_id: ownerId,
         source_system: sourceSystem,
         source_id: sourceId,
         _created_date: nowIso,
@@ -255,15 +319,9 @@ export const saveCalendarEvent = onCall(
     });
 
     if (existingEventId) {
-      // Resolve to the already-created authoritative event.
       eventDocId = existingEventId;
     }
 
-    // ── Maintain the public projection ──
-    // Runs after the transaction commits. Projection maintenance does
-    // async host/geo/capacity reads and a derived write, so it cannot
-    // run inside the idempotency transaction. This matches the existing
-    // post-write projection pattern.
     await maintainProjection(eventDocId, eventData);
 
     return { id: eventDocId, ...eventData };
@@ -271,30 +329,22 @@ export const saveCalendarEvent = onCall(
 );
 
 // ── Projection maintenance ──────────────────────────────────
-// Exported so the backfill can reuse the exact same logic.
 export async function maintainProjection(eventId: string, data: any): Promise<void> {
-  // Resolve host public profile
-  const host = await resolveHost(data.owner_type, data.owner_id);
-
-  // Check full listability (event + host)
+  const host = await resolveHost(data.owner_type, data.owner_id, data.operating_context);
   const listable = isEventListable(data, host || null);
 
   if (!listable) {
-    // Delete any stale projection for this event
     await db.collection(PUBLIC).doc(eventId).delete().catch(() => {});
     return;
   }
 
-  // Resolve location geo + label
   let locationGeo = null;
-  if (data.owner_type === 'professional') {
+  if (data.owner_type === 'identity' && data.operating_context === 'professional') {
     locationGeo = await fetchProfessionalPublicGeo(db, null, data.location_id);
   } else if (data.owner_type === 'business') {
     locationGeo = await fetchBusinessPublicGeo(db, data.location_id);
   }
   const locationLabel = await resolveLocationLabel(data.location_id);
-
-  // Compute derived availability
   const reservedCount = await countReservedAttendees(eventId);
 
   const projection = buildEventPublicProjection(
@@ -304,9 +354,6 @@ export async function maintainProjection(eventId: string, data: any): Promise<vo
 }
 
 // ── Refresh projection by event ID ──────────────────────────
-// Reads the authoritative event doc and re-runs maintainProjection.
-// Used by booking lifecycle functions (cancel/no-show/confirm/payment)
-// that change capacity but don't have the full event data in hand.
 export async function refreshEventProjection(eventId: string): Promise<void> {
   const ev = await db.collection(EVENTS).doc(eventId).get();
   if (!ev.exists) {

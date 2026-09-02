@@ -534,6 +534,10 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.owner_id)
         || (resource.data.business_id != null
           && isBusinessMember(resource.data.business_id))
+        || (hasIdentityMapping()
+          && getIdentityId() in resource.data.get('assigned_identity_ids', []))
+        || (hasIdentityMapping()
+          && getIdentityId() in resource.data.get('invited_identity_ids', []))
         || isAdmin();
       // All writes are server-only — the canonical saveCalendarEvent
       // Cloud Function is the sole authoritative writer (Admin SDK
@@ -561,7 +565,7 @@ service cloud.firestore {
       // so the booking flow can resolve slots. Business availability
       // remains member-only.
       allow read: if isOwner(resource.data.owner_id)
-        || (resource.data.owner_type == 'professional' && isAuthenticated())
+        || (resource.data.owner_type == 'identity' && isAuthenticated())
         || (resource.data.business_id != null && isBusinessMember(resource.data.business_id))
         || isAdmin();
       allow create: if isOwner(request.resource.data.owner_id);
