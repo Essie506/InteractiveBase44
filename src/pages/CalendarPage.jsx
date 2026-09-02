@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getAllEventsForIdentity, formatTimeRange, getLocalTimezone, cancelEvent } from '@/lib/calendar';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff } from 'lucide-react';
 import EventModal from '@/components/calendar/EventModal';
+import { useToast } from '@/components/ui/use-toast';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -15,6 +16,8 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
+  const { toast } = useToast();
 
   const activeContext = user?.active_context || 'personal';
   const activeBusinessId = user?.active_business_id;
@@ -71,9 +74,34 @@ export default function CalendarPage() {
     loadEvents();
   };
 
-  const handleCancelEvent = async (eventId) => {
-    await cancelEvent(eventId);
-    loadEvents();
+  // Cancel an existing manual Calendar event through the canonical
+  // server-side writer (saveCalendarEvent). Booking-owned events are not
+  // cancellable here — the button is hidden for them and the server
+  // rejects the request; they must go through the Booking cancellation
+  // flow which evaluates refund policy and releases the slot hold.
+  const handleCancelEvent = async (event) => {
+    if (cancellingId) return;
+    if (event?.source_system === 'booking') {
+      toast({
+        title: 'Cannot cancel here',
+        description: 'This event was created by a booking. Cancel it from your Bookings to apply the refund policy.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setCancellingId(event.id);
+    try {
+      await cancelEvent(event.id);
+      await loadEvents();
+    } catch (err) {
+      toast({
+        title: 'Could not cancel event',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCancellingId(null);
+    }
   };
 
   const contextLabel = activeContext === 'business' ? 'Business' : activeContext === 'professional' ? 'Professional' : 'Personal';
@@ -181,11 +209,21 @@ export default function CalendarPage() {
                   {e.description && <p className="text-xs text-stone-600 mt-1.5">{e.description}</p>}
                   <div className="flex gap-2 mt-2">
                     <button onClick={() => {setEditingEvent(e);setShowEventModal(true);}} className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Edit</button>
-                    {e.lifecycle_state !== 'cancelled' &&
-                <button onClick={() => handleCancelEvent(e.id)} className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1">
-                        <Trash2 className="w-3 h-3" /> Cancel
+                    {e.lifecycle_state !== 'cancelled' && e.source_system !== 'booking' &&
+                      <button
+                        onClick={() => handleCancelEvent(e)}
+                        disabled={cancellingId === e.id}
+                        className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {cancellingId === e.id
+                          ? <><Loader2 className="w-3 h-3 animate-spin" /> Cancelling...</>
+                          : <><Trash2 className="w-3 h-3" /> Cancel</>}
                       </button>
-                }
+                    }
+                    {e.lifecycle_state !== 'cancelled' && e.source_system === 'booking' &&
+                      <span className="text-xs text-stone-400 flex items-center gap-1">
+                        <CalendarOff className="w-3 h-3" /> Cancel via Bookings
+                      </span>
+                    }
                   </div>
                 </div>
             )}

@@ -119,10 +119,77 @@ export const saveCalendarEvent = onCall(
     const callerIdentityId = await getIdentityId(request.auth.uid);
     const data = request.data || {};
     const eventId = data.id || data.event_id || null;
+    const nowIso = new Date().toISOString();
 
-    // ── Authorisation ──
-    // The caller must own the event (owner_id) or be a business admin
-    // (if the event belongs to a business).
+    // ════════════════════════════════════════════════════════════
+    // UPDATE PATH (existing event — includes Cancel)
+    // ════════════════════════════════════════════════════════════
+    // Authorise against the STORED record, not the request payload, so a
+    // cancel-only payload (which omits owner_id/business_id) is still
+    // authorised correctly and clients cannot forge owner_id to pass.
+    if (eventId) {
+      const existingSnap = await db.collection(EVENTS).doc(eventId).get();
+      if (!existingSnap.exists) {
+        throw new HttpsError('not-found', 'Calendar event not found');
+      }
+      const existing = existingSnap.data()!;
+
+      // ── Ownership / permission checks (against stored record) ──
+      const isOwner = existing.owner_id === callerIdentityId;
+      let isBizAdmin = false;
+      if (existing.business_id) {
+        isBizAdmin = await hasBusinessRole(existing.business_id, callerIdentityId, ['owner', 'admin']);
+      }
+      if (!isOwner && !isBizAdmin) {
+        throw new HttpsError('permission-denied', 'Not authorised to update this event');
+      }
+
+      // ── Booking-authority guard ──
+      // Booking-owned events (source_system === 'booking') must be
+      // cancelled through the Booking cancellation flow (cancelBooking),
+      // which evaluates refund policy and releases the slot hold. The
+      // generic Calendar Cancel must not bypass Booking authority.
+      if (existing.source_system === 'booking' && 'lifecycle_state' in data) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Booking-owned events must be cancelled through the Booking cancellation flow',
+        );
+      }
+
+      // ── Partial update — only fields the client provided ──
+      // A cancel sends only { lifecycle_state: 'cancelled' }; it must
+      // not clobber existing price/fields. Pricing is normalised only
+      // when price fields are present in the request.
+      const updatePayload: Record<string, any> = {};
+      for (const k of Object.keys(data)) {
+        if (k === 'id' || k === 'event_id') continue;
+        updatePayload[k] = data[k];
+      }
+      if ('price_pence' in updatePayload || 'is_free' in updatePayload) {
+        const pricing = normalisePricing(updatePayload.price_pence, updatePayload.is_free);
+        updatePayload.price_pence = pricing.price_pence;
+        updatePayload.is_free = pricing.is_free;
+      }
+      if ('currency' in updatePayload && !updatePayload.currency) {
+        updatePayload.currency = 'GBP';
+      }
+      updatePayload._updated_date = nowIso;
+
+      // Preserve the authoritative record — merge, never replace/delete.
+      await db.collection(EVENTS).doc(eventId).set(updatePayload, { merge: true });
+
+      // Projection maintenance uses the merged record so eligibility/geo
+      // see the full event state. A cancel makes the event non-listable,
+      // so maintainProjection deletes any calendarEventsPublic projection.
+      const mergedData = { ...existing, ...updatePayload };
+      await maintainProjection(eventId, mergedData);
+      return { id: eventId, ...mergedData };
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // CREATE PATH (new event)
+    // ════════════════════════════════════════════════════════════
+    // Authorise against the request (the client is creating the event).
     const isOwner = data.owner_id === callerIdentityId;
     let isBizAdmin = false;
     if (data.business_id) {
@@ -141,64 +208,55 @@ export const saveCalendarEvent = onCall(
       currency: data.currency || 'GBP',
     };
 
-    // ── Write the authoritative calendarEvents doc ──
-    let eventDocId: string;
-    if (eventId) {
-      // Update path — stable authoritative Event ID, no idempotency needed.
-      await db.collection(EVENTS).doc(eventId).set(eventData, { merge: true });
-      eventDocId = eventId;
-    } else {
-      // Create path — deterministic transaction-safe idempotency.
-      // Two concurrent retries of the same logical Add (same
-      // owner_type + owner_id + source_system + source_id) contend on
-      // the same idempotency document, so exactly one authoritative
-      // event is created and both requests resolve to the same Event ID.
-      const sourceSystem = eventData.source_system || 'manual';
-      const sourceId = eventData.source_id || null;
-      if (!sourceId) {
-        throw new HttpsError(
-          'invalid-argument',
-          'source_id is required to create an event (idempotency key)',
-        );
-      }
-      const idempKey = idempotencyDocId(
-        eventData.owner_type || 'identity',
-        eventData.owner_id || '',
-        sourceSystem,
-        sourceId,
+    // Create path — deterministic transaction-safe idempotency.
+    // Two concurrent retries of the same logical Add (same
+    // owner_type + owner_id + source_system + source_id) contend on
+    // the same idempotency document, so exactly one authoritative
+    // event is created and both requests resolve to the same Event ID.
+    const sourceSystem = eventData.source_system || 'manual';
+    const sourceId = eventData.source_id || null;
+    if (!sourceId) {
+      throw new HttpsError(
+        'invalid-argument',
+        'source_id is required to create an event (idempotency key)',
       );
-      const idempRef = db.collection(IDEMPOTENCY).doc(idempKey);
+    }
+    const idempKey = idempotencyDocId(
+      eventData.owner_type || 'identity',
+      eventData.owner_id || '',
+      sourceSystem,
+      sourceId,
+    );
+    const idempRef = db.collection(IDEMPOTENCY).doc(idempKey);
 
-      let existingEventId: string | null = null;
-      eventDocId = '';
-      await db.runTransaction(async (tx) => {
-        const idempSnap = await tx.get(idempRef);
-        if (idempSnap.exists && idempSnap.data()?.event_id) {
-          // A concurrent retry already created the authoritative event.
-          existingEventId = idempSnap.data()!.event_id as string;
-          return;
-        }
-        // Allocate exactly one authoritative event doc and record the
-        // mapping atomically so a concurrent transaction sees it.
-        const eventRef = db.collection(EVENTS).doc();
-        eventDocId = eventRef.id;
-        const nowIso = new Date().toISOString();
-        tx.set(eventRef, { ...eventData, _created_date: nowIso, _updated_date: nowIso });
-        tx.set(idempRef, {
-          event_id: eventRef.id,
-          owner_type: eventData.owner_type || 'identity',
-          owner_id: eventData.owner_id || '',
-          source_system: sourceSystem,
-          source_id: sourceId,
-          _created_date: nowIso,
-          _updated_date: nowIso,
-        });
-      });
-
-      if (existingEventId) {
-        // Resolve to the already-created authoritative event.
-        eventDocId = existingEventId;
+    let existingEventId: string | null = null;
+    let eventDocId = '';
+    await db.runTransaction(async (tx) => {
+      const idempSnap = await tx.get(idempRef);
+      if (idempSnap.exists && idempSnap.data()?.event_id) {
+        // A concurrent retry already created the authoritative event.
+        existingEventId = idempSnap.data()!.event_id as string;
+        return;
       }
+      // Allocate exactly one authoritative event doc and record the
+      // mapping atomically so a concurrent transaction sees it.
+      const eventRef = db.collection(EVENTS).doc();
+      eventDocId = eventRef.id;
+      tx.set(eventRef, { ...eventData, _created_date: nowIso, _updated_date: nowIso });
+      tx.set(idempRef, {
+        event_id: eventRef.id,
+        owner_type: eventData.owner_type || 'identity',
+        owner_id: eventData.owner_id || '',
+        source_system: sourceSystem,
+        source_id: sourceId,
+        _created_date: nowIso,
+        _updated_date: nowIso,
+      });
+    });
+
+    if (existingEventId) {
+      // Resolve to the already-created authoritative event.
+      eventDocId = existingEventId;
     }
 
     // ── Maintain the public projection ──
