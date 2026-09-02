@@ -31,7 +31,7 @@
 // is a derived value.
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId, hasBusinessCalendarPermission, hasBusinessCalendarCreatePermission, resolveEmailsToIdentities } from './shared';
+import { db, allowedOrigins, getIdentityId, hasBusinessCalendarPermission, hasBusinessCalendarCreatePermission, resolveEmailsToIdentities, isBlocked } from './shared';
 import { isEventListable, normalisePricing } from './eventProjectionEligibility';
 import { buildEventPublicProjection, EventHostInfo } from './calendarEventProjection';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
@@ -143,6 +143,21 @@ function dedupeStrings(arr: string[] | null | undefined): string[] {
       seen.add(s);
       out.push(s);
     }
+  }
+  return out;
+}
+
+// ── Trust restriction helper (§87) ──────────────────────────
+// Filters out identities that are blocked (either direction) relative to
+// the caller. Calendar consumes the authoritative BlockRecord to enforce
+// Trust & Safety restrictions on shared Event participation; it does not
+// create the block state. A blocked identity is silently omitted from the
+// invite list rather than rejecting the whole event.
+async function filterBlockedIdentities(callerId: string, ids: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const id of ids) {
+    if (await isBlocked(callerId, id)) continue;
+    out.push(id);
   }
   return out;
 }
@@ -391,6 +406,10 @@ export const saveCalendarEvent = onCall(
         updatePayload.invited_identity_ids = mergedInvited;
         updatePayload.invited_guest_emails = mergedGuests;
       }
+      // ── Trust restriction (§87): exclude blocked identities from invitations ──
+      if ('invited_identity_ids' in updatePayload) {
+        updatePayload.invited_identity_ids = await filterBlockedIdentities(callerIdentityId, updatePayload.invited_identity_ids);
+      }
       updatePayload._updated_date = nowIso;
 
       // Preserve the authoritative record — merge, never replace/delete.
@@ -440,6 +459,9 @@ export const saveCalendarEvent = onCall(
       (id) => id !== ownerId && id !== callerIdentityId,
     );
     assignedIdentityIds.filter((id) => id !== callerIdentityId);
+
+    // ── Trust restriction (§87): exclude blocked identities from invitations ──
+    invitedIdentityIds = await filterBlockedIdentities(callerIdentityId, invitedIdentityIds);
 
     const sourceSystem = data.source_system || 'manual';
     const sourceId = data.source_id || null;

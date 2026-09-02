@@ -38,6 +38,7 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStripe } from './stripe';
 import { refreshEventProjection } from './calendarEvent';
+import { emitNotification } from './notifications/dispatcher';
 
 const db = getFirestore();
 
@@ -208,10 +209,12 @@ async function handlePaymentSuccess(paymentIntent: any) {
     _updated_date: now,
   });
 
-  // Confirm slot hold
+  // Release slot hold on conversion (§35) — the calendar event (or the
+  // event-booking capacity) is now the authoritative blocked period, so
+  // the hold must not remain as a duplicate blocked period.
   if (booking.hold_id) {
     await db.collection('slotHolds').doc(booking.hold_id).update({
-      status: 'confirmed',
+      status: 'released',
       _updated_date: now,
     });
   }
@@ -291,31 +294,23 @@ async function handlePaymentSuccess(paymentIntent: any) {
     });
   }
 
-  // Create notification for provider (idempotent — check by source_id)
-  const notifSnap = await db.collection('notificationRecords')
-    .where('source_id', '==', payment.booking_id)
-    .where('event_type', '==', 'booking_confirmed')
-    .limit(1)
-    .get();
-  if (notifSnap.empty) {
-    const notifRef = db.collection('notificationRecords').doc();
-    await notifRef.set({
-      recipient_id: booking.provider_identity_id,
-      source_system: 'messaging',
-      event_type: 'booking_confirmed',
-      title: 'New Booking',
-      body: `New booking confirmed for ${new Date(booking.start_time).toLocaleString()}`,
-      category: 'calendar',
-      priority: 'normal',
-      delivery_channels: ['in_app'],
-      is_read: false,
-      action_url: `/bookings/${payment.booking_id}`,
-      action_label: 'View Booking',
-      source_id: payment.booking_id,
-      _created_date: now,
-      _updated_date: now,
-    });
-  }
+  // Notification — routed through the Notifications dispatcher (§81).
+  // The dispatcher uses deterministic doc IDs so this is idempotent on
+  // retry (redundant with the processedStripeEvents gate).
+  await emitNotification({
+    source_system: 'calendar',
+    event_type: 'booking_confirmed',
+    source_id: `booking:${payment.booking_id}`,
+    version: '1',
+    category: 'calendar',
+    title: 'New Booking',
+    body: `New booking confirmed for ${new Date(booking.start_time).toLocaleString()}`,
+    action_url: `/bookings/${payment.booking_id}`,
+    action_label: 'View Booking',
+    priority: 'normal',
+    recipient_id: booking.provider_identity_id,
+    recipient_email: null,
+  });
 
   // Guest confirmation email — deferred to email delivery phase
   // (existing SendEmail integration reaches registered users only;

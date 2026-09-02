@@ -12,6 +12,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole, isAdmin } from './shared';
 import { getStripe } from './stripe';
 import { refreshEventProjection } from './calendarEvent';
+import { emitNotification } from './notifications/dispatcher';
 
 // ── cancelBooking ────────────────────────────────────────────
 // Evaluates the cancellation policy snapshot, determines the refund
@@ -186,24 +187,24 @@ export const cancelBooking = onCall(
       }
     }
 
-    // Notification
-    const recipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
-    if (recipientId) {
-      const notifRef = db.collection('notificationRecords').doc();
-      await notifRef.set({
-        recipient_id: recipientId,
-        source_system: 'messaging',
+    // Notification — routed through the Notifications dispatcher (§81).
+    // Booking emits a semantic calendar event; Notifications owns record
+    // creation, channel resolution, preferences, and delivery.
+    const cancelRecipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
+    if (cancelRecipientId) {
+      await emitNotification({
+        source_system: 'calendar',
         event_type: 'booking_cancelled',
+        source_id: `booking:${booking_id}`,
+        version: '1',
+        category: 'calendar',
         title: 'Booking Cancelled',
         body: `Booking ${booking_id} has been cancelled${refundAmountPence > 0 ? `. Refund of ${(refundAmountPence / 100).toFixed(2)} ${booking.total_snapshot.currency} processing.` : '.'}`,
-        category: 'calendar',
-        priority: 'normal',
-        delivery_channels: ['in_app'],
-        is_read: false,
         action_url: `/bookings/${booking_id}`,
-        source_id: booking_id,
-        _created_date: nowIso,
-        _updated_date: nowIso,
+        action_label: 'View Booking',
+        priority: 'normal',
+        recipient_id: cancelRecipientId,
+        recipient_email: null,
       });
     }
 
@@ -382,24 +383,22 @@ export const rescheduleBooking = onCall(
       _updated_date: now,
     });
 
-    // Notification
-    const recipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
-    if (recipientId) {
-      const notifRef = db.collection('notificationRecords').doc();
-      await notifRef.set({
-        recipient_id: recipientId,
-        source_system: 'messaging',
+    // Notification — routed through the Notifications dispatcher (§81).
+    const rescheduleRecipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
+    if (rescheduleRecipientId) {
+      await emitNotification({
+        source_system: 'calendar',
         event_type: 'booking_rescheduled',
+        source_id: `booking:${booking_id}`,
+        version: '1',
+        category: 'calendar',
         title: 'Booking Rescheduled',
         body: `Booking ${booking_id} rescheduled to ${new Date(new_start_time).toLocaleString()}`,
-        category: 'calendar',
-        priority: 'normal',
-        delivery_channels: ['in_app'],
-        is_read: false,
         action_url: `/bookings/${booking_id}`,
-        source_id: booking_id,
-        _created_date: now,
-        _updated_date: now,
+        action_label: 'View Booking',
+        priority: 'normal',
+        recipient_id: rescheduleRecipientId,
+        recipient_email: null,
       });
     }
 

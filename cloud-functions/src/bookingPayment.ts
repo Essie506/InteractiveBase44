@@ -14,6 +14,7 @@ import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
 import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount, isPaymentReady } from './stripe';
 import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuantity, resolveEventPrice } from './eventCapacity';
 import { refreshEventProjection } from './calendarEvent';
+import { emitNotification } from './notifications/dispatcher';
 
 // ── Slot hold duration ───────────────────────────────────────
 const HOLD_DURATION_MINUTES = 15;
@@ -672,10 +673,12 @@ export const confirmFreeBooking = onCall(
       _updated_date: now,
     });
 
-    // Confirm slot hold
+    // Release slot hold on conversion (§35) — the calendar event (or the
+    // event-booking capacity) is now the authoritative blocked period, so
+    // the hold must not remain as a duplicate blocked period.
     if (booking.hold_id) {
       await db.collection('slotHolds').doc(booking.hold_id).update({
-        status: 'confirmed',
+        status: 'released',
         _updated_date: now,
       });
     }
@@ -758,23 +761,22 @@ export const confirmFreeBooking = onCall(
       _created_date: now,
     });
 
-    // Create notification for provider
-    const notifRef = db.collection('notificationRecords').doc();
-    await notifRef.set({
-      recipient_id: booking.provider_identity_id,
-      source_system: 'messaging',
+    // Notification — routed through the Notifications dispatcher (§81).
+    // Booking emits a semantic calendar event; Notifications owns record
+    // creation, channel resolution, preferences, and delivery.
+    await emitNotification({
+      source_system: 'calendar',
       event_type: 'booking_confirmed',
+      source_id: `booking:${booking_id}`,
+      version: '1',
+      category: 'calendar',
       title: 'New Booking',
       body: `New booking confirmed for ${new Date(booking.start_time).toLocaleString()}`,
-      category: 'calendar',
-      priority: 'normal',
-      delivery_channels: ['in_app'],
-      is_read: false,
       action_url: `/bookings/${booking_id}`,
       action_label: 'View Booking',
-      source_id: booking_id,
-      _created_date: now,
-      _updated_date: now,
+      priority: 'normal',
+      recipient_id: booking.provider_identity_id,
+      recipient_email: null,
     });
 
     return { booking_id, status: 'confirmed' };

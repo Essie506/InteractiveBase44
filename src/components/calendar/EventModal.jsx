@@ -65,11 +65,15 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
     setSaving(true);
     try {
       const tz = timezone || getLocalTimezone();
+      // All-day events use a TZ-invariant UTC date (§97): the date is stored
+      // as UTC midnight so it does not shift across viewer time zones. The
+      // calendar grid groups all-day events by this UTC date, not by the
+      // viewer's local date, so the event lands on the same date everywhere.
       const startIso = allDay
-        ? new Date(`${date}T00:00`).toISOString()
+        ? `${date}T00:00:00.000Z`
         : new Date(`${date}T${startTime}`).toISOString();
       const endIso = allDay
-        ? new Date(`${date}T23:59`).toISOString()
+        ? `${date}T23:59:59.000Z`
         : new Date(`${date}T${endTime}`).toISOString();
 
       const data = {

@@ -75,10 +75,16 @@ export default function CalendarPage() {
     return days;
   }, [currentMonth]);
 
-  // Events for a specific day
+  // Events for a specific day. All-day events are grouped by their stored
+  // UTC date (§97) so they land on the same calendar date in any viewer
+  // time zone; timed events are grouped by the viewer's local date.
   const eventsForDay = (date) => {
     const dateStr = date.toDateString();
-    return events.filter((e) => new Date(e.start_time).toDateString() === dateStr);
+    const isoDate = date.toISOString().split('T')[0];
+    return events.filter((e) => {
+      if (e.all_day) return e.start_time.slice(0, 10) === isoDate;
+      return new Date(e.start_time).toDateString() === dateStr;
+    });
   };
 
   // Events for the selected date
