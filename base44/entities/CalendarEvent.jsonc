@@ -166,7 +166,7 @@
         ]
       },
       "title": "Services / Activity",
-      "description": "Structured activity/service selections from the shared ServiceDefinition taxonomy. Reused for Directory 'Activity' filtering. Canonical entries carry an id; custom entries have id=null. Only meaningful for public events (owner_type professional or business)."
+      "description": "Structured activity/service selections from the shared ServiceDefinition taxonomy. Reused for Directory 'Activity' filtering. Canonical entries carry an id; custom entries have id=null. Only meaningful for public events (identity-owned professional-context or business-owned events)."
     },
     "cover_media_id": {
       "type": "string",

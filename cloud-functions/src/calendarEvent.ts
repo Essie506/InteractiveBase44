@@ -16,8 +16,11 @@
 //
 // MUTATION PERMISSIONS:
 //   identity event → owner_id == caller identity ID.
-//   business event → creator (created_by_id) OR business member with
-//     manage_calendar permission (hasBusinessCalendarPermission).
+//   business event CREATE → any active business member
+//     (hasBusinessCalendarCreatePermission). The creator is recorded in
+//     immutable created_by_id and can subsequently manage their own event.
+//   business event UPDATE/CANCEL → creator (created_by_id) OR business
+//     member with manage_calendar permission (hasBusinessCalendarPermission).
 //   assigned_identity_ids / invited_identity_ids / invited_guest_emails
 //     grant VIEW/PARTICIPATION only — NEVER mutation authority.
 //   Booking-owned events (source_system 'booking') cannot be cancelled
@@ -28,7 +31,7 @@
 // is a derived value.
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId, hasBusinessCalendarPermission, resolveEmailsToIdentities } from './shared';
+import { db, allowedOrigins, getIdentityId, hasBusinessCalendarPermission, hasBusinessCalendarCreatePermission, resolveEmailsToIdentities } from './shared';
 import { isEventListable, normalisePricing } from './eventProjectionEligibility';
 import { buildEventPublicProjection, EventHostInfo } from './calendarEventProjection';
 import { fetchProfessionalPublicGeo, fetchBusinessPublicGeo } from './geo';
@@ -237,8 +240,8 @@ export const saveCalendarEvent = onCall(
       if (!businessId) {
         throw new HttpsError('invalid-argument', 'business_id is required for business events');
       }
-      const canManage = await hasBusinessCalendarPermission(businessId, callerIdentityId);
-      if (!canManage) {
+      const canCreate = await hasBusinessCalendarCreatePermission(businessId, callerIdentityId);
+      if (!canCreate) {
         throw new HttpsError('permission-denied', 'Not authorised to create business calendar events');
       }
       ownerId = businessId;

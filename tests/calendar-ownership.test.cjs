@@ -121,10 +121,36 @@ test('assignment/invitation alone does NOT authorise mutation', () => {
   }
 });
 
-test('business event create requires manage_calendar permission', () => {
+test('business event create allows any active business member (not just manage_calendar)', () => {
   const createBlock = cfSrc.match(/CREATE PATH[\s\S]*?maintainProjection\(eventDocId, eventData\)/)[0];
-  if (!/hasBusinessCalendarPermission\(businessId, callerIdentityId\)/.test(createBlock)) {
-    throw new Error('business event create must require manage_calendar permission');
+  if (/hasBusinessCalendarPermission\(businessId, callerIdentityId\)/.test(createBlock)) {
+    throw new Error('create must not require manage_calendar (that is the manage-others gate)');
+  }
+  if (!/hasBusinessCalendarCreatePermission\(businessId, callerIdentityId\)/.test(createBlock)) {
+    throw new Error('create must use hasBusinessCalendarCreatePermission (active membership)');
+  }
+});
+
+test('hasBusinessCalendarCreatePermission grants any active member (no manage_calendar requirement)', () => {
+  if (!/export async function hasBusinessCalendarCreatePermission/.test(sharedSrc)) {
+    throw new Error('hasBusinessCalendarCreatePermission helper missing');
+  }
+  const fnBlock = sharedSrc.match(/export async function hasBusinessCalendarCreatePermission[\s\S]*?\n\}/)[0];
+  if (/manage_calendar/.test(fnBlock)) {
+    throw new Error('create permission must not require manage_calendar');
+  }
+  if (!/lifecycle_state/.test(fnBlock)) {
+    throw new Error('create permission must check active membership');
+  }
+});
+
+test('hasBusinessCalendarPermission still gates managing other people\'s business events', () => {
+  if (!/export async function hasBusinessCalendarPermission/.test(sharedSrc)) {
+    throw new Error('hasBusinessCalendarPermission helper missing');
+  }
+  const fnBlock = sharedSrc.match(/export async function hasBusinessCalendarPermission[\s\S]*?\n\}/)[0];
+  if (!/'owner',\s*'admin'/.test(fnBlock) || !/'manage_calendar'/.test(fnBlock)) {
+    throw new Error('manage permission must keep owner/admin + manage_calendar gate');
   }
 });
 

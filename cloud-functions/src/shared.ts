@@ -148,6 +148,25 @@ export async function hasBusinessCalendarPermission(
 }
 
 /**
+ * Business Calendar event CREATION permission. Any ACTIVE member of the
+ * business may create their own business-owned Calendar event; the creator
+ * is recorded in immutable created_by_id and can subsequently manage their
+ * own event. This is deliberately broader than hasBusinessCalendarPermission
+ * (which gates managing OTHER people's events and requires owner/admin or
+ * the manage_calendar permission). A non-member may never create an event
+ * owned by a business. No separate create-event permission exists in the
+ * businessPermissions taxonomy, so active membership is the gate.
+ */
+export async function hasBusinessCalendarCreatePermission(
+  businessId: string,
+  identityId: string
+): Promise<boolean> {
+  const membership = await getBusinessMembership(businessId, identityId);
+  if (!membership) return false;
+  return membership.lifecycle_state === 'active';
+}
+
+/**
  * Resolve a list of email addresses to stable Interactive identity IDs.
  * Email is a discovery/invitation mechanism, NOT an ownership key.
  *
