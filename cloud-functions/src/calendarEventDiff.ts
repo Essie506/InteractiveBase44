@@ -80,6 +80,8 @@ export function diffEventChanges(
   );
   const addedInvitees = newInvited.filter((id) => !oldInvited.includes(id));
   const removedInvitees = oldInvited.filter((id) => !newInvited.includes(id));
+  // Non-cancellation path: cancellation was handled by the early return above.
+  const isCancellation = false;
 
   const isNoOp =
     !isReschedule &&

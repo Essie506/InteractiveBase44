@@ -14,6 +14,9 @@ exports.connectionPairId = connectionPairId;
 exports.hasAcceptedConnection = hasAcceptedConnection;
 exports.getBusinessMembership = getBusinessMembership;
 exports.hasBusinessRole = hasBusinessRole;
+exports.hasBusinessCalendarPermission = hasBusinessCalendarPermission;
+exports.hasBusinessCalendarCreatePermission = hasBusinessCalendarCreatePermission;
+exports.resolveEmailsToIdentities = resolveEmailsToIdentities;
 exports.resolveProfessionalReferences = resolveProfessionalReferences;
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
@@ -110,7 +113,7 @@ async function getBusinessMembership(businessId, identityId) {
     if (!doc.exists)
         return null;
     const data = doc.data();
-    return { role: data.role, lifecycle_state: data.lifecycle_state };
+    return { role: data.role, lifecycle_state: data.lifecycle_state, permissions: data.permissions };
 }
 /** Checks if an identity is an active member of a business with the given role(s). */
 async function hasBusinessRole(businessId, identityId, roles) {
@@ -120,6 +123,79 @@ async function hasBusinessRole(businessId, identityId, roles) {
     if (membership.lifecycle_state !== 'active')
         return false;
     return roles.includes(membership.role);
+}
+/**
+ * Business Calendar management permission. Reuses the existing
+ * BusinessMembership role + permissions architecture (businessPermissions
+ * taxonomy: 'manage_calendar'). owner/admin roles have manage_calendar by
+ * default; staff may be granted it via the permissions override array.
+ *
+ * This is the canonical Calendar event mutation capability — NOT a parallel
+ * permission system. Assignment/share status alone never satisfies this.
+ */
+async function hasBusinessCalendarPermission(businessId, identityId) {
+    const membership = await getBusinessMembership(businessId, identityId);
+    if (!membership)
+        return false;
+    if (membership.lifecycle_state !== 'active')
+        return false;
+    if (['owner', 'admin'].includes(membership.role))
+        return true;
+    const extraPerms = Array.isArray(membership.permissions) ? membership.permissions : [];
+    return extraPerms.includes('manage_calendar');
+}
+/**
+ * Business Calendar event CREATION permission. Any ACTIVE member of the
+ * business may create their own business-owned Calendar event; the creator
+ * is recorded in immutable created_by_id and can subsequently manage their
+ * own event. This is deliberately broader than hasBusinessCalendarPermission
+ * (which gates managing OTHER people's events and requires owner/admin or
+ * the manage_calendar permission). A non-member may never create an event
+ * owned by a business. No separate create-event permission exists in the
+ * businessPermissions taxonomy, so active membership is the gate.
+ */
+async function hasBusinessCalendarCreatePermission(businessId, identityId) {
+    const membership = await getBusinessMembership(businessId, identityId);
+    if (!membership)
+        return false;
+    return membership.lifecycle_state === 'active';
+}
+/**
+ * Resolve a list of email addresses to stable Interactive identity IDs.
+ * Email is a discovery/invitation mechanism, NOT an ownership key.
+ *
+ * Resolution uses the canonical users collection by email (lowercased).
+ * Returns resolved identity IDs and the emails that did NOT resolve.
+ * Does NOT expose arbitrary identity lookup data — only the resulting
+ * association (identity IDs) is returned to the caller.
+ *
+ * Used by saveCalendarEvent to build invited_identity_ids /
+ * invited_guest_emails without inventing identities for unknown emails.
+ */
+async function resolveEmailsToIdentities(emails) {
+    const result = {
+        resolved: {},
+        unresolved: [],
+    };
+    if (!Array.isArray(emails) || emails.length === 0)
+        return result;
+    const seen = new Set();
+    for (const raw of emails) {
+        if (!raw)
+            continue;
+        const canonical = String(raw).toLowerCase().trim();
+        if (!canonical || seen.has(canonical))
+            continue;
+        seen.add(canonical);
+        const snap = await exports.db.collection('users').where('email', '==', canonical).limit(1).get();
+        if (snap.empty) {
+            result.unresolved.push(canonical);
+        }
+        else {
+            result.resolved[canonical] = snap.docs[0].id;
+        }
+    }
+    return result;
 }
 /**
  * Resolves professional reference [{ identity_id }] to display info

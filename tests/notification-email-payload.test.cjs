@@ -53,9 +53,11 @@ const FORBIDDEN = [
 
 // ── Source contract ──
 test('payload builder module defines CalendarEmailContext with only safe fields', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'cloud-functions', 'src', 'notifications', 'email', 'payloads', 'calendar.ts'), 'utf8');
+  const rawSrc = fs.readFileSync(path.join(__dirname, '..', 'cloud-functions', 'src', 'notifications', 'email', 'payloads', 'calendar.ts'), 'utf8');
+  // Strip comments so the scan targets code, not the doc comment that
+  // legitimately lists the forbidden fields as "never include".
+  const src = rawSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   if (!/export function buildCalendarEmailPayload/.test(src)) throw new Error('buildCalendarEmailPayload not exported');
-  // CalendarEmailContext must NOT contain private field names
   for (const bad of ['meeting_url', 'invited_identity_ids', 'invited_guest_emails', 'assigned_identity_ids', 'latitude', 'longitude', 'booking']) {
     if (new RegExp(`\\b${bad}\\b`).test(src)) throw new Error(`CalendarEmailContext/payload must not reference ${bad}`);
   }

@@ -8,7 +8,10 @@
 //   - visibility === 'public'                    (not connections/private/staff)
 //   - lifecycle_state in [scheduled, confirmed, tentative]  (not cancelled/completed)
 //   - start_time is in the future (upcoming/current — no past events)
-//   - owner_type in [professional, business]     (no personal identity appointments)
+//   - owner_type in [identity (professional context), business]
+//     Professional is an OPERATING CONTEXT, not an owner type. A professional
+//     public event is owner_type='identity' AND operating_context='professional'.
+//     Personal-context identity events are never public.
 //   - source_system !== 'messaging'              (no system/message artifacts)
 //   - host profile is publicly listable          (professional or business)
 //
@@ -16,11 +19,11 @@
 // event discovery is a separate archive experience (not implemented here).
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isEventEligible = isEventEligible;
+exports.deriveHostType = deriveHostType;
 exports.isEventListable = isEventListable;
 exports.computeAvailability = computeAvailability;
 exports.normalisePricing = normalisePricing;
 const LISTABLE_LIFECYCLE = ['scheduled', 'confirmed', 'tentative'];
-const PUBLIC_OWNER_TYPES = ['professional', 'business'];
 /**
  * Core event-level eligibility — does not check host profile eligibility
  * (that requires a DB read). Use isEventListable for the full check.
@@ -34,8 +37,17 @@ function isEventEligible(data, nowMs) {
         return false;
     if (!LISTABLE_LIFECYCLE.includes(data.lifecycle_state || ''))
         return false;
-    if (!PUBLIC_OWNER_TYPES.includes(data.owner_type || ''))
+    // Public listability: business-owned OR identity-owned in professional context.
+    // Personal-context identity events are never public.
+    if (data.owner_type === 'business') {
+        // business public event
+    }
+    else if (data.owner_type === 'identity' && data.operating_context === 'professional') {
+        // professional public event (identity-owned, professional operating context)
+    }
+    else {
         return false;
+    }
     if (data.source_system === 'messaging')
         return false;
     // Upcoming/current only — exclude past events
@@ -46,6 +58,22 @@ function isEventEligible(data, nowMs) {
     if (start < now)
         return false;
     return true;
+}
+/**
+ * Derive the public host presentation type from the authoritative ownership
+ * + operating context. Consumers (Directory, public pages) use this rather
+ * than assuming 'professional' is an owner_type.
+ *
+ *   business  → 'business'
+ *   identity + operating_context 'professional' → 'professional'
+ *   identity + personal context → null (not publicly listable)
+ */
+function deriveHostType(ownerType, operatingContext) {
+    if (ownerType === 'business')
+        return 'business';
+    if (ownerType === 'identity' && operatingContext === 'professional')
+        return 'professional';
+    return null;
 }
 /**
  * Full listability including host profile eligibility. The hostData
@@ -62,9 +90,10 @@ function isEventListable(data, hostData, nowMs) {
     if (hostData.lifecycle_state !== 'active')
         return false;
     // Host must have a public routing key
-    if (data.owner_type === 'professional' && !hostData.screen_name)
+    const hostType = deriveHostType(data.owner_type, data.operating_context);
+    if (hostType === 'professional' && !hostData.screen_name)
         return false;
-    if (data.owner_type === 'business' && !hostData.business_id)
+    if (hostType === 'business' && !hostData.business_id)
         return false;
     return true;
 }

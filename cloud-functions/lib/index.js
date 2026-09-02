@@ -9,7 +9,7 @@
 //   - cors: explicit approved-origin regex (not cors: true)
 //   - request.auth for Firebase-verified identity
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.backfillProfessionalDirectory = exports.backfillPublicProfiles = exports.saveCalendarEvent = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
+exports.retryDeliveries = exports.processDelivery = exports.backfillCalendarOwnership = exports.backfillProfessionalDirectory = exports.backfillPublicProfiles = exports.saveCalendarEvent = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
 var identity_1 = require("./identity");
 Object.defineProperty(exports, "resolveIdentity", { enumerable: true, get: function () { return identity_1.resolveIdentity; } });
 var conversations_1 = require("./conversations");
@@ -74,4 +74,15 @@ Object.defineProperty(exports, "backfillPublicProfiles", { enumerable: true, get
 // Does NOT run Personal/Business/Event backfill.
 var backfillProfessionalDirectory_1 = require("./backfillProfessionalDirectory");
 Object.defineProperty(exports, "backfillProfessionalDirectory", { enumerable: true, get: function () { return backfillProfessionalDirectory_1.backfillProfessionalDirectory; } });
+// Calendar Event ownership correction backfill (admin-only). Implemented
+// but NOT invoked — run via admin callable before production cutover.
+var backfillCalendarOwnership_1 = require("./backfillCalendarOwnership");
+Object.defineProperty(exports, "backfillCalendarOwnership", { enumerable: true, get: function () { return backfillCalendarOwnership_1.backfillCalendarOwnership; } });
+// Notifications — delivery foundation (dispatcher + outbox worker + retry sweep).
+// Domain systems emit semantic events via emitNotification (imported directly);
+// these exports are the delivery-side triggers that Firebase discovers.
+var deliveryWorker_1 = require("./notifications/deliveryWorker");
+Object.defineProperty(exports, "processDelivery", { enumerable: true, get: function () { return deliveryWorker_1.processDelivery; } });
+var deliverySweep_1 = require("./notifications/deliverySweep");
+Object.defineProperty(exports, "retryDeliveries", { enumerable: true, get: function () { return deliverySweep_1.retryDeliveries; } });
 //# sourceMappingURL=index.js.map

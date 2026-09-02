@@ -613,12 +613,19 @@ exports.confirmFreeBooking = (0, https_1.onCall)({ region: 'europe-west2', cors:
         await (0, calendarEvent_1.refreshEventProjection)(booking.event_id);
         return { booking_id, status: 'confirmed' };
     }
-    // Create calendar event
+    // Create calendar event — corrected ownership model.
+    // Professional provider (no business): identity-owned, professional
+    //   operating context. owner_id = provider identity.
+    // Business booking: business-owned. owner_id = businessId. The
+    //   provider identity is preserved as created_by_id AND assigned so
+    //   the event appears on the provider's Calendar (view only — they
+    //   cannot cancel it here; Booking owns the lifecycle).
+    const isBusinessBooking = !!booking.business_id;
     const calendarRef = shared_1.db.collection('calendarEvents').doc();
     await calendarRef.set({
-        owner_id: booking.provider_identity_id,
-        owner_type: booking.business_id ? 'business' : 'professional',
-        operating_context: booking.business_id ? 'business' : 'professional',
+        owner_id: isBusinessBooking ? booking.business_id : booking.provider_identity_id,
+        owner_type: isBusinessBooking ? 'business' : 'identity',
+        operating_context: isBusinessBooking ? 'business' : 'professional',
         title: `Booking: ${booking.booking_type}`,
         description: `Booking ${booking_id}`,
         start_time: booking.start_time,
@@ -631,8 +638,11 @@ exports.confirmFreeBooking = (0, https_1.onCall)({ region: 'europe-west2', cors:
         lifecycle_state: 'confirmed',
         source_system: 'booking',
         source_id: booking_id,
-        business_id: booking.business_id,
+        business_id: booking.business_id || null,
         created_by_id: booking.provider_identity_id,
+        assigned_identity_ids: isBusinessBooking ? [booking.provider_identity_id] : [],
+        invited_identity_ids: [],
+        invited_guest_emails: [],
         _created_date: now,
         _updated_date: now,
     });
