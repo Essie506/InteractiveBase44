@@ -87,9 +87,11 @@ export async function cancelEvent(eventId) {
 export async function getEvents(ownerId, ownerType, startDate, endDate) {
   let all;
   if (useFirebase) {
-    // Firestore: query by owner_id + owner_type so Personal ('identity')
-    // and Professional ('professional') calendars return disjoint sets
-    // even when they share the same identity ID as owner_id.
+    // Firestore: query by owner_id + owner_type. Personal and Professional
+    // are operating contexts of ONE identity, so both render the same
+    // identity-owned set (owner_type 'identity'); Business is a separate
+    // owner_type. The owner_type filter keeps identity and business sets
+    // disjoint.
     all = await calendarRepository.listEventsForOwner(ownerId, ownerType);
     all = all.filter(e => e.lifecycle_state !== 'cancelled');
   } else {
