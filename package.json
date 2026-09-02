@@ -14,7 +14,7 @@
     "test:identity": "node tests/identity-resolution.test.cjs"
   },
   "dependencies": {
-    "@base44/sdk": "^0.8.45",
+    "@base44/sdk": "^0.8.46",
     "@base44/vite-plugin": "^1.0.34",
     "@firebase/rules-unit-testing": "^3.0.4",
     "@hello-pangea/dnd": "^17.0.0",
