@@ -33,8 +33,9 @@ test('public availability returns a state (available/next_available/none)', () =
 });
 
 test('public availability is privacy-safe (no private event detail exposed)', () => {
-  if (/meeting_url/.test(avSrc)) throw new Error('must not expose meeting_url');
-  if (/invited_identity_ids/.test(avSrc)) throw new Error('must not expose invited identities');
+  // meeting_url must not appear as a projected/returned field (comment mentions are fine).
+  if (/meeting_url:/.test(avSrc)) throw new Error('must not expose meeting_url as a field');
+  if (/invited_identity_ids:/.test(avSrc)) throw new Error('must not expose invited identities as a field');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

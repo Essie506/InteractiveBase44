@@ -36,8 +36,9 @@ test('holdSweep is exported from index.ts', () => {
 });
 
 test('firestore.indexes.json has slotHolds (status, expires_at) composite index', () => {
-  const entries = fidxSrc.match(/"collectionGroup":\s*"slotHolds"[\s\S]*?\}\s*\}/g) || [];
-  const hasStatusExpires = entries.some((e) => /"fieldPath":\s*"status"/.test(e) && /"fieldPath":\s*"expires_at"/.test(e));
+  const chunks = fidxSrc.split('"collectionGroup":');
+  const slotHoldsChunks = chunks.filter((c) => /^\s*"slotHolds"/.test(c));
+  const hasStatusExpires = slotHoldsChunks.some((c) => /"fieldPath":\s*"status"/.test(c) && /"fieldPath":\s*"expires_at"/.test(c));
   if (!hasStatusExpires) throw new Error('missing (status, expires_at) composite index for hold sweep');
 });
 
