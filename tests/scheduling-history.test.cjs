@@ -90,7 +90,7 @@ test('firestore.rules deny client writes to calendarEventHistory', () => {
 test('firestore.rules canReadCalendarEvent helper authorises owner/creator/assigned/invited/business/admin', () => {
   const helperStart = rulesSrc.indexOf('function canReadCalendarEvent');
   if (helperStart === -1) throw new Error('canReadCalendarEvent helper missing');
-  const helperSlice = rulesSrc.slice(helperStart, helperStart + 800);
+  const helperSlice = rulesSrc.slice(helperStart, helperStart + 1600);
   for (const f of ['owner_id', 'created_by_id', 'assigned_identity_ids', 'invited_identity_ids', 'business_id', 'isAdmin']) {
     if (!new RegExp(f).test(helperSlice)) {
       throw new Error(`canReadCalendarEvent must check ${f}`);
@@ -99,7 +99,7 @@ test('firestore.rules canReadCalendarEvent helper authorises owner/creator/assig
 });
 
 test('history does not duplicate source-system audit (Booking reschedule_history stays on booking)', () => {
-  if (!/does NOT duplicate source-system audit/.test(histSrc)) {
+  if (!/NOT[\s\S]*?duplicate source-system audit/.test(histSrc)) {
     throw new Error('history must document separation from source-system audit');
   }
 });

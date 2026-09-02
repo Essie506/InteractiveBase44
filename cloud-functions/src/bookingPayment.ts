@@ -16,6 +16,7 @@ import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuanti
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
 import { appendScheduleHistory } from './calendarEventHistory';
+import { evaluateAvailabilityRule, hasOverlappingHold, hasOverlappingBooking, hasOverlappingEvent } from './calendarAvailability';
 
 // ── Slot hold duration ───────────────────────────────────────
 const HOLD_DURATION_MINUTES = 15;
@@ -328,45 +329,28 @@ export const createBookingDraft = onCall(
       };
     }
 
-    // ── One-to-one booking: existing flow (unchanged) ──
+    // ── One-to-one booking: overlap conflict detection + availability ──
+    // Calendar is authoritative for availability (§27, §32): Booking
+    // requests availability from Calendar before holding a slot.
+    const calendarOwner = business_id || provider_identity_id;
+    const calendarOwnerType = business_id ? 'business' : 'identity';
+    const availabilityContext = business_id ? 'business' : 'professional';
+    const availability = await evaluateAvailabilityRule(calendarOwner, calendarOwnerType, availabilityContext, start_time, end_time);
+    if (!availability.eligible) {
+      throw new HttpsError('failed-precondition', `Slot is not available: ${availability.reason || 'outside availability'}`);
+    }
+
     const holdResult = await db.runTransaction(async (tx) => {
-      // Check for conflicting active holds
-      const conflictingSnap = await tx.get(
-        db.collection('slotHolds')
-          .where('provider_identity_id', '==', provider_identity_id)
-          .where('start_time', '==', start_time)
-          .where('status', '==', 'active')
-          .limit(1),
-      );
-      if (!conflictingSnap.empty) {
-        throw new HttpsError('failed-precondition', 'This slot is already being booked');
+      // ── Overlap conflict detection (§29, §37, §39) ──
+      // Range overlap (not exact-time equality) so partially overlapping
+      // commitments are detected. Revalidated inside the transaction.
+      if (await hasOverlappingHold(tx, provider_identity_id, start_time, end_time)) {
+        throw new HttpsError('failed-precondition', 'This slot overlaps an active hold');
       }
-
-      // Also check for existing bookings in active states (Booking V2 lifecycle)
-      const confirmedSnap = await tx.get(
-        db.collection('bookings')
-          .where('provider_identity_id', '==', provider_identity_id)
-          .where('start_time', '==', start_time)
-          .where('booking_status', 'in', [
-            'requested', 'accepted', 'awaiting_customer_confirmation',
-            'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',
-          ])
-          .limit(1),
-      );
-      if (!confirmedSnap.empty) {
-        throw new HttpsError('failed-precondition', 'This slot is already booked');
+      if (await hasOverlappingBooking(tx, provider_identity_id, start_time, end_time)) {
+        throw new HttpsError('failed-precondition', 'This slot overlaps an existing booking');
       }
-
-      // Check Calendar for existing events (Calendar is authoritative for availability)
-      const calendarOwner = business_id || provider_identity_id;
-      const calendarSnap = await tx.get(
-        db.collection('calendarEvents')
-          .where('owner_id', '==', calendarOwner)
-          .where('start_time', '==', start_time)
-          .where('lifecycle_state', 'in', ['scheduled', 'confirmed', 'tentative'])
-          .limit(1),
-      );
-      if (!calendarSnap.empty) {
+      if (await hasOverlappingEvent(tx, calendarOwner, start_time, end_time)) {
         throw new HttpsError('failed-precondition', 'This slot conflicts with an existing calendar event');
       }
 
