@@ -1,16 +1,12 @@
-// Calendar query de-duplication — pure regression tests.
+// Calendar query de-duplication + one-identity-owned-set — regression tests.
 // ───────────────────────────────────────────────────────────
-// Mirrors the `dedupeEventsById` helper in src/lib/calendar.js and the
-// owner_type-scoped query fix in firebaseCalendarRepository.listEventsForOwner.
-//
-// Root cause being guarded: getAllEventsForIdentity in Professional
-// context calls getEvents(identityId,'identity') AND
-// getEvents(identityId,'professional'). Before the fix both queries
-// filtered only by owner_id, so a professional event (owner_id ==
-// identityId, owner_type == 'professional') was returned by BOTH
-// queries and merged twice. The primary fix is the owner_type filter;
-// dedupeEventsById is a defensive guard that collapses any residual
-// overlap by authoritative Event ID.
+// Mirrors `dedupeEventsById` in src/lib/calendar.js and asserts the
+// corrected query model:
+//   - ONE identity-owned event set, queried ONCE (no separate
+//     'professional' query). Personal and Professional are operating
+//     contexts of one identity, not separate owners.
+//   - Business-owned events are a separate set (owner_type 'business').
+//   - Assigned/invited events are additional sets, deduped by event ID.
 
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +18,6 @@ function test(name, fn) {
   catch (e) { failed++; console.log(`[FAIL] ${name}\n  ${e.message}`); }
 }
 
-// ── Mirror of dedupeEventsById (src/lib/calendar.js) ──
 function dedupeEventsById(events) {
   const byId = new Map();
   for (const e of events) {
@@ -43,6 +38,36 @@ test('dedupeEventsById helper is present in src/lib/calendar.js', () => {
   }
 });
 
+// ── Source contract: getAllEventsForIdentity queries identity ONCE ──
+test('getAllEventsForIdentity queries identity-owned events once (no professional query)', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'lib', 'calendar.js'), 'utf8',
+  );
+  const fnBlock = src.match(/export async function getAllEventsForIdentity[\s\S]*?\n\}/)[0];
+  if (/getEvents\([^,]+,\s*'professional'/.test(fnBlock)) {
+    throw new Error('getAllEventsForIdentity must not query a separate professional set');
+  }
+  if (!/getEvents\(identityId,\s*'identity'/.test(fnBlock)) {
+    throw new Error('getAllEventsForIdentity must query the identity-owned set once');
+  }
+});
+
+// ── Source contract: assigned + invited queries exist ──
+test('repository exposes assigned + invited identity queries', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'data', 'firebase', 'firebaseCalendarRepository.js'), 'utf8',
+  );
+  if (!/export async function listEventsAssignedToIdentity/.test(src)) {
+    throw new Error('listEventsAssignedToIdentity missing');
+  }
+  if (!/export async function listEventsInvitedToIdentity/.test(src)) {
+    throw new Error('listEventsInvitedToIdentity missing');
+  }
+  if (!/array-contains/.test(src)) {
+    throw new Error('assigned/invited queries must use array-contains');
+  }
+});
+
 // ── Source contract: listEventsForOwner filters by owner_type ──
 test('listEventsForOwner filters by owner_type in firebaseCalendarRepository.js', () => {
   const src = fs.readFileSync(
@@ -53,26 +78,24 @@ test('listEventsForOwner filters by owner_type in firebaseCalendarRepository.js'
   }
 });
 
-test('personal event renders once', () => {
+test('identity event renders once', () => {
   const events = [{ id: 'a', title: 'Personal', owner_type: 'identity' }];
   const deduped = dedupeEventsById(events);
   if (deduped.length !== 1) throw new Error(`expected 1, got ${deduped.length}`);
 });
 
-test('professional event renders once when returned by both queries', () => {
-  // Simulate the pre-fix overlap: the same professional event returned by
-  // both the 'identity' and 'professional' queries.
-  const profEvent = { id: 'p1', title: 'Prof', owner_type: 'professional', owner_id: 'id1' };
-  const merged = [profEvent, profEvent];
-  const deduped = dedupeEventsById(merged);
+test('same identity event returned by identity + assigned queries renders once', () => {
+  // An identity-owned event that is ALSO assigned to the identity (defensive
+  // overlap) collapses to one row by event ID.
+  const ev = { id: 'p1', title: 'Yoga', owner_type: 'identity', owner_id: 'id1', assigned_identity_ids: ['id1'] };
+  const deduped = dedupeEventsById([ev, ev]);
   if (deduped.length !== 1) throw new Error(`expected 1, got ${deduped.length}`);
-  if (deduped[0].id !== 'p1') throw new Error('wrong event retained');
 });
 
-test('personal and professional events coexist and each render once', () => {
-  const personal = { id: 'pe1', title: 'Personal', owner_type: 'identity' };
-  const prof = { id: 'pf1', title: 'Prof', owner_type: 'professional' };
-  const deduped = dedupeEventsById([personal, prof, prof, personal]);
+test('identity and business events coexist and each render once', () => {
+  const identity = { id: 'pe1', title: 'Personal', owner_type: 'identity' };
+  const biz = { id: 'pf1', title: 'Biz', owner_type: 'business' };
+  const deduped = dedupeEventsById([identity, biz, biz, identity]);
   if (deduped.length !== 2) throw new Error(`expected 2, got ${deduped.length}`);
   const ids = deduped.map(e => e.id).sort();
   if (ids.join(',') !== 'pe1,pf1') throw new Error(`unexpected ids: ${ids}`);
@@ -94,6 +117,18 @@ test('distinct events with same content but different ids are both kept', () => 
 test('null entries are skipped', () => {
   const deduped = dedupeEventsById([null, { id: 'x' }, undefined, { id: 'x' }]);
   if (deduped.length !== 1) throw new Error(`expected 1, got ${deduped.length}`);
+});
+
+test('CalendarPage uses owner_type identity for Personal and Professional', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'pages', 'CalendarPage.jsx'), 'utf8',
+  );
+  if (/ownerType\s*=\s*activeContext\s*===\s*'business'\s*\?\s*'business'\s*:\s*activeContext\s*===\s*'professional'\s*\?\s*'professional'/.test(src)) {
+    throw new Error('CalendarPage must not derive a professional owner_type');
+  }
+  if (!/activeContext === 'business' \? 'business' : 'identity'/.test(src)) {
+    throw new Error('CalendarPage must use identity owner_type for Personal and Professional');
+  }
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

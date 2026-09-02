@@ -232,5 +232,36 @@ test('UI surfaces failure and leaves the event unchanged on error', () => {
   }
 });
 
+// ── 9. Creator-based authorisation + immutable ownership/creator ──
+test('created_by_id and ownership fields are immutable on update', () => {
+  if (!/IMMUTABLE_FIELDS/.test(cfSrc)) throw new Error('IMMUTABLE_FIELDS set missing');
+  for (const f of ['created_by_id', 'owner_id', 'owner_type', 'business_id', 'source_id', 'source_system']) {
+    if (!new RegExp(`'${f}'`).test(cfSrc)) {
+      throw new Error(`${f} must be listed in IMMUTABLE_FIELDS`);
+    }
+  }
+});
+
+test('creator identity can update/cancel an event they created (business event)', () => {
+  if (!/existing\.created_by_id\s*===\s*callerIdentityId/.test(cfSrc)) {
+    throw new Error('update path must authorise the creator identity');
+  }
+});
+
+test('business event authorisation uses manage_calendar permission, not assignment', () => {
+  if (!/hasBusinessCalendarPermission/.test(cfSrc)) {
+    throw new Error('update path must use hasBusinessCalendarPermission for business events');
+  }
+  if (!/isCreator && !isIdentityOwner && !isBizCalendarManager/.test(cfSrc)) {
+    throw new Error('authorisation must be creator OR identity-owner OR business-calendar-manager');
+  }
+});
+
+test('created_by_id is set server-side on create (never trusted from client)', () => {
+  if (!/created_by_id:\s*callerIdentityId/.test(cfSrc)) {
+    throw new Error('create path must set created_by_id to the caller server-side');
+  }
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
