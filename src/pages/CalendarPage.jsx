@@ -13,6 +13,7 @@ import WeekView from '@/components/calendar/WeekView';
 import DayView from '@/components/calendar/DayView';
 import AgendaView from '@/components/calendar/AgendaView';
 import { useToast } from '@/components/ui/use-toast';
+import { useFirebase } from '@/lib/backendConfig';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -99,6 +100,7 @@ export default function CalendarPage() {
       const excs = await getExceptionsForEvents(allEvents);
       setExceptions(excs);
     } catch (err) {
+      console.error('[CalendarPage] Failed to load events:', err);
       setEvents([]);
       setExceptions([]);
     } finally {
@@ -115,9 +117,6 @@ export default function CalendarPage() {
   // The subscription merges owner + assigned + invited event streams and
   // deduplicates by Event ID. When Firebase is not configured, this is a
   // no-op (the polling loadEvents above handles non-Firebase mode).
-  const useFirebase = useMemo(() => {
-    try { return !!window.__FIREBASE_CONFIG__; } catch { return false; }
-  }, []);
   useEffect(() => {
     if (!user || !useFirebase) return;
     let ownerUnsub, assignedUnsub, invitedUnsub;
@@ -314,8 +313,8 @@ export default function CalendarPage() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={goToday} className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg transition-colors">Today</button>
-          <CalendarViewSwitcher view={view} onChange={setView} />
+          <button onClick={goToday} aria-label="Jump to today's date" title="Jump to today" className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg transition-colors">Jump to Today</button>
+            <CalendarViewSwitcher view={view} onChange={setView} />
         </div>
       </div>
 

@@ -64,6 +64,11 @@
       "title": "Location ID",
       "description": "Stable reference to the authoritative Location record"
     },
+    "location": {
+      "type": "string",
+      "title": "Location",
+      "description": "Display label for the event venue/address (free-text). Complements location_id (authoritative Location record reference) and location_type. For physical events this is the human-readable address/venue; for online events it is typically null."
+    },
     "location_type": {
       "type": "string",
       "enum": [

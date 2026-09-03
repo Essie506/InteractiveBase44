@@ -7,6 +7,7 @@ import InviteByEmailInput from '@/components/calendar/InviteByEmailInput';
 import StaffAssignPicker from '@/components/calendar/StaffAssignPicker';
 import RecurrenceControls from '@/components/calendar/RecurrenceControls';
 import ReminderControls from '@/components/calendar/ReminderControls';
+import { useToast } from '@/components/ui/use-toast';
 
 // EventModal — create or edit a calendar event.
 // Calendar is authoritative for the event record. Manual creates flow
@@ -37,6 +38,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   );
   const [allDay, setAllDay] = useState(existingEvent?.all_day || false);
   const [locationType, setLocationType] = useState(existingEvent?.location_type || 'physical');
+  const [location, setLocation] = useState(existingEvent?.location || '');
   const [meetingUrl, setMeetingUrl] = useState(existingEvent?.meeting_url || '');
   const [visibility, setVisibility] = useState(existingEvent?.visibility || 'private');
   const [errors, setErrors] = useState({});
@@ -48,6 +50,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
     Array.isArray(existingEvent?.assigned_identity_ids) ? existingEvent.assigned_identity_ids : []
   );
   const [recurrenceRule, setRecurrenceRule] = useState(existingEvent?.recurrence_rule || null);
+  const { toast } = useToast();
 
   const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
 
@@ -90,6 +93,9 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         timezone: tz,
         all_day: allDay,
         location_type: locationType,
+        // Persist the venue/address through the canonical Calendar event
+        // schema. Only meaningful for physical/hybrid events.
+        location: locationType !== 'online' ? (location || null) : null,
         meeting_url: locationType !== 'physical' ? meetingUrl : null,
         visibility,
         business_id: businessId,
@@ -114,6 +120,12 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         saved = await createEvent(data);
       }
       onSaved(saved);
+    } catch (err) {
+      toast({
+        title: 'Could not save event',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }
@@ -173,6 +185,14 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
               <option value="hybrid">Hybrid</option>
             </select>
           </div>
+
+          {locationType !== 'online' && (
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
+              <input type="text" value={location} onChange={e => setLocation(e.target.value)} className={inputClass} placeholder="Venue name or address" />
+              <p className="text-xs text-stone-400 mt-1">The venue or address for this {locationType} event.</p>
+            </div>
+          )}
 
           {locationType !== 'physical' && (
             <div>
