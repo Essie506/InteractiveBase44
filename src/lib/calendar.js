@@ -1,7 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { calendarRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
-import { callSaveCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException } from '@/services/firebaseFunctions';
+import { callSaveCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries } from '@/services/firebaseFunctions';
 
 // Calendar System — M3: routes to Firebase when configured.
 // Firestore queries use owner_id/business_id filters (security-rule compatible).
@@ -274,6 +274,14 @@ export async function saveOccurrenceException(data) {
   if (useFirebase) return callSaveOccurrenceException(data);
   // Non-Firebase fallback — not supported (no server-side validation)
   throw new Error('Occurrence exceptions require Firebase mode');
+}
+
+// ── Recurrence Series Split — "this and future" (§57) ─────────
+// Splits a recurring series at a given occurrence: the old series becomes
+// historical (effective_until), a new series takes over from the split.
+export async function splitRecurrenceSeries(data) {
+  if (useFirebase) return callSplitRecurrenceSeries(data);
+  throw new Error('Recurrence series split requires Firebase mode');
 }
 
 // ── Combined Business/Staff Calendar (§70–§74) ──────────────

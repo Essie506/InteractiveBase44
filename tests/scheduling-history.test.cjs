@@ -66,9 +66,16 @@ test('bookingLifecycle records reschedule + cancel history', () => {
   if (!/source_system: 'booking'/.test(blSrc)) throw new Error('booking history must use source_system booking');
 });
 
-test('bookingPayment records creation history for booking-originated events', () => {
-  if (!/appendScheduleHistory/.test(bpSrc)) throw new Error('bookingPayment must call appendScheduleHistory');
-  if (!/change_type: 'created'/.test(bpSrc)) throw new Error('confirmFree must record created');
+test('bookingPayment delegates booking-originated event creation to the canonical writer', () => {
+  // C1 refactor: bookingPayment calls createBookingCalendarEvent (the
+  // canonical writer) which internally calls appendScheduleHistory with
+  // change_type 'created'. The V2 requirement (§48, §104) — that a
+  // 'created' history entry exists for booking-originated events — is
+  // preserved by the canonical writer, not by bookingPayment directly.
+  if (!/createBookingCalendarEvent/.test(bpSrc)) throw new Error('bookingPayment must delegate to createBookingCalendarEvent');
+  const bcwSrc = fs.readFileSync(path.join(__dirname, '..', 'cloud-functions', 'src', 'bookingCalendarEvent.ts'), 'utf8');
+  if (!/appendScheduleHistory/.test(bcwSrc)) throw new Error('canonical writer must call appendScheduleHistory');
+  if (!/change_type: 'created'/.test(bcwSrc)) throw new Error('canonical writer must record created');
 });
 
 test('stripeWebhook records creation history for paid booking events', () => {

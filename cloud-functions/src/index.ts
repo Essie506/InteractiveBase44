@@ -40,6 +40,7 @@ export { sweepExpiredHolds } from './holdSweep';
 export { sweepReminders } from './reminderSweep';
 export { saveReminderRule, deleteReminderRule, listReminderRules } from './reminderRule';
 export { saveOccurrenceException } from './occurrenceException';
+export { splitRecurrenceSeries } from './recurrenceSeriesSplit';
 
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';

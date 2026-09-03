@@ -82,7 +82,7 @@ export function expandOccurrences(
   let count = 0;
 
   function tryOccurrence(occStart: Date): boolean {
-    if (rule.count && count >= rule.count) return false;
+    if (rule!.count && count >= rule!.count) return false;
     if (until && occStart > until) return false;
     count++;
     if (occStart >= rangeStart && occStart <= effectiveUntil) {

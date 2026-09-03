@@ -240,3 +240,10 @@ export async function callSaveOccurrenceException(data) {
   const result = await callable('saveOccurrenceException')(data);
   return result.data;
 }
+
+// ── Recurrence Series Split (§57) ──
+// "This and future" — splits a recurring series at a given occurrence.
+export async function callSplitRecurrenceSeries(data) {
+  const result = await callable('splitRecurrenceSeries')(data);
+  return result.data;
+}
