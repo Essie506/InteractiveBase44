@@ -21,7 +21,9 @@ export type ScheduleChangeType =
   | 'participant_added'
   | 'participant_removed'
   | 'recurrence_changed'
-  | 'availability_changed';
+  | 'availability_changed'
+  | 'removed'
+  | 'source_unavailable';
 
 export interface ScheduleChangeEntry {
   event_id: string;

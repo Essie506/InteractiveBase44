@@ -117,10 +117,10 @@ test('HANDLER: deactivated → cancelled (not removed) (§108)', () => {
   const fn = extractFn(handlerSrc, 'resolveUnavailableTransition');
   if (!fn) throw new Error('resolveUnavailableTransition must exist');
   if (!/case 'deactivated'/.test(fn)) throw new Error('Must handle deactivated case');
-  // deactivated should map to cancelled, not removed
-  const deactivatedMatch = fn.match(/case 'deactivated'[\s\S]*?(?:case|return|\})/);
-  if (!deactivatedMatch) throw new Error('deactivated case must exist');
-  if (!/'cancelled'/.test(deactivatedMatch[0])) {
+  // Match from 'case deactivated' to the next case/default/switch-close
+  const deactivatedSection = fn.match(/case 'deactivated'[\s\S]*?(?=case |default:|\n  \})/);
+  if (!deactivatedSection) throw new Error('deactivated case section not found');
+  if (!/'cancelled'/.test(deactivatedSection[0])) {
     throw new Error('deactivated must map to cancelled (§108)');
   }
 });
@@ -149,12 +149,13 @@ test('HANDLER: unavailable → lifecycle unchanged, detail redacted (§111)', ()
   const fn = extractFn(handlerSrc, 'resolveUnavailableTransition');
   if (!fn) throw new Error('resolveUnavailableTransition must exist');
   if (!/case 'unavailable'/.test(fn)) throw new Error('Must handle unavailable case');
-  const unavailableMatch = fn.match(/case 'unavailable'[\s\S]*?(?:case|return|\})/);
-  if (!unavailableMatch) throw new Error('unavailable case must exist');
-  if (!/newLifecycleState.*null/.test(unavailableMatch[0])) {
+  // Match from 'case unavailable' to the next case/default/switch-close
+  const unavailableSection = fn.match(/case 'unavailable'[\s\S]*?(?=case |default:|\n  \})/);
+  if (!unavailableSection) throw new Error('unavailable case section not found');
+  if (!/newLifecycleState.*null/.test(unavailableSection[0])) {
     throw new Error('unavailable must leave lifecycle unchanged (§111)');
   }
-  if (!/redactDetail.*true/.test(unavailableMatch[0])) {
+  if (!/redactDetail.*true/.test(unavailableSection[0])) {
     throw new Error('unavailable must still redact detail (§111)');
   }
 });
