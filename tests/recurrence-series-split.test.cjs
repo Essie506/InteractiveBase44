@@ -53,9 +53,34 @@ test('SPLIT: creates a new series with preserved ownership', () => {
   }
 });
 
-test('SPLIT: rejects booking-owned series', () => {
-  if (!/source_system === 'booking'/.test(splitSrc)) {
-    throw new Error('must reject booking-owned series');
+test('SPLIT: enforces source authority — only manual (Calendar-owned) series can be split', () => {
+  // Source authority: not a permanent blacklist, but an explicit authority map.
+  // SOURCE_SPLIT_AUTHORITY must exist and only 'manual' must be authorised.
+  if (!/SOURCE_SPLIT_AUTHORITY/.test(splitSrc)) {
+    throw new Error('must define SOURCE_SPLIT_AUTHORITY for source-authority check');
+  }
+  if (!/manual:\s*true/.test(splitSrc)) {
+    throw new Error('manual (Calendar-owned) must be authorised for splitting');
+  }
+  if (!/isSourceAuthorised/.test(splitSrc)) {
+    throw new Error('must check isSourceAuthorised before splitting');
+  }
+  // Must reject with a scheduling-contract message (not a booking-specific one)
+  if (!/scheduling contract/.test(splitSrc)) {
+    throw new Error('must explain that source systems must authorise via scheduling contract');
+  }
+});
+
+test('SPLIT: rejects all non-manual source systems (booking, workout, business_scheduling, external, messaging)', () => {
+  // No other source system should have authority:true in the map
+  const authBlock = splitSrc.match(/SOURCE_SPLIT_AUTHORITY[^}]*}/);
+  if (!authBlock) throw new Error('SOURCE_SPLIT_AUTHORITY block not found');
+  // The block must NOT authorise booking/workout/business_scheduling/external/messaging
+  if (/booking:\s*true/.test(authBlock[0])) {
+    throw new Error('booking must not be authorised for splitting');
+  }
+  if (/workout:\s*true/.test(authBlock[0])) {
+    throw new Error('workout must not be authorised for splitting');
   }
 });
 
@@ -107,9 +132,14 @@ test('SPLIT: maintains public projections for both old and new series', () => {
   }
 });
 
-test('SPLIT: content moderation applied to new title/description', () => {
-  if (!/moderateEventContent/.test(splitSrc)) {
-    throw new Error('must moderate new title/description');
+test('SPLIT: no content moderation (removed — Trust & Safety owns behavioural restrictions)', () => {
+  // Content moderation was an independently invented Calendar policy that
+  // violated the V2 ownership boundary (§4, §87, §125). It must be gone.
+  if (/moderateEventContent/.test(splitSrc)) {
+    throw new Error('content moderation must be removed from series split');
+  }
+  if (/contentModeration/.test(splitSrc)) {
+    throw new Error('contentModeration import must be removed');
   }
 });
 
@@ -117,6 +147,92 @@ test('SPLIT: exported from cloud-functions index', () => {
   const idx = fs.readFileSync(path.join(__dirname, '..', 'cloud-functions', 'src', 'index.ts'), 'utf8');
   if (!/splitRecurrenceSeries/.test(idx)) {
     throw new Error('splitRecurrenceSeries must be exported from index.ts');
+  }
+});
+
+// ── Retry-safety / durability tests (§57) ──
+// The series split must be retry-safe: failure at any point must allow the
+// same request to be retried without losing exceptions, duplicating
+// exceptions, creating overlapping series, or creating gaps.
+
+test('SPLIT-RETRY: exception migration runs OUTSIDE if (created) — always runs', () => {
+  // Exception migration must NOT be gated on first creation. A retry after
+  // partial failure (split succeeded, migration failed) must re-run migration.
+  // Find the exception migration block and verify it's after the `if (created)`
+  // block for schedule history, not inside it.
+  const migrationIdx = splitSrc.indexOf('Migrate future exceptions');
+  const createdBlockIdx = splitSrc.indexOf('if (created)');
+  if (migrationIdx === -1) throw new Error('exception migration block not found');
+  if (createdBlockIdx === -1) throw new Error('if (created) block not found');
+  // The migration block must come BEFORE the if (created) block
+  if (migrationIdx > createdBlockIdx) {
+    throw new Error('exception migration must run BEFORE (outside) the if (created) block');
+  }
+});
+
+test('SPLIT-RETRY: re-creates exception on new series BEFORE deleting from old (durability)', () => {
+  // The ordering is critical: if delete happens first and re-create fails,
+  // the exception is lost. Re-create must come first so a failure preserves
+  // the exception on the old series for retry.
+  const setOccIdx = splitSrc.indexOf('setOccurrenceException');
+  const deleteIdx = splitSrc.indexOf('.delete().catch');
+  if (setOccIdx === -1) throw new Error('setOccurrenceException call not found');
+  if (deleteIdx === -1) throw new Error('delete call not found');
+  if (setOccIdx > deleteIdx) {
+    throw new Error('must re-create on new series BEFORE deleting from old');
+  }
+});
+
+test('SPLIT-RETRY: delete from old series uses .catch() (idempotent no-op)', () => {
+  // Delete must be resilient to already-deleted docs (retry scenario)
+  if (!/\.delete\(\)\.catch\(\(\) => \{\}\)/.test(splitSrc)) {
+    throw new Error('delete must use .catch(() => {}) for idempotent retry');
+  }
+});
+
+test('SPLIT-RETRY: projection maintenance runs OUTSIDE if (created) — always runs', () => {
+  // Projections must be maintained on every call (idempotent), not just
+  // first creation, so a retry ensures correct projections.
+  const lastMaintainIdx = splitSrc.lastIndexOf('maintainProjection(');
+  const createdBlockEnd = splitSrc.indexOf('if (created)');
+  // Find the if (created) block end — the closing brace before maintainProjection
+  if (lastMaintainIdx === -1) throw new Error('maintainProjection call not found');
+  // The last maintainProjection must be AFTER the if (created) block
+  // (i.e., outside it — runs unconditionally)
+  const createdBlock = splitSrc.slice(createdBlockEnd);
+  const maintainInCreated = createdBlock.slice(0, createdBlock.indexOf('maintainProjection')).includes('if (created)');
+  // Check that maintainProjection appears AFTER the if (created) block closes
+  const createdCloseIdx = splitSrc.indexOf('}', splitSrc.indexOf('appendScheduleHistory', createdBlockEnd));
+  if (createdCloseIdx === -1) throw new Error('could not find end of if (created) block');
+  // There should be a maintainProjection call after the if (created) block
+  const afterCreated = splitSrc.slice(createdCloseIdx);
+  if (!/maintainProjection/.test(afterCreated)) {
+    throw new Error('maintainProjection must run outside if (created) — always');
+  }
+});
+
+test('SPLIT-RETRY: schedule history stays INSIDE if (created) — not idempotent', () => {
+  // Schedule history is append-only (random doc IDs) — must only run on
+  // first creation to avoid duplicate history entries on retry.
+  // Search for the appendScheduleHistory CALL (not the import).
+  const callIdx = splitSrc.indexOf('appendScheduleHistory({');
+  if (callIdx === -1) throw new Error('appendScheduleHistory call not found');
+  const createdBlockIdx = splitSrc.indexOf('if (created)');
+  if (createdBlockIdx === -1) throw new Error('if (created) block not found');
+  // The call must be AFTER the if (created) line (inside the block)
+  if (callIdx < createdBlockIdx) {
+    throw new Error('schedule history call must be inside if (created) block');
+  }
+  // The call must be BEFORE the projection maintenance (which is outside if (created))
+  const maintainIdx = splitSrc.indexOf('// ── Maintain projections');
+  if (maintainIdx === -1) throw new Error('maintain projections section not found');
+  if (callIdx > maintainIdx) {
+    throw new Error('schedule history must be before projection maintenance (inside if (created))');
+  }
+  // Verify NO appendScheduleHistory call exists after the maintain projections section
+  const afterMaintain = splitSrc.slice(maintainIdx);
+  if (/appendScheduleHistory\({/.test(afterMaintain)) {
+    throw new Error('schedule history must not run outside if (created)');
   }
 });
 

@@ -40,7 +40,6 @@ import { emitNotification } from './notifications/dispatcher';
 import { buildCalendarEmailPayload, CalendarEmailContext, CalendarEventType } from './notifications/email/payloads/calendar';
 import { diffEventChanges, computeUpdateVersion, computeRemovalVersion } from './calendarEventDiff';
 import { appendScheduleHistory } from './calendarEventHistory';
-import { moderateEventContent } from './contentModeration';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
@@ -411,17 +410,6 @@ export const saveCalendarEvent = onCall(
         );
       }
 
-      // ── Content moderation (if title/description being updated) ──
-      if ('title' in data || 'description' in data) {
-        const moderation = moderateEventContent(
-          'title' in data ? data.title : existing.title,
-          'description' in data ? data.description : existing.description,
-        );
-        if (!moderation.passed) {
-          throw new HttpsError('failed-precondition', moderation.reason || 'Content moderation failed');
-        }
-      }
-
       // ── Partial update — only mutable fields the client provided ──
       const updatePayload: Record<string, any> = {};
       for (const k of Object.keys(data)) {
@@ -490,12 +478,6 @@ export const saveCalendarEvent = onCall(
     } else {
       // Identity-owned event — owner is the creator's stable identity.
       ownerId = callerIdentityId;
-    }
-
-    // ── Content moderation (user-generated title/description) ──
-    const moderation = moderateEventContent(data.title, data.description);
-    if (!moderation.passed) {
-      throw new HttpsError('failed-precondition', moderation.reason || 'Content moderation failed');
     }
 
     // ── Enforce price/free invariant ──

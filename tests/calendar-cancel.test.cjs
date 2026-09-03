@@ -131,8 +131,9 @@ test('server rejects cancel of a non-existent event', () => {
 test('cancelled event is non-listable so projection is removed', () => {
   // isEventEligible excludes cancelled lifecycle_state
   const elig = fs.readFileSync(path.join(__dirname, '..', 'cloud-functions', 'src', 'eventProjectionEligibility.ts'), 'utf8');
-  if (!/LISTABLE_LIFECYCLE/.test(elig) || !/\['scheduled',\s*'confirmed',\s*'tentative'\]/.test(elig)) {
-    throw new Error('listable lifecycle must exclude cancelled');
+  // V2 §15: listable lifecycle = scheduled, upcoming, in_progress
+  if (!/LISTABLE_LIFECYCLE/.test(elig) || !/\['scheduled',\s*'upcoming',\s*'in_progress'\]/.test(elig)) {
+    throw new Error('listable lifecycle must be V2 states (scheduled, upcoming, in_progress)');
   }
   // maintainProjection deletes the public doc when not listable
   if (!/db\.collection\(PUBLIC\)\.doc\(eventId\)\.delete\(\)/.test(cfSrc)) {

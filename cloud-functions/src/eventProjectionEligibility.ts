@@ -5,7 +5,7 @@
 //
 // A calendar event is publicly listable in the Directory when ALL hold:
 //   - visibility === 'public'                    (not connections/private/staff)
-//   - lifecycle_state in [scheduled, confirmed, tentative]  (not cancelled/completed)
+//   - lifecycle_state in [scheduled, upcoming, in_progress]  (not cancelled/historical)
 //   - start_time is in the future (upcoming/current — no past events)
 //   - owner_type in [identity (professional context), business]
 //     Professional is an OPERATING CONTEXT, not an owner type. A professional
@@ -17,7 +17,12 @@
 // Past events are excluded from default Directory discovery. Historic
 // event discovery is a separate archive experience (not implemented here).
 
-const LISTABLE_LIFECYCLE = ['scheduled', 'confirmed', 'tentative'];
+// V2 §15 Calendar states that are publicly listable: the event is committed
+// to occur (scheduled, upcoming) or currently occurring (in_progress).
+// pending/held are not committed; historical/cancelled/removed/superseded
+// are not listable. The time check (start >= now) in isEventEligible
+// additionally filters past events.
+const LISTABLE_LIFECYCLE = ['scheduled', 'upcoming', 'in_progress'];
 
 /**
  * Core event-level eligibility — does not check host profile eligibility

@@ -544,10 +544,12 @@ export const completeBooking = onCall(
       _updated_date: now,
     });
 
-    // Update calendar event
+    // Update calendar event — V2 §15: booking-owned events use 'historical'
+    // (not 'completed', which is a Personal-only state per §16). The booking
+    // is completed; the Calendar schedule representation transitions to historical.
     if (booking.calendar_event_id) {
       await db.collection('calendarEvents').doc(booking.calendar_event_id).update({
-        lifecycle_state: 'completed',
+        lifecycle_state: 'historical',
         _updated_date: now,
       });
     }

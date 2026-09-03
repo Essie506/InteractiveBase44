@@ -537,7 +537,7 @@ function hasSlotConflict(existingBookings, existingHolds, calendarEvents, startT
     h.start_time === startTime && h.status === 'active'
   );
   const hasCalendar = calendarEvents.some(e =>
-    e.start_time === startTime && ['scheduled', 'confirmed', 'tentative'].includes(e.lifecycle_state)
+    e.start_time === startTime && ['held', 'scheduled', 'upcoming', 'in_progress'].includes(e.lifecycle_state)
   );
   return hasBooking || hasHold || hasCalendar;
 }
@@ -568,7 +568,7 @@ test('COLLISION: existing calendar event → collision', () => {
   assert.strictEqual(hasSlotConflict(
     [],
     [],
-    [{ start_time: '2026-09-01T10:00:00Z', lifecycle_state: 'confirmed' }],
+    [{ start_time: '2026-09-01T10:00:00Z', lifecycle_state: 'scheduled' }],
     '2026-09-01T10:00:00Z'
   ), true);
 });
@@ -604,7 +604,7 @@ test('COLLISION: different time → no collision', () => {
   assert.strictEqual(hasSlotConflict(
     [{ start_time: '2026-09-01T10:00:00Z', booking_status: 'scheduled' }],
     [{ start_time: '2026-09-01T10:00:00Z', status: 'active' }],
-    [{ start_time: '2026-09-01T10:00:00Z', lifecycle_state: 'confirmed' }],
+    [{ start_time: '2026-09-01T10:00:00Z', lifecycle_state: 'scheduled' }],
     '2026-09-01T11:00:00Z'
   ), false);
 });

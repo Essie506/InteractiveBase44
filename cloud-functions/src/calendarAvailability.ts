@@ -18,7 +18,10 @@ import { applyExceptions, OccurrenceException } from './calendarEventExceptions'
 
 type Store = { get: (q: any) => Promise<any> };
 
-const ACTIVE_LIFECYCLE = ['scheduled', 'confirmed', 'tentative'];
+// V2 §15 Calendar states that occupy/block time: held (tentative hold),
+// scheduled, upcoming, in_progress. pending does not block (pre-hold);
+// historical/cancelled/removed/superseded do not block (past/inactive).
+const ACTIVE_LIFECYCLE = ['held', 'scheduled', 'upcoming', 'in_progress'];
 const ACTIVE_BOOKING_STATES = [
   'requested', 'accepted', 'awaiting_customer_confirmation',
   'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',

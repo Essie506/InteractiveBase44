@@ -64,7 +64,7 @@ export async function createBookingCalendarEvent(
       location_type: booking.location_context || 'physical',
       meeting_url: booking.meeting_url || null,
       visibility: 'private',
-      lifecycle_state: 'confirmed',
+      lifecycle_state: 'scheduled',
       source_system: sourceSystem,
       source_id: sourceId,
       business_id: booking.business_id || null,

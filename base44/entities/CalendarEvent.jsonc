@@ -93,14 +93,23 @@
     "lifecycle_state": {
       "type": "string",
       "enum": [
+        "pending",
+        "held",
         "scheduled",
-        "confirmed",
-        "tentative",
+        "upcoming",
+        "in_progress",
+        "historical",
         "cancelled",
-        "completed"
+        "removed",
+        "superseded",
+        "completed",
+        "skipped",
+        "rescheduled",
+        "archived"
       ],
       "default": "scheduled",
-      "title": "Lifecycle State"
+      "title": "Lifecycle State",
+      "description": "V2 \u00a715 Calendar schedule states: pending, held, scheduled, upcoming, in_progress, historical, cancelled, removed, superseded. V2 \u00a716 Personal-only states: completed, skipped, rescheduled, archived. Calendar schedule state is SEPARATE from source-system state (\u00a714) \u2014 e.g. Booking 'confirmed' is a Booking state, not a Calendar state."
     },
     "source_system": {
       "type": "string",

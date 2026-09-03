@@ -105,8 +105,9 @@ export const createBookingDraft = onCall(
       if (eventData.visibility !== 'public') {
         throw new HttpsError('failed-precondition', 'Event is not publicly bookable');
       }
-      if (eventData.lifecycle_state === 'cancelled' || eventData.lifecycle_state === 'completed') {
-        throw new HttpsError('failed-precondition', 'Event is cancelled or completed');
+      // V2 §15: reject cancelled/historical/removed/superseded events (not bookable)
+      if (['cancelled', 'historical', 'removed', 'superseded'].includes(eventData.lifecycle_state)) {
+        throw new HttpsError('failed-precondition', 'Event is cancelled or has ended');
       }
       // Authoritative event price — never treat null/missing as free.
       let eventPrice;
@@ -228,8 +229,9 @@ export const createBookingDraft = onCall(
           throw new HttpsError('not-found', 'Event not found');
         }
         const evData = ev.data()!;
-        if (evData.lifecycle_state === 'cancelled' || evData.lifecycle_state === 'completed') {
-          throw new HttpsError('failed-precondition', 'Event is cancelled or completed');
+        // V2 §15: reject cancelled/historical/removed/superseded events (not bookable)
+        if (['cancelled', 'historical', 'removed', 'superseded'].includes(evData.lifecycle_state)) {
+          throw new HttpsError('failed-precondition', 'Event is cancelled or has ended');
         }
         const cap = (typeof evData.capacity === 'number' && evData.capacity >= 1) ? evData.capacity : null;
         if (cap == null) {
