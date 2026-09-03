@@ -41,33 +41,26 @@ export function formatTimeRange(startIso, endIso, timezone) {
 // projection and price/free invariants are maintained server-side. The
 // Base44 fallback path is retained for non-Firebase environments.
 export async function createEvent(data) {
-  const {
-    owner_id, owner_type, operating_context, title, description,
-    start_time, end_time, timezone, all_day, location_id, location_type,
-    meeting_url, visibility, source_system, source_id, business_id,
-    created_by_id, recurrence_rule,
-  } = data;
-
+  // Spread ALL client fields (assigned_identity_ids, invited_emails,
+  // location, recurrence_rule, etc.) so the canonical writer receives
+  // the complete payload. Previously this destructured and rebuilt
+  // eventData, silently dropping assigned_identity_ids and invited_emails.
   const eventData = {
-    owner_id,
-    owner_type: owner_type || 'identity',
-    operating_context: operating_context || 'personal',
-    title,
-    description: description || null,
-    start_time,
-    end_time,
-    timezone: timezone || getLocalTimezone(),
-    all_day: all_day || false,
-    location_id: location_id || null,
-    location_type: location_type || 'physical',
-    meeting_url: meeting_url || null,
-    visibility: visibility || 'private',
+    ...data,
+    owner_type: data.owner_type || 'identity',
+    operating_context: data.operating_context || 'personal',
+    description: data.description || null,
+    timezone: data.timezone || getLocalTimezone(),
+    all_day: data.all_day || false,
+    location_id: data.location_id || null,
+    location_type: data.location_type || 'physical',
+    meeting_url: data.meeting_url || null,
+    visibility: data.visibility || 'private',
     lifecycle_state: 'scheduled',
-    source_system: source_system || 'manual',
-    source_id: source_id || null,
-    business_id: business_id || null,
-    created_by_id,
-    recurrence_rule: recurrence_rule || null,
+    source_system: data.source_system || 'manual',
+    source_id: data.source_id || null,
+    business_id: data.business_id || null,
+    recurrence_rule: data.recurrence_rule || null,
   };
 
   if (useFirebase) return callSaveCalendarEvent(eventData);
@@ -144,10 +137,19 @@ export async function getAllEventsForIdentity(identityId, activeContext, busines
 
   if (useFirebase) {
     // Events assigned to this identity (e.g. Business staff assignments) —
-    // view/participation only, never edit authority.
-    events.push(...await calendarRepository.listEventsAssignedToIdentity(identityId));
-    // Events this identity was invited to via email resolution.
-    events.push(...await calendarRepository.listEventsInvitedToIdentity(identityId));
+    // view/participation only, never edit authority. Each sub-query is
+    // isolated so a missing composite index on one path does not reject
+    // the entire load (which would silently hide the owner's own events).
+    try {
+      events.push(...await calendarRepository.listEventsAssignedToIdentity(identityId));
+    } catch (err) {
+      console.error('[calendar] Failed to load assigned events:', err?.message || err);
+    }
+    try {
+      events.push(...await calendarRepository.listEventsInvitedToIdentity(identityId));
+    } catch (err) {
+      console.error('[calendar] Failed to load invited events:', err?.message || err);
+    }
   }
 
   // Business context adds the active Business's owned events. Business-owned
