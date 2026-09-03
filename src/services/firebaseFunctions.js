@@ -247,3 +247,13 @@ export async function callSplitRecurrenceSeries(data) {
   const result = await callable('splitRecurrenceSeries')(data);
   return result.data;
 }
+
+// ── Source Unavailable (§106–§111) ──
+// Calendar-owned scheduling-contract endpoint. Source systems call this
+// when a source record becomes unavailable (deleted, access_lost,
+// deactivated, unavailable). Calendar transitions the event to a
+// privacy-safe state and redacts source detail. History is preserved.
+export async function callHandleSourceUnavailable(data) {
+  const result = await callable('handleSourceUnavailable')(data);
+  return result.data;
+}

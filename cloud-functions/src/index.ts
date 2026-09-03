@@ -43,6 +43,9 @@ export { saveOccurrenceException } from './occurrenceException';
 export { splitRecurrenceSeries } from './recurrenceSeriesSplit';
 export { migrateCalendarLifecycleStates } from './migrateCalendarLifecycleStates';
 
+// Phase 2 — Source Unavailable handler (§106–§108, §111)
+export { handleSourceUnavailable } from './handleSourceUnavailable';
+
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';
 

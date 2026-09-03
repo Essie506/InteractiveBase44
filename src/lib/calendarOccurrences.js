@@ -45,7 +45,10 @@ export function normalizeToOccurrences(events, exceptions, rangeStart, rangeEnd)
 
   for (const event of events) {
     if (!event) continue;
-    if (event.lifecycle_state === 'cancelled') continue;
+    // §106/§111: cancelled and removed events are not shown in occurrence
+    // expansion. Removed = source record gone (privacy-safe; history
+    // preserved separately). Historical events are shown in Agenda past.
+    if (event.lifecycle_state === 'cancelled' || event.lifecycle_state === 'removed') continue;
 
     if (event.recurrence_rule) {
       // ── Recurring event — expand occurrences within the range ──

@@ -23,17 +23,26 @@ export async function getEvent(eventId) {
   return fromFirestoreDoc(snap);
 }
 
-export async function listEventsForOwner(ownerId, ownerType) {
+export async function listEventsForOwner(ownerId, ownerType, startDate, endDate) {
   // owner_type is 'identity' (Personal/Professional are operating contexts
   // of one identity, not separate owners) or 'business'. Filtering by
   // owner_type keeps identity-owned and business-owned sets disjoint.
+  //
+  // §113 Performance: when startDate/endDate are provided, filter
+  // server-side by start_time range so large event histories don't
+  // transfer the full collection. Requires composite index
+  // (owner_id, owner_type, start_time) — declared in firestore.indexes.json.
   const constraints = [
     where('owner_id', '==', ownerId),
-    orderBy('start_time', 'asc'),
   ];
   if (ownerType) {
-    constraints.splice(1, 0, where('owner_type', '==', ownerType));
+    constraints.push(where('owner_type', '==', ownerType));
   }
+  if (startDate && endDate) {
+    constraints.push(where('start_time', '>=', startDate.toISOString()));
+    constraints.push(where('start_time', '<=', endDate.toISOString()));
+  }
+  constraints.push(orderBy('start_time', 'asc'));
   const q = query(collection(db, 'calendarEvents'), ...constraints);
   const snap = await getDocs(q);
   return snap.docs.map(fromFirestoreDoc);

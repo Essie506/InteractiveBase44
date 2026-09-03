@@ -1,7 +1,8 @@
 import { base44 } from '@/api/base44Client';
 import { calendarRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
-import { callSaveCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries } from '@/services/firebaseFunctions';
+import { callSaveCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries, callHandleSourceUnavailable } from '@/services/firebaseFunctions';
+export { subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents } from '@/lib/calendarRealtime';
 
 // Calendar System — M3: routes to Firebase when configured.
 // Firestore queries use owner_id/business_id filters (security-rule compatible).
@@ -92,8 +93,8 @@ export async function getEvents(ownerId, ownerType, startDate, endDate) {
     // identity-owned set (owner_type 'identity'); Business is a separate
     // owner_type. The owner_type filter keeps identity and business sets
     // disjoint.
-    all = await calendarRepository.listEventsForOwner(ownerId, ownerType);
-    all = all.filter(e => e.lifecycle_state !== 'cancelled');
+    all = await calendarRepository.listEventsForOwner(ownerId, ownerType, startDate, endDate);
+    all = all.filter(e => e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed');
   } else {
     all = await base44.entities.CalendarEvent.filter({
       owner_id: ownerId,
@@ -159,12 +160,23 @@ export async function getAllEventsForIdentity(identityId, activeContext, busines
   const startMs = startDate ? new Date(startDate).getTime() : 0;
   const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;
   return deduped
-    .filter(e => e.lifecycle_state !== 'cancelled')
+    .filter(e => e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed')
     .filter(e => {
       const eventStart = new Date(e.start_time).getTime();
       return eventStart >= startMs && eventStart <= endMs;
     })
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+}
+
+// ── Source Unavailable (§106–§111) ────────────────────────────
+// Calendar-owned scheduling-contract endpoint. Source systems call
+// this when a source record becomes unavailable (deleted, access_lost,
+// deactivated, or transiently unavailable). Calendar transitions the
+// event to a privacy-safe state and redacts source detail (§107).
+// History is preserved (§108) — the event is never deleted.
+export async function handleSourceUnavailable(data) {
+  if (useFirebase) return callHandleSourceUnavailable(data);
+  throw new Error('Source unavailable handling requires Firebase mode');
 }
 
 // --- Availability ---
@@ -312,7 +324,7 @@ export async function getCombinedBusinessCalendar(businessId, staffIdentityIds, 
   const startMs = startDate ? new Date(startDate).getTime() : 0;
   const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;
   return deduped
-    .filter(e => e.lifecycle_state !== 'cancelled')
+    .filter(e => e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed')
     .filter(e => {
       const eventStart = new Date(e.start_time).getTime();
       return eventStart >= startMs && eventStart <= endMs;
