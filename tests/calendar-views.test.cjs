@@ -123,8 +123,13 @@ test('DAY: distinguishes all-day vs timed via occ.event.all_day', () => {
 });
 
 test('AGENDA: distinguishes all-day vs timed via occ.event.all_day', () => {
-  if (!/occ\.event\.all_day/.test(agendaSrc)) {
+  // Accept both occ.event.all_day and event.all_day (when event is derived from occ.event)
+  if (!/occ\.event\.all_day|event\.all_day/.test(agendaSrc)) {
     throw new Error('AgendaView must check occ.event.all_day for all-day grouping (§97)');
+  }
+  // Verify event is derived from occ.event
+  if (!/const event = occ\.event/.test(agendaSrc) && !/occ\.event\.all_day/.test(agendaSrc)) {
+    throw new Error('AgendaView must derive event from occ.event before checking all_day');
   }
 });
 

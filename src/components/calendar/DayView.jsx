@@ -29,7 +29,7 @@ export default function DayView({ occurrences, date, timezone, onSelectEvent }) 
   const isToday = date.toDateString() === now.toDateString();
 
   return (
-    <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-stone-200 overflow-hidden sm:rounded-2xl">
       {/* Header */}
       <div className="p-4 border-b border-stone-200">
         <h3 className="text-lg font-semibold text-stone-800">

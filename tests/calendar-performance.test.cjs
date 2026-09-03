@@ -110,7 +110,8 @@ test('OCC: occurrences are filtered by range (not loading all)', () => {
 // ── §113: Cached non-critical presentation ──
 test('OCC: occurrence model is computed once (useMemo in CalendarPage)', () => {
   const pageSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'CalendarPage.jsx'), 'utf8');
-  if (!/useMemo.*normalizeToOccurrences/.test(pageSrc)) {
+  // useMemo + normalizeToOccurrences may span multiple lines
+  if (!/useMemo[\s\S]*normalizeToOccurrences/.test(pageSrc)) {
     throw new Error('Occurrences must be memoized (cached non-critical presentation)');
   }
 });
