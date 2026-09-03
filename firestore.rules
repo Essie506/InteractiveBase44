@@ -596,6 +596,26 @@ service cloud.firestore {
       allow write: if false; // Server-only — Cloud Function appends
     }
 
+    match /calendarEventExceptions/{exceptionId} {
+      // Recurrence exceptions (§55–§56). Readable by anyone authorised to
+      // read the parent series event; server-only writes (Cloud Function).
+      allow read: if canReadCalendarEvent(resource.data.series_event_id);
+      allow write: if false; // Server-only — Cloud Function
+    }
+
+    match /reminderRules/{ruleId} {
+      // Reminder rules (§59–§63). Owner-readable; server-only writes.
+      // The sweep function reads these to emit calendar.reminder.due.
+      allow read: if isOwner(resource.data.identity_id) || isAdmin();
+      allow write: if false; // Server-only — Cloud Function
+    }
+
+    match /reminderDispatches/{dispatchId} {
+      // Idempotency records for dispatched reminders (§62, §119).
+      allow read: if false;
+      allow write: if false; // Server-only — sweep function
+    }
+
     // ═══════════════════════════════════════════════════════════
     // AVAILABILITY RULES
     // ═══════════════════════════════════════════════════════════

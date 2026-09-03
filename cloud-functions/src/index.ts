@@ -37,6 +37,7 @@ export { saveBusinessProfile } from './businessProfile';
 // Calendar Event — public projection (Events Discovery)
 export { saveCalendarEvent } from './calendarEvent';
 export { sweepExpiredHolds } from './holdSweep';
+export { sweepReminders } from './reminderSweep';
 
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';

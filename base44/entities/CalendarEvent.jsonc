@@ -40,13 +40,13 @@
       "type": "string",
       "format": "date-time",
       "title": "Start Time",
-      "description": "ISO 8601 datetime (stored in UTC)"
+      "description": "ISO 8601 datetime (stored in UTC). For a recurring series, this is the first occurrence start (DTSTART)."
     },
     "end_time": {
       "type": "string",
       "format": "date-time",
       "title": "End Time",
-      "description": "ISO 8601 datetime (stored in UTC)"
+      "description": "ISO 8601 datetime (stored in UTC). For a recurring series, this is the first occurrence end; subsequent occurrences derive their end from this + duration."
     },
     "timezone": {
       "type": "string",
@@ -144,7 +144,18 @@
     "recurrence_rule": {
       "type": "string",
       "title": "Recurrence Rule",
-      "description": "RRULE string for recurring events (RFC 5545)"
+      "description": "RRULE string for recurring events (RFC 5545). When present, the event is a recurring series; individual occurrences are derived by expanding this rule. Occurrence identity is stable (seriesId__originalStart). \u00a753\u2013\u00a758."
+    },
+    "effective_until": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Effective Until",
+      "description": "For a superseded recurring series: the last date-time up to which occurrences are generated from THIS series. Set when a 'this and future' edit creates a new series \u2014 the old series becomes historical (past occurrences only), preserving historical recurrence integrity (\u00a757). Null/absent for an active series (occurrences generated per COUNT/UNTIL)."
+    },
+    "superseded_by_id": {
+      "type": "string",
+      "title": "Superseded By Event ID",
+      "description": "For a superseded series: the event ID of the replacement series that takes over from effective_until onwards. Audit link for historical recurrence integrity (\u00a757)."
     },
     "services": {
       "type": "array",

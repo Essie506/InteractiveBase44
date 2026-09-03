@@ -15,7 +15,9 @@ import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount
 import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuantity, resolveEventPrice } from './eventCapacity';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
-import { appendScheduleHistory } from './calendarEventHistory';
+import { createBookingCalendarEvent } from './bookingCalendarEvent';
+import { buildBookingEmailContext } from './bookingNotifications';
+import { buildBookingEmailPayload } from './notifications/email/payloads/booking';
 import { evaluateAvailabilityRule, hasOverlappingHold, hasOverlappingBooking, hasOverlappingEvent } from './calendarAvailability';
 
 // ── Slot hold duration ───────────────────────────────────────
@@ -677,45 +679,14 @@ export const confirmFreeBooking = onCall(
       return { booking_id, status: 'confirmed' };
     }
 
-    // Create calendar event — corrected ownership model.
-    // Professional provider (no business): identity-owned, professional
-    //   operating context. owner_id = provider identity.
-    // Business booking: business-owned. owner_id = businessId. The
-    //   provider identity is preserved as created_by_id AND assigned so
-    //   the event appears on the provider's Calendar (view only — they
-    //   cannot cancel it here; Booking owns the lifecycle).
-    const isBusinessBooking = !!booking.business_id;
-    const calendarRef = db.collection('calendarEvents').doc();
-    await calendarRef.set({
-      owner_id: isBusinessBooking ? booking.business_id : booking.provider_identity_id,
-      owner_type: isBusinessBooking ? 'business' : 'identity',
-      operating_context: isBusinessBooking ? 'business' : 'professional',
-      title: `Booking: ${booking.booking_type}`,
-      description: `Booking ${booking_id}`,
-      start_time: booking.start_time,
-      end_time: booking.end_time,
-      timezone: booking.timezone,
-      all_day: false,
-      location_type: booking.location_context,
-      meeting_url: booking.meeting_url,
-      visibility: 'private',
-      lifecycle_state: 'confirmed',
-      source_system: 'booking',
-      source_id: booking_id,
-      business_id: booking.business_id || null,
-      created_by_id: booking.provider_identity_id,
-      assigned_identity_ids: isBusinessBooking ? [booking.provider_identity_id] : [],
-      invited_identity_ids: [],
-      invited_guest_emails: [],
-      _created_date: now,
-      _updated_date: now,
-    });
-    // Record schedule history (§48, §104) — Calendar's own change timeline.
-    await appendScheduleHistory({ event_id: calendarRef.id, change_type: 'created', previous_start_time: null, previous_end_time: null, new_start_time: booking.start_time, new_end_time: booking.end_time, changed_at: now, actor_id: booking.provider_identity_id, source_system: 'booking' });
+    // Create calendar event via the canonical booking→Calendar writer (C1 fix).
+    // Correct owner_type ('identity'|'business', NEVER 'professional') +
+    // idempotent creation via calendarEventIdempotency + schedule history.
+    const { calendar_event_id } = await createBookingCalendarEvent(booking_id, booking, now);
 
     // Transition to scheduled (Calendar has an active event — Booking V2)
     await bookingDoc.ref.update({
-      calendar_event_id: calendarRef.id,
+      calendar_event_id,
       booking_status: 'scheduled',
       _updated_date: now,
     });
@@ -749,8 +720,12 @@ export const confirmFreeBooking = onCall(
     });
 
     // Notification — routed through the Notifications dispatcher (§81).
-    // Booking emits a semantic calendar event; Notifications owns record
-    // creation, channel resolution, preferences, and delivery.
+    // C2 fix: booking notifications now carry emailContext + emailPayloadBuilder
+    // so the dispatcher creates email deliveries. Guest email is the primary
+    // guest confirmation channel (Booking §1.7.1, §3.12).
+    const bookingEmailCtx = await buildBookingEmailContext(booking_id, booking, 'booking_confirmed');
+
+    // Provider notification (in-app "New Booking" + email per preferences)
     await emitNotification({
       source_system: 'calendar',
       event_type: 'booking_confirmed',
@@ -764,7 +739,31 @@ export const confirmFreeBooking = onCall(
       priority: 'normal',
       recipient_id: booking.provider_identity_id,
       recipient_email: null,
+      emailContext: bookingEmailCtx,
+      emailPayloadBuilder: buildBookingEmailPayload,
     });
+
+    // Customer/guest confirmation notification (Booking §2.18, §3.12).
+    const customerRecipientId = booking.customer_identity_id || null;
+    const customerRecipientEmail = booking.guest_email || null;
+    if (customerRecipientId || customerRecipientEmail) {
+      await emitNotification({
+        source_system: 'calendar',
+        event_type: 'booking_confirmed',
+        source_id: `booking:${booking_id}`,
+        version: '1',
+        category: 'calendar',
+        title: 'Booking Confirmed',
+        body: `Your booking with ${bookingEmailCtx.providerOrBusinessName || 'your provider'} on ${new Date(booking.start_time).toLocaleString()} has been confirmed.`,
+        action_url: `/bookings/${booking_id}`,
+        action_label: 'View Booking',
+        priority: 'normal',
+        recipient_id: customerRecipientId,
+        recipient_email: customerRecipientEmail,
+        emailContext: bookingEmailCtx,
+        emailPayloadBuilder: buildBookingEmailPayload,
+      });
+    }
 
     return { booking_id, status: 'confirmed' };
   },

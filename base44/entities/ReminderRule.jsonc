@@ -1,0 +1,51 @@
+{
+  "name": "ReminderRule",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "title": "Event ID",
+      "description": "Stable reference to the CalendarEvent this reminder is attached to. For recurring series, the reminder applies to every occurrence."
+    },
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "The identity that will receive this reminder. Participant-specific reminders (\u00a761)."
+    },
+    "offset_minutes": {
+      "type": "number",
+      "minimum": 0,
+      "default": 30,
+      "title": "Offset (minutes before event)",
+      "description": "How many minutes before the event start the reminder fires. 0 = at event start."
+    },
+    "delivery_channels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "in_app",
+          "email",
+          "push"
+        ]
+      },
+      "title": "Delivery Channels",
+      "description": "Channels for this reminder. The Notifications dispatcher resolves actual delivery per preferences and policy."
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "title": "Is Active"
+    },
+    "last_dispatched_occurrence": {
+      "type": "string",
+      "title": "Last Dispatched Occurrence",
+      "description": "For recurring events: the occurrence start time of the last dispatched reminder. Idempotency guard to prevent duplicate reminders for the same occurrence (\u00a762, \u00a7119)."
+    }
+  },
+  "required": [
+    "event_id",
+    "identity_id",
+    "offset_minutes"
+  ]
+}

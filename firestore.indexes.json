@@ -179,6 +179,22 @@
         { "fieldPath": "state", "order": "ASCENDING" },
         { "fieldPath": "next_retry_at", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "calendarEventExceptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "series_event_id", "order": "ASCENDING" },
+        { "fieldPath": "original_start_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "reminderRules",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event_id", "order": "ASCENDING" },
+        { "fieldPath": "is_active", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

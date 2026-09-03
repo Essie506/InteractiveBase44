@@ -14,6 +14,8 @@ import { getStripe } from './stripe';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
 import { appendScheduleHistory } from './calendarEventHistory';
+import { buildBookingEmailContext } from './bookingNotifications';
+import { buildBookingEmailPayload } from './notifications/email/payloads/booking';
 import { evaluateAvailabilityRule, hasOverlappingHold, hasOverlappingBooking, hasOverlappingEvent } from './calendarAvailability';
 
 // ── cancelBooking ────────────────────────────────────────────
@@ -192,10 +194,12 @@ export const cancelBooking = onCall(
     }
 
     // Notification — routed through the Notifications dispatcher (§81).
-    // Booking emits a semantic calendar event; Notifications owns record
-    // creation, channel resolution, preferences, and delivery.
-    const cancelRecipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
-    if (cancelRecipientId) {
+    // C2 fix: booking notifications now carry emailContext + emailPayloadBuilder.
+    // Guest email is the primary guest channel (Booking §1.7.1, §3.12).
+    const cancelRecipientId = isCustomer ? booking.provider_identity_id : (booking.customer_identity_id || null);
+    const cancelRecipientEmail = (!isCustomer && !booking.customer_identity_id) ? (booking.guest_email || null) : null;
+    if (cancelRecipientId || cancelRecipientEmail) {
+      const cancelEmailCtx = await buildBookingEmailContext(booking_id, booking, 'booking_cancelled');
       await emitNotification({
         source_system: 'calendar',
         event_type: 'booking_cancelled',
@@ -208,7 +212,9 @@ export const cancelBooking = onCall(
         action_label: 'View Booking',
         priority: 'normal',
         recipient_id: cancelRecipientId,
-        recipient_email: null,
+        recipient_email: cancelRecipientEmail,
+        emailContext: cancelEmailCtx,
+        emailPayloadBuilder: buildBookingEmailPayload,
       });
     }
 
@@ -372,8 +378,12 @@ export const rescheduleBooking = onCall(
     });
 
     // Notification — routed through the Notifications dispatcher (§81).
-    const rescheduleRecipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
-    if (rescheduleRecipientId) {
+    // C2 fix: booking notifications now carry emailContext + emailPayloadBuilder.
+    // Guest email is the primary guest channel (Booking §1.7.1, §3.12).
+    const rescheduleRecipientId = isCustomer ? booking.provider_identity_id : (booking.customer_identity_id || null);
+    const rescheduleRecipientEmail = (!isCustomer && !booking.customer_identity_id) ? (booking.guest_email || null) : null;
+    if (rescheduleRecipientId || rescheduleRecipientEmail) {
+      const rescheduleEmailCtx = await buildBookingEmailContext(booking_id, booking, 'booking_rescheduled');
       await emitNotification({
         source_system: 'calendar',
         event_type: 'booking_rescheduled',
@@ -386,7 +396,9 @@ export const rescheduleBooking = onCall(
         action_label: 'View Booking',
         priority: 'normal',
         recipient_id: rescheduleRecipientId,
-        recipient_email: null,
+        recipient_email: rescheduleRecipientEmail,
+        emailContext: rescheduleEmailCtx,
+        emailPayloadBuilder: buildBookingEmailPayload,
       });
     }
 

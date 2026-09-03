@@ -13,6 +13,8 @@
 // configured, Calendar imposes no availability restriction (eligible).
 
 import { db } from './shared';
+import { expandOccurrences } from './recurrence';
+import { applyExceptions, OccurrenceException } from './calendarEventExceptions';
 
 type Store = { get: (q: any) => Promise<any> };
 
@@ -53,11 +55,30 @@ export async function hasOverlappingEvent(
       .limit(200),
   );
   const startMs = new Date(startIso).getTime();
+  const endMs = new Date(endIso).getTime();
   for (const doc of snap.docs) {
     if (excludeEventId && doc.id === excludeEventId) continue;
     const ev = doc.data();
     if (!ACTIVE_LIFECYCLE.includes(ev.lifecycle_state)) continue;
-    if (new Date(ev.end_time).getTime() > startMs) return true;
+    if (ev.recurrence_rule) {
+      // Recurring event — expand occurrences within the range and check
+      // each (applying exceptions). §53–§56.
+      const effectiveUntil = ev.effective_until || endIso;
+      const occurrences = expandOccurrences(doc.id, ev.recurrence_rule, ev.start_time, ev.end_time, startIso, effectiveUntil);
+      if (occurrences.length > 0) {
+        const excSnap = await store.get(
+          db.collection('calendarEventExceptions').where('series_event_id', '==', doc.id),
+        );
+        const exceptions = excSnap.docs.map((d: any) => d.data() as OccurrenceException);
+        const adjusted = applyExceptions(occurrences, exceptions);
+        for (const occ of adjusted) {
+          if (new Date(occ.start).getTime() < endMs && new Date(occ.end).getTime() > startMs) return true;
+        }
+      }
+    } else {
+      // Non-recurring event — direct overlap check
+      if (new Date(ev.end_time).getTime() > startMs) return true;
+    }
   }
   return false;
 }
