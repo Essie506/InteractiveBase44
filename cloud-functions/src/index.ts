@@ -38,6 +38,8 @@ export { saveBusinessProfile } from './businessProfile';
 export { saveCalendarEvent } from './calendarEvent';
 export { sweepExpiredHolds } from './holdSweep';
 export { sweepReminders } from './reminderSweep';
+export { saveReminderRule, deleteReminderRule, listReminderRules } from './reminderRule';
+export { saveOccurrenceException } from './occurrenceException';
 
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';

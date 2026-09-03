@@ -199,17 +199,20 @@ test('owner/creator are excluded from their own invitee list', () => {
 // 5. BOOKING-OWNED EVENTS — corrected ownership + lifecycle authority
 // ═══════════════════════════════════════════════════════════
 test('booking-created professional event is identity-owned + professional context', () => {
-  const block = bookingSrc.match(/Create calendar event — corrected ownership model[\s\S]*?\}\);/)[0];
-  if (!/isBusinessBooking \? 'business' : 'identity'/.test(block)) throw new Error('owner_type must be identity for non-business bookings');
-  if (!/isBusinessBooking \? 'business' : 'professional'/.test(block)) throw new Error('operating_context must be professional for non-business bookings');
+  // C1 refactor: ownership model moved to the canonical writer (bookingCalendarEvent.ts).
+  const bcwPath = path.join(__dirname, '..', 'cloud-functions', 'src', 'bookingCalendarEvent.ts');
+  const bcwSrc = fs.readFileSync(bcwPath, 'utf8');
+  if (!/isBusinessBooking \? 'business' : 'identity'/.test(bcwSrc)) throw new Error('owner_type must be identity for non-business bookings');
+  if (!/isBusinessBooking \? 'business' : 'professional'/.test(bcwSrc)) throw new Error('operating_context must be professional for non-business bookings');
 });
 
 test('booking-created business event assigns the provider identity (view only)', () => {
-  const block = bookingSrc.match(/Create calendar event — corrected ownership model[\s\S]*?\}\);/)[0];
-  if (!/assigned_identity_ids:\s*isBusinessBooking \? \[booking\.provider_identity_id\] : \[\]/.test(block)) {
+  const bcwPath = path.join(__dirname, '..', 'cloud-functions', 'src', 'bookingCalendarEvent.ts');
+  const bcwSrc = fs.readFileSync(bcwPath, 'utf8');
+  if (!/assigned_identity_ids:\s*isBusinessBooking \? \[booking\.provider_identity_id\] : \[\]/.test(bcwSrc)) {
     throw new Error('business booking must assign the provider identity (not make them owner)');
   }
-  if (!/created_by_id:\s*booking\.provider_identity_id/.test(block)) {
+  if (!/created_by_id:\s*booking\.provider_identity_id/.test(bcwSrc)) {
     throw new Error('booking event must preserve the provider as creator');
   }
 });

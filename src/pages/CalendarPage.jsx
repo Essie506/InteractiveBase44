@@ -1,8 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { getAllEventsForIdentity, formatTimeRange, getLocalTimezone, cancelEvent } from '@/lib/calendar';
+import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent } from '@/lib/calendar';
+import { normalizeToOccurrences, groupOccurrencesByDate, filterOccurrences } from '@/lib/calendarOccurrences';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff } from 'lucide-react';
 import EventModal from '@/components/calendar/EventModal';
+import CalendarViewSwitcher from '@/components/calendar/CalendarViewSwitcher';
+import CalendarSearchBar from '@/components/calendar/CalendarSearchBar';
+import WeekView from '@/components/calendar/WeekView';
+import DayView from '@/components/calendar/DayView';
+import AgendaView from '@/components/calendar/AgendaView';
 import { useToast } from '@/components/ui/use-toast';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -10,17 +16,25 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 export default function CalendarPage() {
   const { user } = useAuth();
+  const [view, setView] = useState('month');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d;
+  });
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [events, setEvents] = useState([]);
+  const [exceptions, setExceptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState({ visibility: '', sourceSystem: '', lifecycleState: '' });
   const { toast } = useToast();
 
-  // Deep-link: /calendar?event={eventId} — open/highlight the authorised
-  // event after Calendar data loads. No new route.
   const focusEventId = useMemo(() => new URLSearchParams(window.location.search).get('event'), []);
   const focusedRef = useRef(false);
 
@@ -28,24 +42,66 @@ export default function CalendarPage() {
   const activeBusinessId = user?.active_business_id;
   const timezone = getLocalTimezone();
 
-  // Personal and Professional are operating CONTEXTS of one identity, not
-  // separate owners. Both use owner_type 'identity' + owner_id = identityId.
-  // Only Business is a separate (organisational) owner.
   const ownerType = activeContext === 'business' ? 'business' : 'identity';
   const ownerId = activeContext === 'business' ? activeBusinessId : user?.id;
 
-  // Load events for the current month
+  // Compute the visible date range based on the current view
+  const visibleRange = useMemo(() => {
+    if (view === 'month') {
+      const start = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const end = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
+      return { start, end };
+    }
+    if (view === 'week') {
+      const start = new Date(weekStart);
+      const end = new Date(weekStart);
+      end.setDate(end.getDate() + 6);
+      end.setHours(23, 59, 59);
+      return { start, end };
+    }
+    if (view === 'day') {
+      const start = new Date(selectedDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(selectedDate);
+      end.setHours(23, 59, 59);
+      return { start, end };
+    }
+    // Agenda — next 30 days from selected date
+    const start = new Date(selectedDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 30);
+    return { start, end };
+  }, [view, currentMonth, weekStart, selectedDate]);
+
+  // Load events + exceptions for the visible range
   const loadEvents = async () => {
     if (!user) return;
     setLoading(true);
-    const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
-    const allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, startOfMonth, endOfMonth);
-    setEvents(allEvents);
-    setLoading(false);
+    try {
+      let allEvents;
+      if (activeContext === 'business' && activeBusinessId) {
+        // Combined Business/Staff Calendar (§70–§74) — aggregation over
+        // canonical events, not a separate combined-calendar store.
+        // For now, uses the current user's identity + business events.
+        // Full staff aggregation requires fetching business members.
+        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end);
+      } else {
+        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end);
+      }
+      setEvents(allEvents);
+      // Fetch exceptions for recurring events
+      const excs = await getExceptionsForEvents(allEvents);
+      setExceptions(excs);
+    } catch (err) {
+      setEvents([]);
+      setExceptions([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => {loadEvents();}, [user, currentMonth, activeContext, activeBusinessId]);
+  useEffect(() => { loadEvents(); }, [user, currentMonth, weekStart, selectedDate, view, activeContext, activeBusinessId]);
 
   // After events load, jump to + highlight the deep-linked event once.
   useEffect(() => {
@@ -59,12 +115,22 @@ export default function CalendarPage() {
     }
   }, [focusEventId, events, loading]);
 
-  // Generate calendar grid days
+  // Normalize all events into the shared occurrence model
+  const allOccurrences = useMemo(() => {
+    return normalizeToOccurrences(events, exceptions, visibleRange.start, visibleRange.end);
+  }, [events, exceptions, visibleRange.start, visibleRange.end]);
+
+  // Apply search + filters
+  const filteredOccurrences = useMemo(() => {
+    return filterOccurrences(allOccurrences, { search, ...filters });
+  }, [allOccurrences, search, filters]);
+
+  // Month grid days
   const calendarDays = useMemo(() => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     const firstDay = new Date(year, month, 1);
-    const startDayOfWeek = (firstDay.getDay() + 6) % 7; // Monday = 0
+    const startDayOfWeek = (firstDay.getDay() + 6) % 7;
     const startDate = new Date(year, month, 1 - startDayOfWeek);
     const days = [];
     for (let i = 0; i < 42; i++) {
@@ -75,24 +141,37 @@ export default function CalendarPage() {
     return days;
   }, [currentMonth]);
 
-  // Events for a specific day. All-day events are grouped by their stored
-  // UTC date (§97) so they land on the same calendar date in any viewer
-  // time zone; timed events are grouped by the viewer's local date.
+  // Occurrences grouped by date for the month grid
+  const occurrencesByDate = useMemo(() => {
+    return groupOccurrencesByDate(filteredOccurrences, timezone);
+  }, [filteredOccurrences, timezone]);
+
   const eventsForDay = (date) => {
     const dateStr = date.toDateString();
     const isoDate = date.toISOString().split('T')[0];
-    return events.filter((e) => {
-      if (e.all_day) return e.start_time.slice(0, 10) === isoDate;
-      return new Date(e.start_time).toDateString() === dateStr;
+    return filteredOccurrences.filter((occ) => {
+      if (occ.event.all_day) return occ.start.slice(0, 10) === isoDate;
+      return new Date(occ.start).toDateString() === dateStr;
     });
   };
 
-  // Events for the selected date
   const selectedDateEvents = eventsForDay(selectedDate);
 
   const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
   const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
-  const goToday = () => {setCurrentMonth(new Date());setSelectedDate(new Date());};
+  const prevWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); };
+  const nextWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d); };
+  const prevDay = () => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); };
+  const nextDay = () => { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); };
+  const goToday = () => {
+    const now = new Date();
+    setCurrentMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelectedDate(now);
+    const ws = new Date(now);
+    ws.setHours(0, 0, 0, 0);
+    ws.setDate(ws.getDate() - ((ws.getDay() + 6) % 7));
+    setWeekStart(ws);
+  };
 
   const handleEventSaved = () => {
     setShowEventModal(false);
@@ -100,12 +179,8 @@ export default function CalendarPage() {
     loadEvents();
   };
 
-  // Cancel an existing manual Calendar event through the canonical
-  // server-side writer (saveCalendarEvent). Booking-owned events are not
-  // cancellable here — the button is hidden for them and the server
-  // rejects the request; they must go through the Booking cancellation
-  // flow which evaluates refund policy and releases the slot hold.
-  const handleCancelEvent = async (event) => {
+  const handleCancelEvent = async (occ) => {
+    const event = occ?.event || occ;
     if (cancellingId) return;
     if (event?.source_system === 'booking') {
       toast({
@@ -130,147 +205,191 @@ export default function CalendarPage() {
     }
   };
 
+  const handleSelectEvent = (occ) => {
+    setEditingEvent(occ.event);
+    setShowEventModal(true);
+  };
+
   const contextLabel = activeContext === 'business' ? 'Business' : activeContext === 'professional' ? 'Professional' : 'Personal';
+
+  const headerLabel = useMemo(() => {
+    if (view === 'month') return `${MONTHS[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`;
+    if (view === 'week') {
+      const end = new Date(weekStart);
+      end.setDate(end.getDate() + 6);
+      return `${weekStart.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    }
+    if (view === 'day') return selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    return 'Agenda';
+  }, [view, currentMonth, weekStart, selectedDate]);
+
+  const prevHandler = view === 'month' ? prevMonth : view === 'week' ? prevWeek : view === 'day' ? prevDay : () => { const d = new Date(selectedDate); d.setDate(d.getDate() - 7); setSelectedDate(d); };
+  const nextHandler = view === 'month' ? nextMonth : view === 'week' ? nextWeek : view === 'day' ? nextDay : () => { const d = new Date(selectedDate); d.setDate(d.getDate() + 7); setSelectedDate(d); };
 
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          
-          <p className="text-stone-500">Your authoritative Interactive calendar</p>
+          <h1 className="text-xl font-bold text-stone-800">{contextLabel} Calendar</h1>
+          <p className="text-stone-500 text-sm">Your authoritative Interactive calendar</p>
         </div>
-        <button
-          onClick={() => {setEditingEvent(null);setShowEventModal(true);}}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
-          
-          <Plus className="w-4 h-4" /> New Event
-        </button>
+        <div className="flex items-center gap-3">
+          <CalendarSearchBar search={search} onSearchChange={setSearch} filters={filters} onFiltersChange={setFilters} />
+          <button
+            onClick={() => { setEditingEvent(null); setShowEventModal(true); }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" /> New Event
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar grid */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-4 md:p-6">
-          {/* Month navigation */}
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-stone-800">{MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h2>
-            <div className="flex items-center gap-1">
-              <button onClick={prevMonth} className="p-2 hover:bg-stone-100 rounded-lg transition-colors"><ChevronLeft className="w-4 h-4 text-stone-600" /></button>
-              <button onClick={goToday} className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg transition-colors">Today</button>
-              <button onClick={nextMonth} className="p-2 hover:bg-stone-100 rounded-lg transition-colors"><ChevronRight className="w-4 h-4 text-stone-600" /></button>
-            </div>
-          </div>
-
-          {/* Weekday headers */}
-          <div className="grid grid-cols-7 gap-1 mb-2">
-            {WEEKDAYS.map((day) =>
-            <div key={day} className="text-center text-xs font-medium text-stone-500 py-2">{day}</div>
-            )}
-          </div>
-
-          {/* Day cells */}
-          <div className="grid grid-cols-7 gap-1">
-            {calendarDays.map((day, i) => {
-              const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
-              const isToday = day.toDateString() === new Date().toDateString();
-              const isSelected = day.toDateString() === selectedDate.toDateString();
-              const dayEvents = eventsForDay(day);
-              return (
-                <button
-                  key={i}
-                  onClick={() => setSelectedDate(day)}
-                  className={`min-h-[70px] md:min-h-[90px] p-1.5 rounded-lg text-left border transition-colors ${
-                  isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-stone-100 hover:bg-stone-50'} ${
-                  !isCurrentMonth ? 'opacity-40' : ''}`}>
-                  
-                  <div className={`text-xs font-medium mb-1 ${isToday ? 'w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center' : 'text-stone-700'}`}>
-                    {day.getDate()}
-                  </div>
-                  <div className="space-y-0.5">
-                    {dayEvents.slice(0, 3).map((e) =>
-                    <div key={e.id} className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded truncate font-medium">
-                        {e.title}
-                      </div>
-                    )}
-                    {dayEvents.length > 3 && <div className="text-[10px] text-stone-400 px-1">+{dayEvents.length - 3} more</div>}
-                  </div>
-                </button>);
-
-            })}
-          </div>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <button onClick={prevHandler} className="p-2 hover:bg-stone-100 rounded-lg transition-colors"><ChevronLeft className="w-4 h-4 text-stone-600" /></button>
+          <h2 className="text-lg font-semibold text-stone-800 min-w-[200px] text-center">{headerLabel}</h2>
+          <button onClick={nextHandler} className="p-2 hover:bg-stone-100 rounded-lg transition-colors"><ChevronRight className="w-4 h-4 text-stone-600" /></button>
         </div>
+        <div className="flex items-center gap-3">
+          <button onClick={goToday} className="px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg transition-colors">Today</button>
+          <CalendarViewSwitcher view={view} onChange={setView} />
+        </div>
+      </div>
 
-        {/* Selected date events */}
-        <div className="bg-white rounded-xl border border-stone-200 p-5">
-          <h3 className="font-semibold text-stone-800 mb-1">
-            {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </h3>
-          <p className="text-sm text-stone-500 mb-4">{selectedDateEvents.length} event{selectedDateEvents.length !== 1 ? 's' : ''}</p>
-
-          {loading ?
-          <div className="flex items-center justify-center py-8"><div className="w-6 h-6 border-2 border-stone-200 border-t-indigo-600 rounded-full animate-spin" /></div> :
-          selectedDateEvents.length === 0 ?
-          <div className="text-center py-8">
-              <CalendarIcon className="w-8 h-8 text-stone-300 mx-auto mb-2" />
-              <p className="text-sm text-stone-400">No events on this day</p>
-              <button onClick={() => {setEditingEvent(null);setShowEventModal(true);}} className="mt-3 text-sm text-indigo-600 font-medium hover:text-indigo-700">Add event</button>
-            </div> :
-
-          <div className="space-y-3">
-              {selectedDateEvents.map((e) =>
-            <div key={e.id} className="border border-stone-200 rounded-lg p-3 hover:border-stone-300 transition-colors">
-                  <div className="flex items-start justify-between mb-1">
-                    <h4 className="font-medium text-stone-800 text-sm">{e.title}</h4>
-                    {e.lifecycle_state === 'cancelled' && <span className="text-xs text-red-500">Cancelled</span>}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs text-stone-500 mb-1">
-                    <Clock className="w-3 h-3" />
-                    {e.all_day ? 'All day' : formatTimeRange(e.start_time, e.end_time, e.timezone || timezone)}
-                  </div>
-                  {e.location_type !== 'physical' && e.meeting_url &&
-              <div className="flex items-center gap-1.5 text-xs text-stone-500 mb-1">
-                      <MapPin className="w-3 h-3" />
-                      <span className="truncate">{e.meeting_url}</span>
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
+        </div>
+      ) : view === 'week' ? (
+        <WeekView occurrences={filteredOccurrences} weekStart={weekStart} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} />
+      ) : view === 'day' ? (
+        <DayView occurrences={filteredOccurrences} date={selectedDate} timezone={timezone} onSelectEvent={handleSelectEvent} />
+      ) : view === 'agenda' ? (
+        <AgendaView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} />
+      ) : (
+        /* Month view — existing grid + side panel */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-xl border border-stone-200 p-4 md:p-6">
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {WEEKDAYS.map((day) => (
+                <div key={day} className="text-center text-xs font-medium text-stone-500 py-2">{day}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {calendarDays.map((day, i) => {
+                const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                const isToday = day.toDateString() === new Date().toDateString();
+                const isSelected = day.toDateString() === selectedDate.toDateString();
+                const dayEvents = eventsForDay(day);
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedDate(day)}
+                    className={`min-h-[70px] md:min-h-[90px] p-1.5 rounded-lg text-left border transition-colors ${
+                      isSelected ? 'border-indigo-400 bg-indigo-50' : 'border-stone-100 hover:bg-stone-50'
+                    } ${!isCurrentMonth ? 'opacity-40' : ''}`}
+                  >
+                    <div className={`text-xs font-medium mb-1 ${isToday ? 'w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center' : 'text-stone-700'}`}>
+                      {day.getDate()}
                     </div>
-              }
-                  {e.description && <p className="text-xs text-stone-600 mt-1.5">{e.description}</p>}
-                  <div className="flex gap-2 mt-2">
-                    <button onClick={() => {setEditingEvent(e);setShowEventModal(true);}} className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Edit</button>
-                    {e.lifecycle_state !== 'cancelled' && e.source_system !== 'booking' &&
-                      <button
-                        onClick={() => handleCancelEvent(e)}
-                        disabled={cancellingId === e.id}
-                        className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
-                        {cancellingId === e.id
-                          ? <><Loader2 className="w-3 h-3 animate-spin" /> Cancelling...</>
-                          : <><Trash2 className="w-3 h-3" /> Cancel</>}
-                      </button>
-                    }
-                    {e.lifecycle_state !== 'cancelled' && e.source_system === 'booking' &&
-                      <span className="text-xs text-stone-400 flex items-center gap-1">
-                        <CalendarOff className="w-3 h-3" /> Cancel via Bookings
-                      </span>
-                    }
-                  </div>
-                </div>
-            )}
+                    <div className="space-y-0.5">
+                      {dayEvents.slice(0, 3).map((occ) => (
+                        <div
+                          key={occ.occurrenceId}
+                          className={`text-[10px] px-1.5 py-0.5 rounded truncate font-medium ${
+                            occ.event.source_system === 'booking' ? 'bg-emerald-100 text-emerald-700' :
+                            occ.isRecurring ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700'
+                          }`}
+                        >
+                          {occ.event.title}
+                        </div>
+                      ))}
+                      {dayEvents.length > 3 && <div className="text-[10px] text-stone-400 px-1">+{dayEvents.length - 3} more</div>}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          }
+          </div>
+
+          {/* Selected date events panel */}
+          <div className="bg-white rounded-xl border border-stone-200 p-5">
+            <h3 className="font-semibold text-stone-800 mb-1">
+              {selectedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h3>
+            <p className="text-sm text-stone-500 mb-4">{selectedDateEvents.length} event{selectedDateEvents.length !== 1 ? 's' : ''}</p>
+
+            {selectedDateEvents.length === 0 ? (
+              <div className="text-center py-8">
+                <CalendarIcon className="w-8 h-8 text-stone-300 mx-auto mb-2" />
+                <p className="text-sm text-stone-400">No events on this day</p>
+                <button onClick={() => { setEditingEvent(null); setShowEventModal(true); }} className="mt-3 text-sm text-indigo-600 font-medium hover:text-indigo-700">Add event</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {selectedDateEvents.map((occ) => {
+                  const e = occ.event;
+                  return (
+                    <div key={occ.occurrenceId} className="border border-stone-200 rounded-lg p-3 hover:border-stone-300 transition-colors">
+                      <div className="flex items-start justify-between mb-1">
+                        <h4 className="font-medium text-stone-800 text-sm">{e.title}</h4>
+                        {e.lifecycle_state === 'cancelled' && <span className="text-xs text-red-500">Cancelled</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-stone-500 mb-1">
+                        <Clock className="w-3 h-3" />
+                        {e.all_day ? 'All day' : formatTimeRange(occ.start, occ.end, e.timezone || timezone)}
+                      </div>
+                      {e.location_type !== 'physical' && e.meeting_url && (
+                        <div className="flex items-center gap-1.5 text-xs text-stone-500 mb-1">
+                          <MapPin className="w-3 h-3" />
+                          <span className="truncate">{e.meeting_url}</span>
+                        </div>
+                      )}
+                      {occ.isRecurring && (
+                        <div className="text-[10px] text-purple-500 mb-1">Recurring{occ.isException ? ' (modified)' : ''}</div>
+                      )}
+                      {e.description && <p className="text-xs text-stone-600 mt-1.5">{e.description}</p>}
+                      <div className="flex gap-2 mt-2">
+                        <button onClick={() => handleSelectEvent(occ)} className="text-xs text-indigo-600 font-medium hover:text-indigo-700">Edit</button>
+                        {e.lifecycle_state !== 'cancelled' && e.source_system !== 'booking' && (
+                          <button
+                            onClick={() => handleCancelEvent(occ)}
+                            disabled={cancellingId === e.id}
+                            className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {cancellingId === e.id
+                              ? <><Loader2 className="w-3 h-3 animate-spin" /> Cancelling...</>
+                              : <><Trash2 className="w-3 h-3" /> Cancel</>}
+                          </button>
+                        )}
+                        {e.lifecycle_state !== 'cancelled' && e.source_system === 'booking' && (
+                          <span className="text-xs text-stone-400 flex items-center gap-1">
+                            <CalendarOff className="w-3 h-3" /> Cancel via Bookings
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {showEventModal &&
-      <EventModal
-        ownerId={ownerId}
-        ownerType={ownerType}
-        operatingContext={activeContext}
-        createdBy={user.id}
-        businessId={activeContext === 'business' ? activeBusinessId : null}
-        existingEvent={editingEvent}
-        timezone={timezone}
-        onClose={() => {setShowEventModal(false);setEditingEvent(null);}}
-        onSaved={handleEventSaved} />
-
-      }
-    </div>);
-
+      {showEventModal && (
+        <EventModal
+          ownerId={ownerId}
+          ownerType={ownerType}
+          operatingContext={activeContext}
+          createdBy={user.id}
+          businessId={activeContext === 'business' ? activeBusinessId : null}
+          existingEvent={editingEvent}
+          timezone={timezone}
+          onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
+          onSaved={handleEventSaved}
+        />
+      )}
+    </div>
+  );
 }

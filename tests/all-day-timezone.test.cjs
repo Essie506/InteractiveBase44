@@ -35,8 +35,10 @@ test('all-day no longer uses local-midnight toISOString construction', () => {
   }
 });
 test('calendar grid groups all-day events by stored UTC date', () => {
-  if (!/e\.all_day\)\s*return\s*e\.start_time\.slice\(0,\s*10\)/.test(pageSrc)) {
-    throw new Error('eventsForDay must compare all-day events by start_time.slice(0,10)');
+  // V2 refactor: CalendarPage now uses the shared occurrence model. All-day
+  // events are compared by occ.start.slice(0,10) (the stored UTC date).
+  if (!/all_day\)\s*return\s*occ\.start\.slice\(0,\s*10\)/.test(pageSrc)) {
+    throw new Error('eventsForDay must compare all-day events by occ.start.slice(0,10)');
   }
   if (!/isoDate/.test(pageSrc)) {
     throw new Error('eventsForDay must compute an isoDate for all-day comparison');

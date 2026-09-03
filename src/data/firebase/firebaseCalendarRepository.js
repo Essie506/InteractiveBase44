@@ -72,6 +72,34 @@ export async function listEventsForBusiness(businessId) {
   return snap.docs.map(fromFirestoreDoc);
 }
 
+// ── Calendar Event Exceptions (§55–§56) ────────────────────
+// Exceptions modify a single occurrence of a recurring series.
+// Read-only here — writes go through the saveOccurrenceException Cloud Function.
+
+export async function listExceptionsForSeries(seriesEventId) {
+  const q = query(
+    collection(db, 'calendarEventExceptions'),
+    where('series_event_id', '==', seriesEventId),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(fromFirestoreDoc);
+}
+
+export async function listExceptionsForSeriesBatch(seriesEventIds) {
+  // Firestore 'in' query supports max 10 values. Batch accordingly.
+  const all = [];
+  for (let i = 0; i < seriesEventIds.length; i += 10) {
+    const batch = seriesEventIds.slice(i, i + 10);
+    const q = query(
+      collection(db, 'calendarEventExceptions'),
+      where('series_event_id', 'in', batch),
+    );
+    const snap = await getDocs(q);
+    all.push(...snap.docs.map(fromFirestoreDoc));
+  }
+  return all;
+}
+
 // NOTE: direct client create/update/delete of calendarEvents has been
 // removed. All manual Calendar writes now flow through the canonical
 // saveCalendarEvent Cloud Function (see src/lib/calendar.js), which is

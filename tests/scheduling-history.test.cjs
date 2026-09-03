@@ -72,8 +72,13 @@ test('bookingPayment records creation history for booking-originated events', ()
 });
 
 test('stripeWebhook records creation history for paid booking events', () => {
-  if (!/appendScheduleHistory/.test(swSrc)) throw new Error('stripeWebhook must call appendScheduleHistory');
-  if (!/change_type: 'created'/.test(swSrc)) throw new Error('webhook must record created');
+  // C1 refactor: stripeWebhook calls createBookingCalendarEvent (the canonical
+  // writer) which internally calls appendScheduleHistory with change_type 'created'.
+  if (!/createBookingCalendarEvent/.test(swSrc)) throw new Error('stripeWebhook must use the canonical booking calendar event writer');
+  // The canonical writer itself records history
+  const bcwSrc = fs.readFileSync(path.join(__dirname, '..', 'cloud-functions', 'src', 'bookingCalendarEvent.ts'), 'utf8');
+  if (!/appendScheduleHistory/.test(bcwSrc)) throw new Error('bookingCalendarEvent must call appendScheduleHistory');
+  if (!/change_type: 'created'/.test(bcwSrc)) throw new Error('canonical writer must record created');
 });
 
 test('history is append-only (never rewrites past entries)', () => {

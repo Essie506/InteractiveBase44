@@ -215,3 +215,28 @@ export async function callResolveConnectionStatuses(data) {
   const result = await callable('resolveConnectionStatuses')(data);
   return result.data;
 }
+
+// ── Reminder Rules (§59–§63) ──
+// Clients cannot write reminderRules directly (Firestore rules deny it).
+// These callables validate caller participation before creating/updating.
+export async function callSaveReminderRule(data) {
+  const result = await callable('saveReminderRule')(data);
+  return result.data;
+}
+
+export async function callDeleteReminderRule(data) {
+  const result = await callable('deleteReminderRule')(data);
+  return result.data;
+}
+
+export async function callListReminderRules(data) {
+  const result = await callable('listReminderRules')(data);
+  return result.data;
+}
+
+// ── Occurrence Exception (§55–§57) ──
+// Cancel or reschedule a single occurrence of a recurring series.
+export async function callSaveOccurrenceException(data) {
+  const result = await callable('saveOccurrenceException')(data);
+  return result.data;
+}

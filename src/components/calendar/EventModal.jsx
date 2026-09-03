@@ -5,6 +5,8 @@ import FieldError from '@/components/FieldError';
 import { createEvent, updateEvent, getLocalTimezone } from '@/lib/calendar';
 import InviteByEmailInput from '@/components/calendar/InviteByEmailInput';
 import StaffAssignPicker from '@/components/calendar/StaffAssignPicker';
+import RecurrenceControls from '@/components/calendar/RecurrenceControls';
+import ReminderControls from '@/components/calendar/ReminderControls';
 
 // EventModal — create or edit a calendar event.
 // Calendar is authoritative for the event record. Manual creates flow
@@ -45,6 +47,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const [assignedIdentityIds, setAssignedIdentityIds] = useState(
     Array.isArray(existingEvent?.assigned_identity_ids) ? existingEvent.assigned_identity_ids : []
   );
+  const [recurrenceRule, setRecurrenceRule] = useState(existingEvent?.recurrence_rule || null);
 
   const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
 
@@ -101,6 +104,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
           .split(/[,\n]/)
           .map((s) => s.trim())
           .filter(Boolean),
+        recurrence_rule: recurrenceRule,
       };
 
       let saved;
@@ -194,6 +198,16 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Assign to staff</label>
               <StaffAssignPicker businessId={businessId} selected={assignedIdentityIds} onChange={setAssignedIdentityIds} />
               <p className="text-xs text-stone-400 mt-1">Assigned staff can view the event. Only Calendar managers can edit it.</p>
+            </div>
+          )}
+
+          <div className="border-t border-stone-100 pt-4">
+            <RecurrenceControls rrule={recurrenceRule} onChange={setRecurrenceRule} />
+          </div>
+
+          {isEditing && (
+            <div className="border-t border-stone-100 pt-4">
+              <ReminderControls eventId={existingEvent.id} />
             </div>
           )}
         </div>

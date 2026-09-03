@@ -1,7 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { calendarRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
-import { callSaveCalendarEvent } from '@/services/firebaseFunctions';
+import { callSaveCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException } from '@/services/firebaseFunctions';
 
 // Calendar System — M3: routes to Firebase when configured.
 // Firestore queries use owner_id/business_id filters (security-rule compatible).
@@ -225,4 +225,89 @@ export async function updateConnectionStatus(connectionId, status, error = null)
   };
   if (useFirebase) return calendarRepository.updateConnection(connectionId, updateData);
   return base44.entities.ExternalCalendarConnection.update(connectionId, updateData);
+}
+
+// ── Recurrence Exceptions (§55–§56) ─────────────────────────
+// Fetch exceptions for all recurring events in a list. Used by the
+// shared occurrence model to apply cancelled/rescheduled occurrences.
+
+export async function getExceptionsForEvents(events) {
+  if (!useFirebase) return [];
+  const recurringIds = (events || [])
+    .filter(e => e && e.recurrence_rule && e.lifecycle_state !== 'cancelled')
+    .map(e => e.id);
+  if (recurringIds.length === 0) return [];
+  return calendarRepository.listExceptionsForSeriesBatch(recurringIds);
+}
+
+// ── Reminder Rules (§59–§63) ─────────────────────────────────
+// Clients cannot write reminderRules directly (Firestore rules deny it).
+// These wrappers call the trusted Cloud Functions that validate
+// caller participation before creating/updating/deleting.
+
+export async function saveReminderRule(data) {
+  if (useFirebase) return callSaveReminderRule(data);
+  return base44.entities.ReminderRule.create({
+    ...data,
+    last_dispatched_occurrence: null,
+  });
+}
+
+export async function deleteReminderRule(ruleId) {
+  if (useFirebase) return callDeleteReminderRule({ rule_id: ruleId });
+  return base44.entities.ReminderRule.delete(ruleId);
+}
+
+export async function getReminderRulesForEvent(eventId) {
+  if (useFirebase) {
+    const result = await callListReminderRules({ event_id: eventId });
+    return result.rules || [];
+  }
+  return base44.entities.ReminderRule.filter({
+    event_id: eventId,
+    is_active: true,
+  });
+}
+
+// ── Occurrence Exception writer (§55–§57) ───────────────────
+export async function saveOccurrenceException(data) {
+  if (useFirebase) return callSaveOccurrenceException(data);
+  // Non-Firebase fallback — not supported (no server-side validation)
+  throw new Error('Occurrence exceptions require Firebase mode');
+}
+
+// ── Combined Business/Staff Calendar (§70–§74) ──────────────
+// Aggregation/projection over canonical staff + business calendar events.
+// Does NOT duplicate staff events into a separate combined-calendar store.
+// Fetches:
+//   1. Business-owned events (owner_type 'business')
+//   2. Events assigned to any active business staff member
+//   3. Events invited to any active business staff member
+// Deduplicated by authoritative Event ID.
+
+export async function getCombinedBusinessCalendar(businessId, staffIdentityIds, startDate, endDate) {
+  const events = [];
+
+  // 1. Business-owned events
+  events.push(...await getEvents(businessId, 'business', startDate, endDate));
+
+  if (useFirebase && staffIdentityIds && staffIdentityIds.length > 0) {
+    // 2 + 3. Events assigned to or inviting any staff member
+    // Firestore array-contains checks one value per query, so batch per staff.
+    for (const staffId of staffIdentityIds) {
+      events.push(...await calendarRepository.listEventsAssignedToIdentity(staffId));
+      events.push(...await calendarRepository.listEventsInvitedToIdentity(staffId));
+    }
+  }
+
+  const deduped = dedupeEventsById(events);
+  const startMs = startDate ? new Date(startDate).getTime() : 0;
+  const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;
+  return deduped
+    .filter(e => e.lifecycle_state !== 'cancelled')
+    .filter(e => {
+      const eventStart = new Date(e.start_time).getTime();
+      return eventStart >= startMs && eventStart <= endMs;
+    })
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 }
