@@ -1,0 +1,82 @@
+// Calendar Authority — client-side edit capability gating (V2).
+// ───────────────────────────────────────────────────────────
+// V2 requires a strict separation between:
+//   - event visibility (can see the event)
+//   - participation state (pending/accepted/declined/revoked)
+//   - mutation authority (can edit/cancel/reschedule/delete)
+//
+// Invitation (invited_identity_ids) and assignment (assigned_identity_ids)
+// grant VIEW/PARTICIPATION only — NEVER edit/cancel/reschedule authority.
+// Mutation authority comes from being the creator OR the identity owner
+// OR having Business Calendar management permission (manage_calendar).
+//
+// This helper is a UI gate — it determines whether the UI PRESENTS edit
+// capabilities. The server-side saveCalendarEvent Cloud Function is the
+// authoritative security boundary (it re-checks creator/owner/business
+// manager server-side). UI hiding is NOT a security boundary; this helper
+// exists so the UI does not present edit capabilities to non-authorised
+// viewers, matching the server-side authority model.
+//
+// Business manager check: the client uses the active operating context as
+// a proxy. If the user is in business context with active_business_id
+// matching the event's business_id, they are treated as a business
+// manager. The server-side hasBusinessCalendarPermission is authoritative
+// — if the client incorrectly grants UI edit, the server rejects the
+// save. This proxy avoids an async membership lookup on every event click.
+
+/**
+ * Determine whether the current user can edit/cancel/reschedule a calendar
+ * event. Returns true ONLY for the creator, the identity owner, or a
+ * business manager in the event's business context. Returns false for
+ * invitees, assignees, and any other viewer.
+ *
+ * @param {object} event — the CalendarEvent (or occurrence's .event)
+ * @param {object} user — the current authenticated user (from AuthContext)
+ * @returns {boolean}
+ */
+export function canEditEvent(event, user) {
+  if (!event || !user) return false;
+
+  // 1. Creator — immutable authority. The creator retains edit/cancel/
+  //    reschedule permission (subject to domain lifecycle restrictions
+  //    such as Booking-owned events).
+  if (event.created_by_id === user.id) return true;
+
+  // 2. Identity owner — the identity that owns the event (Personal and
+  //    Professional are operating contexts of ONE identity, not separate
+  //    owners). Only the identity owner can edit identity-owned events.
+  if (event.owner_type === 'identity' && event.owner_id === user.id) return true;
+
+  // 3. Business calendar manager — the user is operating in the event's
+  //    business context. The server-side hasBusinessCalendarPermission
+  //    is the authoritative check; this proxy avoids an async lookup.
+  if (
+    event.owner_type === 'business' &&
+    event.business_id &&
+    user.active_context === 'business' &&
+    user.active_business_id === event.business_id
+  ) {
+    return true;
+  }
+
+  // Invitees, assignees, and non-managers CANNOT edit.
+  return false;
+}
+
+/**
+ * Determine whether the current user can cancel a calendar event.
+ * Cancel is a mutation — same authority as edit. Booking-owned events
+ * cannot be cancelled through the Calendar (they must go through the
+ * Booking cancellation flow for refund policy).
+ *
+ * @param {object} event — the CalendarEvent
+ * @param {object} user — the current authenticated user
+ * @returns {boolean}
+ */
+export function canCancelEvent(event, user) {
+  if (!canEditEvent(event, user)) return false;
+  // Booking-owned events must be cancelled through the Booking flow.
+  if (event.source_system === 'booking') return false;
+  if (event.lifecycle_state === 'cancelled' || event.lifecycle_state === 'removed') return false;
+  return true;
+}

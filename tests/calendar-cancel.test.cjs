@@ -203,8 +203,16 @@ test('server blocks lifecycle changes on booking-owned events', () => {
 });
 
 test('UI hides generic Cancel for booking-owned events and directs to Bookings', () => {
-  if (!/e\.source_system\s*!==\s*'booking'/.test(pageSrc)) {
-    throw new Error('CalendarPage must hide Cancel for booking-owned events');
+  // V2 authority: Cancel is gated by canCancelEvent, which returns false
+  // for booking-owned events (they must go through the Booking flow).
+  // The old inline `e.source_system !== 'booking'` check was refactored
+  // into canCancelEvent — verify the authority helper blocks booking events.
+  const authSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'calendarAuthority.js'), 'utf8');
+  if (!/source_system\s*===\s*'booking'/.test(authSrc)) {
+    throw new Error('canCancelEvent must block booking-owned events');
+  }
+  if (!/canCancelEvent\(e,\s*user\)/.test(pageSrc)) {
+    throw new Error('CalendarPage Cancel button must use canCancelEvent');
   }
   if (!/Cancel via Bookings/.test(pageSrc)) {
     throw new Error('CalendarPage must show a Bookings redirect note for booking events');

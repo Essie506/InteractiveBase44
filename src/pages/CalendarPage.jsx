@@ -14,6 +14,8 @@ import DayView from '@/components/calendar/DayView';
 import AgendaView from '@/components/calendar/AgendaView';
 import InvitationActions from '@/components/calendar/InvitationActions';
 import { loadParticipationForEvents, getParticipationState, isInvitedEvent } from '@/lib/calendarParticipation';
+import { canEditEvent, canCancelEvent } from '@/lib/calendarAuthority';
+import EventDetailModal from '@/components/calendar/EventDetailModal';
 import { useToast } from '@/components/ui/use-toast';
 import { useFirebase } from '@/lib/backendConfig';
 
@@ -38,6 +40,8 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [viewingEvent, setViewingEvent] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ visibility: '', sourceSystem: '', lifecycleState: '' });
@@ -306,9 +310,24 @@ export default function CalendarPage() {
     }
   };
 
+  // ── Event selection — authority-gated (V2) ──────────────────
+  // V2: visibility ≠ participation ≠ mutation authority. An invited/
+  // assigned identity can READ the event and respond to their invitation,
+  // but MUST NOT be presented with edit/cancel/reschedule capabilities.
+  // Only the creator, identity owner, or business calendar manager gets
+  // the edit modal. Everyone else gets the read-only detail modal (with
+  // Accept/Decline for invited viewers). The server-side saveCalendarEvent
+  // is the authoritative security boundary — this UI gate ensures the
+  // UI does not present edit capabilities to non-authorised viewers.
   const handleSelectEvent = (occ) => {
-    setEditingEvent(occ.event);
-    setShowEventModal(true);
+    const event = occ?.event || occ;
+    if (canEditEvent(event, user)) {
+      setEditingEvent(event);
+      setShowEventModal(true);
+    } else {
+      setViewingEvent(event);
+      setShowDetailModal(true);
+    }
   };
 
   const contextLabel = activeContext === 'business' ? 'Business' : activeContext === 'professional' ? 'Professional' : 'Personal';
@@ -498,10 +517,13 @@ export default function CalendarPage() {
                         </div>
                       )}
                       <div className="flex gap-2 mt-2">
-                        {!unavailable && !participationState && (
+                        {!unavailable && canEditEvent(e, user) && (
                           <button onClick={() => handleSelectEvent(occ)} className="text-xs text-indigo-600 font-medium hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">Edit</button>
                         )}
-                        {e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed' && e.source_system !== 'booking' && !unavailable && (
+                        {!unavailable && !canEditEvent(e, user) && (
+                          <button onClick={() => handleSelectEvent(occ)} className="text-xs text-stone-600 font-medium hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">View details</button>
+                        )}
+                        {canCancelEvent(e, user) && !unavailable && (
                           <button
                             onClick={() => handleCancelEvent(occ)}
                             disabled={cancellingId === e.id}
@@ -512,7 +534,7 @@ export default function CalendarPage() {
                               : <><Trash2 className="w-3 h-3" /> Cancel</>}
                           </button>
                         )}
-                        {e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed' && e.source_system === 'booking' && (
+                        {canEditEvent(e, user) && e.source_system === 'booking' && e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed' && (
                           <span className="text-xs text-stone-400 flex items-center gap-1">
                             <CalendarOff className="w-3 h-3" /> Cancel via Bookings
                           </span>
@@ -538,6 +560,16 @@ export default function CalendarPage() {
           timezone={timezone}
           onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
           onSaved={handleEventSaved}
+        />
+      )}
+
+      {showDetailModal && viewingEvent && (
+        <EventDetailModal
+          event={viewingEvent}
+          timezone={timezone}
+          participationMap={participationMap}
+          onParticipationResponse={handleParticipationResponse}
+          onClose={() => { setShowDetailModal(false); setViewingEvent(null); }}
         />
       )}
     </div>
