@@ -1481,6 +1481,170 @@ async function runCalendarHardeningTests() {
   });
 }
 
+// ── Calendar Participation (V2 Phase 3) Tests ──
+
+async function setupParticipation(db, participationId, eventId, identityId, state) {
+  await db.collection('calendarParticipation').doc(participationId).set({
+    event_id: eventId,
+    identity_id: identityId,
+    response_state: state || 'pending',
+    invited_at: '2026-09-01T10:00:00Z',
+    source_system: 'calendar',
+  });
+}
+
+async function runCalendarParticipationTests() {
+  // CP1. Invited identity can read own participation record
+  await test('CP1. Invited identity can read own participation record', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupCalendarEvent(db, 'evt1', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Shared event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        created_by_id: 'identityB',
+        invited_identity_ids: ['identityA'],
+      });
+      await setupParticipation(db, 'evt1__identityA', 'evt1', 'identityA', 'pending');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertSucceeds(db.collection('calendarParticipation').doc('evt1__identityA').get());
+  });
+
+  // CP2. Non-invited identity cannot read someone else's participation
+  await test('CP2. Non-invited identity cannot read others participation', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupIdentity(db, 'authC', 'identityC');
+      await setupCalendarEvent(db, 'evt2', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Shared event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        created_by_id: 'identityB',
+        invited_identity_ids: ['identityA'],
+      });
+      await setupParticipation(db, 'evt2__identityA', 'evt2', 'identityA', 'pending');
+    });
+    const db = testEnv.authenticatedContext('authC').firestore();
+    await assertFails(db.collection('calendarParticipation').doc('evt2__identityA').get());
+  });
+
+  // CP3. Event organiser (creator) can read participation for their event
+  await test('CP3. Event organiser can read participation for their event', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupCalendarEvent(db, 'evt3', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'My event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        created_by_id: 'identityB',
+        invited_identity_ids: ['identityA'],
+      });
+      await setupParticipation(db, 'evt3__identityA', 'evt3', 'identityA', 'accepted');
+    });
+    const db = testEnv.authenticatedContext('authB').firestore();
+    await assertSucceeds(db.collection('calendarParticipation').doc('evt3__identityA').get());
+  });
+
+  // CP4. Client cannot create participation records directly
+  await test('CP4. Client cannot create participation records', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('calendarParticipation').doc('evt1__identityA').set({
+      event_id: 'evt1',
+      identity_id: 'identityA',
+      response_state: 'accepted',
+    }));
+  });
+
+  // CP5. Client cannot update participation records directly (forge accept)
+  await test('CP5. Client cannot forge accept via direct update', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupCalendarEvent(db, 'evt5', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        created_by_id: 'identityB',
+        invited_identity_ids: ['identityA'],
+      });
+      await setupParticipation(db, 'evt5__identityA', 'evt5', 'identityA', 'pending');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('calendarParticipation').doc('evt5__identityA').update({
+      response_state: 'accepted',
+    }));
+  });
+
+  // CP6. Client cannot delete participation records
+  await test('CP6. Client cannot delete participation records', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authA', 'identityA');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupCalendarEvent(db, 'evt6', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        created_by_id: 'identityB',
+        invited_identity_ids: ['identityA'],
+      });
+      await setupParticipation(db, 'evt6__identityA', 'evt6', 'identityA', 'pending');
+    });
+    const db = testEnv.authenticatedContext('authA').firestore();
+    await assertFails(db.collection('calendarParticipation').doc('evt6__identityA').delete());
+  });
+
+  // CP7. Admin can read any participation record
+  await test('CP7. Admin can read any participation record', async () => {
+    await clear();
+    await withAdmin(async (db) => {
+      await setupIdentity(db, 'authAdmin', 'adminIdentity');
+      await setupIdentity(db, 'authB', 'identityB');
+      await setupUser(db, 'adminIdentity', { role: 'admin', email: 'admin@test.com' });
+      await setupCalendarEvent(db, 'evt7', {
+        owner_id: 'identityB',
+        owner_type: 'identity',
+        title: 'Event',
+        start_time: '2026-09-01T10:00:00Z',
+        end_time: '2026-09-01T11:00:00Z',
+        visibility: 'private',
+        created_by_id: 'identityB',
+        invited_identity_ids: ['identityC'],
+      });
+      await setupParticipation(db, 'evt7__identityC', 'evt7', 'identityC', 'pending');
+    });
+    const db = testEnv.authenticatedContext('authAdmin').firestore();
+    await assertSucceeds(db.collection('calendarParticipation').doc('evt7__identityC').get());
+  });
+}
+
 // ── Main ──
 
 async function main() {
@@ -1508,6 +1672,7 @@ async function main() {
   await runIdentityMappingTests();
   await runServerAuthoritativeTests();
   await runCalendarHardeningTests();
+  await runCalendarParticipationTests();
 
   const passed = results.filter((r) => r.passed).length;
   const failed = results.filter((r) => !r.passed).length;

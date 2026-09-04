@@ -616,6 +616,30 @@ service cloud.firestore {
       allow write: if false; // Server-only — sweep function
     }
 
+    match /calendarParticipation/{participationId} {
+      // Invitation response state (V2 Phase 3). Participation state is
+      // SEPARATE from the event's lifecycle_state. One authoritative event
+      // remains — no per-user event copies.
+      //
+      // Read: the invited identity (their own record) or the event
+      //   organiser (creator/owner) or admin. An invited identity can see
+      //   their own pending/accepted/declined/revoked state; the organiser
+      //   can see who has responded. Assigned/invited identities who are
+      //   NOT the organiser cannot read other invitees' participation.
+      // Write: server-only — Cloud Functions manage participation state
+      //   (syncParticipationRecords, respondCalendarInvitation,
+      //   revokeCalendarInvitation). Clients cannot forge accept/decline.
+      allow read: if isOwner(resource.data.identity_id)
+        || (hasIdentityMapping()
+          && exists(/databases/$(database)/documents/calendarEvents/$(resource.data.event_id))
+          && (
+            get(/databases/$(database)/documents/calendarEvents/$(resource.data.event_id)).data.created_by_id == getIdentityId()
+            || get(/databases/$(database)/documents/calendarEvents/$(resource.data.event_id)).data.owner_id == getIdentityId()
+          ))
+        || isAdmin();
+      allow write: if false; // Server-only — Cloud Function
+    }
+
     // ═══════════════════════════════════════════════════════════
     // AVAILABILITY RULES
     // ═══════════════════════════════════════════════════════════
