@@ -247,6 +247,69 @@ test('INDEX: source_system + source_id index exists (handleSourceUnavailable que
   if (!has) throw new Error('Missing source_system + source_id index');
 });
 
+// ── Query-shape ↔ index parity (release-blocking defect prevention) ──
+// The assigned + invited retrieval channels use array-contains + orderBy
+// on a different field, which requires a composite index with arrayConfig
+// CONTAINS. These tests verify the EXACT query shape in both the repository
+// and realtime files matches a declared index — preventing drift between
+// code and indexes that would cause FAILED_PRECONDITION at runtime.
+test('SHAPE: listEventsAssignedToIdentity uses array-contains + orderBy(start_time)', () => {
+  if (!/where\('assigned_identity_ids',\s*'array-contains'/.test(repoSrc)) {
+    throw new Error('listEventsAssignedToIdentity must use array-contains on assigned_identity_ids');
+  }
+  if (!/orderBy\('start_time',\s*'asc'\)/.test(repoSrc)) {
+    throw new Error('listEventsAssignedToIdentity must orderBy start_time asc');
+  }
+});
+
+test('SHAPE: listEventsInvitedToIdentity uses array-contains + orderBy(start_time)', () => {
+  if (!/where\('invited_identity_ids',\s*'array-contains'/.test(repoSrc)) {
+    throw new Error('listEventsInvitedToIdentity must use array-contains on invited_identity_ids');
+  }
+});
+
+test('SHAPE: realtime assigned/invited queries match repository query shapes', () => {
+  // Both realtime and repository must use array-contains + orderBy(start_time)
+  // so they require the SAME composite index. A discrepancy would mean one
+  // channel works and the other fails silently.
+  const repoAssigned = /where\('assigned_identity_ids',\s*'array-contains'[\s\S]*?orderBy\('start_time',\s*'asc'\)/.test(repoSrc);
+  const rtAssigned = /where\('assigned_identity_ids',\s*'array-contains'[\s\S]*?orderBy\('start_time',\s*'asc'\)/.test(rtSrc);
+  if (!repoAssigned || !rtAssigned) {
+    throw new Error('Assigned query shape mismatch between repository and realtime');
+  }
+  const repoInvited = /where\('invited_identity_ids',\s*'array-contains'[\s\S]*?orderBy\('start_time',\s*'asc'\)/.test(repoSrc);
+  const rtInvited = /where\('invited_identity_ids',\s*'array-contains'[\s\S]*?orderBy\('start_time',\s*'asc'\)/.test(rtSrc);
+  if (!repoInvited || !rtInvited) {
+    throw new Error('Invited query shape mismatch between repository and realtime');
+  }
+});
+
+test('SHAPE: assigned/invited queries use no lifecycle filter (client-side filter only)', () => {
+  // The queries do NOT filter by lifecycle_state server-side — they return
+  // all matching events and filter client-side. This is correct: adding a
+  // server-side lifecycle filter would require a 3-field composite index
+  // (array-contains + lifecycle_state + start_time) and would change the
+  // query shape. This test prevents accidental addition of such a filter.
+  const assignedMatch = repoSrc.match(/listEventsAssignedToIdentity[\s\S]*?\n\}/);
+  if (assignedMatch && /where\('lifecycle_state'/.test(assignedMatch[0])) {
+    throw new Error('listEventsAssignedToIdentity must NOT filter by lifecycle_state server-side');
+  }
+  const invitedMatch = repoSrc.match(/listEventsInvitedToIdentity[\s\S]*?\n\}/);
+  if (invitedMatch && /where\('lifecycle_state'/.test(invitedMatch[0])) {
+    throw new Error('listEventsInvitedToIdentity must NOT filter by lifecycle_state server-side');
+  }
+});
+
+test('SHAPE: CalendarPage passes user.id (Interactive identity ID) to assigned/invited queries', () => {
+  // user.id is set to identityId in AuthContext (the stable Interactive
+  // identity ID, NOT the Firebase Auth UID). The assigned/invited queries
+  // must receive this same identity ID so Firestore rules can verify
+  // getIdentityId() in assigned_identity_ids / invited_identity_ids.
+  if (!/getAllEventsForIdentity\(user\.id/.test(pageSrc)) {
+    throw new Error('CalendarPage must pass user.id (Interactive identity ID) to getAllEventsForIdentity');
+  }
+});
+
 test('INDEX: business_id + assigned/invited array-contains indexes exist (§109)', () => {
   const hasAssigned = indexes.indexes.some(i =>
     i.collectionGroup === 'calendarEvents' &&
