@@ -14,10 +14,11 @@ import {
   buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
+import EventInvitationBadge from './EventInvitationBadge';
 
 const PAGE_SIZE = 50;
 
-export default function AgendaView({ occurrences, timezone, onSelectEvent, selectedDate, hasMore = false, onLoadMore }) {
+export default function AgendaView({ occurrences, timezone, onSelectEvent, selectedDate, hasMore = false, onLoadMore, participationMap, onParticipationResponse }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
 
@@ -165,6 +166,7 @@ export default function AgendaView({ occurrences, timezone, onSelectEvent, selec
                           <span className="text-amber-600">{unavailableLabel}</span>
                         )}
                       </div>
+                      <EventInvitationBadge event={e} participationMap={participationMap} onResponse={onParticipationResponse} compact />
                     </div>
                     <ChevronRight className="w-4 h-4 text-stone-300" aria-hidden="true" />
                   </div>

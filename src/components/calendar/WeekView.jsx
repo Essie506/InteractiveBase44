@@ -14,11 +14,13 @@ import {
   buildEventAriaLabel, getSourceTypeLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues } from '@/lib/sourceUnavailable';
+import EventInvitationBadge from './EventInvitationBadge';
+import { getParticipationState } from '@/lib/calendarParticipation';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export default function WeekView({ occurrences, weekStart, timezone, onSelectEvent, selectedDate }) {
+export default function WeekView({ occurrences, weekStart, timezone, onSelectEvent, selectedDate, participationMap, onParticipationResponse }) {
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
@@ -129,6 +131,9 @@ export default function WeekView({ occurrences, weekStart, timezone, onSelectEve
                             <span>{sourceLabel}</span>
                             <span>•</span>
                             <time dateTime={occ.start}>{formatTimeRange(occ.start, occ.end, e.timezone || timezone)}</time>
+                            {participationMap && getParticipationState(e, participationMap) === 'pending' && (
+                              <span className="text-indigo-600 font-semibold">• Invite</span>
+                            )}
                           </div>
                         </div>
                       );
@@ -186,6 +191,7 @@ export default function WeekView({ occurrences, weekStart, timezone, onSelectEve
                           <time dateTime={occ.start}>{e.all_day ? 'All day' : formatTimeRange(occ.start, occ.end, e.timezone || timezone)}</time>
                           {unavailable && <AlertCircle className="w-2.5 h-2.5 text-amber-500" aria-hidden="true" />}
                         </div>
+                        <EventInvitationBadge event={e} participationMap={participationMap} onResponse={onParticipationResponse} compact />
                       </div>
                     </div>
                   );

@@ -2,7 +2,7 @@ import { base44 } from '@/api/base44Client';
 import { calendarRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
 import { callSaveCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries, callHandleSourceUnavailable } from '@/services/firebaseFunctions';
-export { subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents } from '@/lib/calendarRealtime';
+export { subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents, subscribeToParticipationForIdentity } from '@/lib/calendarRealtime';
 
 // Calendar System — M3: routes to Firebase when configured.
 // Firestore queries use owner_id/business_id filters (security-rule compatible).

@@ -37,7 +37,7 @@ export default function Notifications() {
     setItems(items.map(i => ({ ...i, is_read: true })));
   };
 
-  const categories = ['all', 'unread', 'verification', 'media', 'business', 'security', 'system'];
+  const categories = ['all', 'unread', 'verification', 'media', 'business', 'security', 'system', 'calendar'];
   const filtered = items.filter(i => {
     if (filter === 'all') return true;
     if (filter === 'unread') return !i.is_read;

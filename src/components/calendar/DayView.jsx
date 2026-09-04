@@ -11,10 +11,11 @@ import {
   buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
+import EventInvitationBadge from './EventInvitationBadge';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export default function DayView({ occurrences, date, timezone, onSelectEvent }) {
+export default function DayView({ occurrences, date, timezone, onSelectEvent, participationMap, onParticipationResponse }) {
   const dateStr = date.toDateString();
   const isoDate = date.toISOString().split('T')[0];
 
@@ -124,6 +125,7 @@ export default function DayView({ occurrences, date, timezone, onSelectEvent }) 
                       {occ.isRecurring && !unavailable && (
                         <div className="text-[10px] text-purple-500 mt-0.5">Recurring{occ.isException ? ' (modified)' : ''}</div>
                       )}
+                      <EventInvitationBadge event={e} participationMap={participationMap} onResponse={onParticipationResponse} compact />
                     </div>
                   );
                 })}

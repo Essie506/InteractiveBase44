@@ -14,8 +14,9 @@ import {
   buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
+import EventInvitationBadge from './EventInvitationBadge';
 
-function TodayEventCard({ occ, timezone, onSelectEvent, isFirst }) {
+function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMap, onParticipationResponse }) {
   const e = occ.event;
   const safe = getSafeDisplayValues(e);
   const sourceLabel = getSourceTypeLabel(e.source_system);
@@ -76,11 +77,12 @@ function TodayEventCard({ occ, timezone, onSelectEvent, isFirst }) {
       {safe.description && !isSourceUnavailable(e) && (
         <p className="text-xs text-stone-600 mt-1.5 line-clamp-2">{safe.description}</p>
       )}
+      <EventInvitationBadge event={e} participationMap={participationMap} onResponse={onParticipationResponse} compact />
     </div>
   );
 }
 
-export default function TodayView({ occurrences, timezone, onSelectEvent, reminders = [] }) {
+export default function TodayView({ occurrences, timezone, onSelectEvent, reminders = [], participationMap, onParticipationResponse }) {
   const now = new Date();
   const todayStr = now.toDateString();
 
@@ -146,7 +148,7 @@ export default function TodayView({ occurrences, timezone, onSelectEvent, remind
             <Sun className="w-4 h-4 text-indigo-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-indigo-700">Next activity</h3>
           </div>
-          <TodayEventCard occ={nextActivity} timezone={timezone} onSelectEvent={onSelectEvent} isFirst={true} />
+          <TodayEventCard occ={nextActivity} timezone={timezone} onSelectEvent={onSelectEvent} isFirst={true} participationMap={participationMap} onParticipationResponse={onParticipationResponse} />
         </div>
       )}
 
@@ -167,6 +169,8 @@ export default function TodayView({ occurrences, timezone, onSelectEvent, remind
                 timezone={timezone}
                 onSelectEvent={onSelectEvent}
                 isFirst={false}
+                participationMap={participationMap}
+                onParticipationResponse={onParticipationResponse}
               />
             ))}
           </div>

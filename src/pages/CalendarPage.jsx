@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents } from '@/lib/calendar';
+import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents, subscribeToParticipationForIdentity } from '@/lib/calendar';
 import { normalizeToOccurrences, groupOccurrencesByDate, filterOccurrences } from '@/lib/calendarOccurrences';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff, AlertCircle } from 'lucide-react';
 import { buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccessibility';
@@ -188,6 +188,22 @@ export default function CalendarPage() {
     };
   }, [user, activeContext, activeBusinessId, useFirebase]);
 
+  // ── Real-time participation subscription (Phase 3) ──────────
+  // Propagates invitation response state changes (pending → accepted/
+  // declined/revoked) to the Calendar UI without refresh. The organiser
+  // sees invitee responses update in real-time; the invitee sees their
+  // own responses reflected immediately. Uses the existing
+  // subscribeToParticipationForIdentity from calendarRealtime — the
+  // same authoritative participation collection written by
+  // respondCalendarInvitation.
+  useEffect(() => {
+    if (!user || !useFirebase) return;
+    const unsub = subscribeToParticipationForIdentity(user.id, (records) => {
+      setParticipationMap(new Map(records.map((p) => [p.event_id, p])));
+    });
+    return unsub;
+  }, [user, useFirebase]);
+
   // After events load, jump to + highlight the deep-linked event once.
   useEffect(() => {
     if (!focusEventId || focusedRef.current || loading || events.length === 0) return;
@@ -363,13 +379,13 @@ export default function CalendarPage() {
           <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
         </div>
       ) : view === 'today' ? (
-        <TodayView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} />
+        <TodayView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
       ) : view === 'week' ? (
-        <WeekView occurrences={filteredOccurrences} weekStart={weekStart} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} />
+        <WeekView occurrences={filteredOccurrences} weekStart={weekStart} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
       ) : view === 'day' ? (
-        <DayView occurrences={filteredOccurrences} date={selectedDate} timezone={timezone} onSelectEvent={handleSelectEvent} />
+        <DayView occurrences={filteredOccurrences} date={selectedDate} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
       ) : view === 'agenda' ? (
-        <AgendaView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} />
+        <AgendaView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
       ) : (
         /* Month view — existing grid + side panel */
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
