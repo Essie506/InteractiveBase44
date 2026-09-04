@@ -132,3 +132,33 @@ export function mergeAndDedupeEvents(...eventLists) {
     (a, b) => new Date(a.start_time) - new Date(b.start_time),
   );
 }
+
+/**
+ * Subscribe to real-time Calendar Participation changes for an identity.
+ * (Phase 3) — propagates invitation response state changes (pending →
+ * accepted/declined/revoked) to authorised Calendar surfaces without
+ * duplicate manual editing.
+ *
+ * Returns an unsubscribe function. The callback receives the full
+ * refreshed participation list on every change.
+ */
+export function subscribeToParticipationForIdentity(identityId, callback, options = {}) {
+  if (!identityId) {
+    callback([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(db, 'calendarParticipation'),
+    where('identity_id', '==', identityId),
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map(fromFirestoreDoc)),
+    (error) => {
+      if (options.onError) options.onError(error);
+      else console.error('[calendarRealtime] participation subscription error:', error);
+    },
+  );
+}

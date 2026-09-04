@@ -257,3 +257,26 @@ export async function callHandleSourceUnavailable(data) {
   const result = await callable('handleSourceUnavailable')(data);
   return result.data;
 }
+
+// ── Calendar Participation (V2 Phase 3) ──
+// Accept or decline a calendar invitation. Called by the invited identity.
+// Updates the participation record only — does NOT modify the event.
+export async function callRespondCalendarInvitation(data) {
+  const result = await callable('respondCalendarInvitation')(data);
+  return result.data;
+}
+
+// Revoke a calendar invitation. Called by the organiser. Removes the
+// identity from invited_identity_ids and sets participation to 'revoked'.
+export async function callRevokeCalendarInvitation(data) {
+  const result = await callable('revokeCalendarInvitation')(data);
+  return result.data;
+}
+
+// ── Business Relationship Exit (§109) ──
+// Called by the Business system when a membership ends. Calendar removes
+// the identity from assigned/invited lists on all affected Business events.
+export async function callHandleBusinessRelationshipExit(data) {
+  const result = await callable('handleBusinessRelationshipExit')(data);
+  return result.data;
+}

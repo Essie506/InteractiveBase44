@@ -12,6 +12,8 @@ import TodayView from '@/components/calendar/TodayView';
 import WeekView from '@/components/calendar/WeekView';
 import DayView from '@/components/calendar/DayView';
 import AgendaView from '@/components/calendar/AgendaView';
+import InvitationActions from '@/components/calendar/InvitationActions';
+import { loadParticipationForEvents, getParticipationState, isInvitedEvent } from '@/lib/calendarParticipation';
 import { useToast } from '@/components/ui/use-toast';
 import { useFirebase } from '@/lib/backendConfig';
 
@@ -39,6 +41,8 @@ export default function CalendarPage() {
   const [cancellingId, setCancellingId] = useState(null);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ visibility: '', sourceSystem: '', lifecycleState: '' });
+  const [participationMap, setParticipationMap] = useState(new Map());
+  const [queryErrors, setQueryErrors] = useState([]);
   const { toast } = useToast();
 
   const focusEventId = useMemo(() => new URLSearchParams(window.location.search).get('event'), []);
@@ -84,28 +88,52 @@ export default function CalendarPage() {
   const loadEvents = async () => {
     if (!user) return;
     setLoading(true);
+    const errors = [];
     try {
       let allEvents;
       if (activeContext === 'business' && activeBusinessId) {
         // Combined Business/Staff Calendar (§70–§74) — aggregation over
         // canonical events, not a separate combined-calendar store.
-        // For now, uses the current user's identity + business events.
-        // Full staff aggregation requires fetching business members.
-        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end);
+        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end, (err) => errors.push(err));
       } else {
-        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end);
+        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end, (err) => errors.push(err));
       }
       setEvents(allEvents);
+      setQueryErrors(errors);
       // Fetch exceptions for recurring events
       const excs = await getExceptionsForEvents(allEvents);
       setExceptions(excs);
+      // Load participation state for visible events (Phase 3).
+      // Builds a Map: event_id → participation record for the current user.
+      // Events where the user is the organiser (not invited) have no record.
+      try {
+        const partMap = await loadParticipationForEvents(user.id, allEvents.map(e => e.id));
+        setParticipationMap(partMap);
+      } catch (err) {
+        console.error('[CalendarPage] Failed to load participation:', err);
+        setParticipationMap(new Map());
+      }
     } catch (err) {
       console.error('[CalendarPage] Failed to load events:', err);
       setEvents([]);
       setExceptions([]);
+      setParticipationMap(new Map());
+      setQueryErrors([{ query: 'load', error: err?.message || String(err) }]);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle participation response (Accept/Decline) — update local state
+  const handleParticipationResponse = (eventId, responseState) => {
+    setParticipationMap(prev => {
+      const next = new Map(prev);
+      const existing = next.get(eventId);
+      if (existing) {
+        next.set(eventId, { ...existing, response_state: responseState, responded_at: new Date().toISOString() });
+      }
+      return next;
+    });
   };
 
   useEffect(() => { loadEvents(); }, [user, currentMonth, weekStart, selectedDate, view, activeContext, activeBusinessId]);
@@ -318,6 +346,18 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      {/* Query failure observability (Phase 3 hardening) — a failed sub-query
+          must never masquerade as a legitimate empty result. */}
+      {queryErrors.length > 0 && !loading && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2" role="alert">
+          <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" aria-hidden="true" />
+          <p className="text-sm text-amber-700">
+            Some calendar data could not be loaded ({queryErrors.map(e => e.query).join(', ')}).
+            Your events may be incomplete — try refreshing.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
@@ -404,6 +444,7 @@ export default function CalendarPage() {
                   const stateLabel = getLifecycleStateLabel(e.lifecycle_state);
                   const unavailableLabel = getSourceUnavailableLabel(e);
                   const unavailable = isSourceUnavailable(e);
+                  const participationState = getParticipationState(e, participationMap);
                   return (
                     <div key={occ.occurrenceId} className={`border rounded-lg p-3 hover:border-stone-300 transition-colors ${unavailable ? 'border-amber-200 bg-amber-50/50' : 'border-stone-200'}`}>
                       <div className="flex items-start justify-between mb-1 gap-1">
@@ -431,8 +472,17 @@ export default function CalendarPage() {
                         <div className="text-[10px] text-amber-600 mb-1">{unavailableLabel}</div>
                       )}
                       {safe.description && !unavailable && <p className="text-xs text-stone-600 mt-1.5">{safe.description}</p>}
+                      {participationState && participationState !== 'revoked' && (
+                        <div className="mt-2 pt-2 border-t border-stone-100">
+                          <InvitationActions
+                            event={e}
+                            participationState={participationState}
+                            onResponse={handleParticipationResponse}
+                          />
+                        </div>
+                      )}
                       <div className="flex gap-2 mt-2">
-                        {!unavailable && (
+                        {!unavailable && !participationState && (
                           <button onClick={() => handleSelectEvent(occ)} className="text-xs text-indigo-600 font-medium hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">Edit</button>
                         )}
                         {e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed' && e.source_system !== 'booking' && !unavailable && (

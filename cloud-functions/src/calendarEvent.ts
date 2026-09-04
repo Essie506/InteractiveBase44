@@ -40,6 +40,7 @@ import { emitNotification } from './notifications/dispatcher';
 import { buildCalendarEmailPayload, CalendarEmailContext, CalendarEventType } from './notifications/email/payloads/calendar';
 import { diffEventChanges, computeUpdateVersion, computeRemovalVersion } from './calendarEventDiff';
 import { appendScheduleHistory } from './calendarEventHistory';
+import { syncParticipationRecords, revokeParticipationRecords } from './calendarParticipation';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
@@ -455,6 +456,19 @@ export const saveCalendarEvent = onCall(
       const mergedData = { ...existing, ...updatePayload };
       await maintainProjection(eventId, mergedData);
       await dispatchUpdateNotifications(eventId, existing, updatePayload, mergedData, nowIso);
+
+      // ── Sync participation records for added/removed invitees (Phase 3) ──
+      // Added invitees get 'pending' records (idempotent — does not overwrite
+      // existing accepted/declined). Removed invitees get 'revoked' records.
+      // Participation state is SEPARATE from the event's lifecycle_state.
+      const partDiff = diffEventChanges(existing, updatePayload);
+      if (partDiff.addedInvitees.length > 0) {
+        await syncParticipationRecords(eventId, partDiff.addedInvitees, nowIso);
+      }
+      if (partDiff.removedInvitees.length > 0) {
+        await revokeParticipationRecords(eventId, partDiff.removedInvitees, callerIdentityId, nowIso);
+      }
+
       await recordScheduleHistoryFromDiff(eventId, existing, mergedData, updatePayload, callerIdentityId, nowIso);
       return { id: eventId, ...mergedData };
     }
@@ -560,6 +574,14 @@ export const saveCalendarEvent = onCall(
 
     await maintainProjection(eventDocId, eventData);
     await dispatchCreateNotifications(eventDocId, eventData);
+
+    // ── Create 'pending' participation records for all invitees (Phase 3) ──
+    // Each invited identity gets a participation record with response_state
+    // 'pending'. The invitee sees the event in their Calendar but must
+    // explicitly Accept/Decline — they do NOT silently become an accepted
+    // participant merely because the event is visible.
+    await syncParticipationRecords(eventDocId, invitedIdentityIds, nowIso);
+
     await appendScheduleHistory({
       event_id: eventDocId,
       change_type: 'created',

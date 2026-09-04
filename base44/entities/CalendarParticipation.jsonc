@@ -1,0 +1,64 @@
+{
+  "name": "CalendarParticipation",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "title": "Event ID",
+      "description": "Stable reference to the CalendarEvent this participation record belongs to. One authoritative event \u2014 no per-user copies."
+    },
+    "identity_id": {
+      "type": "string",
+      "title": "Identity ID",
+      "description": "The invited Interactive identity. Participation state is per-identity per-event."
+    },
+    "response_state": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "declined",
+        "revoked"
+      ],
+      "default": "pending",
+      "title": "Response State",
+      "description": "V2 participation state \u2014 SEPARATE from the event's lifecycle_state. pending = invited but not yet responded; accepted = identity accepted; declined = identity declined (event remains visible); revoked = organiser removed the invitation (identity loses visibility)."
+    },
+    "invited_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Invited At"
+    },
+    "responded_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Responded At"
+    },
+    "revoked_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Revoked At"
+    },
+    "revoked_by": {
+      "type": "string",
+      "title": "Revoked By",
+      "description": "The identity that revoked the invitation (organiser or business manager)."
+    },
+    "source_system": {
+      "type": "string",
+      "default": "calendar",
+      "title": "Source System"
+    }
+  },
+  "required": [
+    "event_id",
+    "identity_id",
+    "response_state"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

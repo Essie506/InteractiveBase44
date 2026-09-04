@@ -39,6 +39,8 @@ export const DELIVERY_POLICY: Record<string, Record<Channel, PolicyValue>> = {
   calendar_invitation_removed: { in_app: 'required',     email: 'conditional', push: 'prohibited' },
   calendar_event_created:      { in_app: 'required',     email: 'conditional', push: 'prohibited' },
   calendar_reminder:           { in_app: 'conditional',  email: 'conditional', push: 'prohibited' },
+  calendar_participation_accepted: { in_app: 'required', email: 'conditional', push: 'prohibited' },
+  calendar_participation_declined: { in_app: 'required', email: 'conditional', push: 'prohibited' },
   // Messaging
   message_received:            { in_app: 'required',     email: 'conditional', push: 'prohibited' },
   message_request_received:    { in_app: 'required',     email: 'conditional', push: 'prohibited' },

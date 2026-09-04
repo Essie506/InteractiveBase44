@@ -23,6 +23,8 @@ const DELIVERY_POLICY = {
   calendar_event_rescheduled: { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   calendar_event_cancelled:   { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   calendar_invitation_removed:{ in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
+  calendar_participation_accepted: { in_app: 'required', email: 'conditional', push: 'conditional', sms: 'prohibited' },
+  calendar_participation_declined: { in_app: 'required', email: 'conditional', push: 'conditional', sms: 'prohibited' },
   calendar_reminder:         { in_app: 'conditional',  email: 'conditional', push: 'required',   sms: 'prohibited' },
   message_received:          { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },
   message_request_received:  { in_app: 'required',     email: 'conditional', push: 'conditional', sms: 'prohibited' },

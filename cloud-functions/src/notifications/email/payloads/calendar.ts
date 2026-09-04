@@ -12,7 +12,9 @@ export type CalendarEventType =
   | 'calendar_event_updated'
   | 'calendar_event_rescheduled'
   | 'calendar_event_cancelled'
-  | 'calendar_invitation_removed';
+  | 'calendar_invitation_removed'
+  | 'calendar_participation_accepted'
+  | 'calendar_participation_declined';
 
 export interface CalendarEmailContext {
   eventTitle: string;
@@ -54,6 +56,14 @@ const TEMPLATES: Record<
   calendar_invitation_removed: {
     subject: (t) => `You were removed from "${t.eventTitle}"`,
     intro: () => `You were removed from an event on Interactive.`,
+  },
+  calendar_participation_accepted: {
+    subject: (t) => `Invitation accepted for "${t.eventTitle}"`,
+    intro: () => `A participant accepted your calendar invitation.`,
+  },
+  calendar_participation_declined: {
+    subject: (t) => `Invitation declined for "${t.eventTitle}"`,
+    intro: () => `A participant declined your calendar invitation.`,
   },
 };
 

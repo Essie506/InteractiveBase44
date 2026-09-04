@@ -127,28 +127,40 @@ export function dedupeEventsById(events) {
   return Array.from(byId.values());
 }
 
-export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate) {
+export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate, onQueryError) {
   const events = [];
 
   // ONE identity-owned event set — queried once. Personal and Professional
   // are operating contexts of the same identity, NOT separate owners, so
   // both contexts render the same identity-owned events.
-  events.push(...await getEvents(identityId, 'identity', startDate, endDate));
+  try {
+    events.push(...await getEvents(identityId, 'identity', startDate, endDate));
+  } catch (err) {
+    console.error('[calendar] Failed to load owner events:', err?.message || err);
+    if (onQueryError) onQueryError({ query: 'owner', error: err?.message || String(err) });
+  }
 
   if (useFirebase) {
     // Events assigned to this identity (e.g. Business staff assignments) —
     // view/participation only, never edit authority. Each sub-query is
     // isolated so a missing composite index on one path does not reject
     // the entire load (which would silently hide the owner's own events).
+    //
+    // FAILURE ISOLATION ≠ SILENT DATA LOSS: a failed sub-query is logged
+    // AND reported via onQueryError so the UI can surface a warning. The
+    // successfully retrieved data remains usable. A failed query must
+    // never masquerade as a legitimate empty result (Phase 3 hardening).
     try {
       events.push(...await calendarRepository.listEventsAssignedToIdentity(identityId));
     } catch (err) {
       console.error('[calendar] Failed to load assigned events:', err?.message || err);
+      if (onQueryError) onQueryError({ query: 'assigned', error: err?.message || String(err) });
     }
     try {
       events.push(...await calendarRepository.listEventsInvitedToIdentity(identityId));
     } catch (err) {
       console.error('[calendar] Failed to load invited events:', err?.message || err);
+      if (onQueryError) onQueryError({ query: 'invited', error: err?.message || String(err) });
     }
   }
 

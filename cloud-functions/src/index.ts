@@ -46,6 +46,12 @@ export { migrateCalendarLifecycleStates } from './migrateCalendarLifecycleStates
 // Phase 2 — Source Unavailable handler (§106–§108, §111)
 export { handleSourceUnavailable } from './handleSourceUnavailable';
 
+// Phase 3 — Calendar Participation (invitation response lifecycle)
+export { respondCalendarInvitation, revokeCalendarInvitation } from './calendarParticipation';
+
+// Phase 3 — Business Relationship Exit (§109)
+export { handleBusinessRelationshipExit } from './handleBusinessRelationshipExit';
+
 // Backfill — one-time population of public projections
 export { backfillPublicProfiles } from './backfillProfiles';
 

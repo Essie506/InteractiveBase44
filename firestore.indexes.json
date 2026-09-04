@@ -195,6 +195,56 @@
         { "fieldPath": "event_id", "order": "ASCENDING" },
         { "fieldPath": "is_active", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "calendarParticipation",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "identity_id", "order": "ASCENDING" },
+        { "fieldPath": "event_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarParticipation",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "identity_id", "order": "ASCENDING" },
+        { "fieldPath": "response_state", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarParticipation",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "event_id", "order": "ASCENDING" },
+        { "fieldPath": "response_state", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "source_system", "order": "ASCENDING" },
+        { "fieldPath": "source_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "business_id", "order": "ASCENDING" },
+        { "fieldPath": "assigned_identity_ids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "business_id", "order": "ASCENDING" },
+        { "fieldPath": "invited_identity_ids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "start_time", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
