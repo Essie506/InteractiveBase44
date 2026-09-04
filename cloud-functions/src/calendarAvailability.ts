@@ -126,6 +126,45 @@ export async function hasOverlappingBooking(
   return false;
 }
 
+// ── Schedule sentinel (§39, §120) ───────────────────────────
+// Concurrency-safe slot reservation. A lightweight per-owner document
+// read AND written inside the event transaction so Firestore's optimistic
+// concurrency control serializes concurrent schedule mutations for the
+// same owner. Without this, two concurrent transactions could both read
+// "no conflict" and both commit overlapping NEW events — new documents
+// don't conflict with each other in Firestore, so the transaction alone
+// does not prevent the race. The sentinel ensures one transaction retries
+// and sees the other's event on retry.
+const SCHEDULE_LOCKS = 'calendarScheduleLocks';
+
+export async function touchScheduleLock(
+  tx: any,
+  ownerId: string,
+  nowIso: string,
+): Promise<void> {
+  const ref = db.collection(SCHEDULE_LOCKS).doc(ownerId);
+  await tx.get(ref);
+  tx.set(ref, { owner_id: ownerId, _updated_date: nowIso });
+}
+
+// ── Conflict-check gate (§29, §39, §45) ──────────────────────
+// Determines whether a manual event creation/update should perform
+// authoritative conflict validation. Personal events (identity-owned,
+// operating_context 'personal') are permitted to overlap per V2 §29.
+// Source-owned events (booking, workout, business_scheduling) use their
+// owning system's authorised scheduling contract, not a generic
+// manual-event conflict policy (§45, §49).
+export function shouldEnforceConflictCheck(
+  sourceSystem: string | undefined,
+  operatingContext: string | undefined,
+  ownerType: string,
+): boolean {
+  if (sourceSystem && sourceSystem !== 'manual') return false;
+  if (ownerType === 'business') return true;
+  if (operatingContext === 'professional') return true;
+  return false;
+}
+
 // ── Availability rule evaluation (§27, §32) ──────────────────
 // Booking requests availability from Calendar. Calendar evaluates
 // AvailabilityRule (working_hours + unavailable/blocked + exceptions) and

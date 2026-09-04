@@ -588,6 +588,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /calendarScheduleLocks/{ownerId} {
+      // Server-only schedule sentinel (§39, §120 concurrency). Read and
+      // written inside the event transaction so Firestore serializes
+      // concurrent schedule mutations for the same owner. Clients never
+      // read or write this collection.
+      allow read: if false;
+      allow write: if false;
+    }
+
     match /calendarEventHistory/{historyId} {
       // Append-only schedule-change history (§48, §104, §105). Readable
       // by anyone authorised to read the parent event; server-only writes

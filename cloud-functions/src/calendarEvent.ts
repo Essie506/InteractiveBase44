@@ -41,6 +41,7 @@ import { buildCalendarEmailPayload, CalendarEmailContext, CalendarEventType } fr
 import { diffEventChanges, computeUpdateVersion, computeRemovalVersion } from './calendarEventDiff';
 import { appendScheduleHistory } from './calendarEventHistory';
 import { syncParticipationRecords, revokeParticipationRecords } from './calendarParticipation';
+import { hasOverlappingEvent, touchScheduleLock, shouldEnforceConflictCheck } from './calendarAvailability';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
@@ -450,8 +451,36 @@ export const saveCalendarEvent = onCall(
       }
       updatePayload._updated_date = nowIso;
 
-      // Preserve the authoritative record — merge, never replace/delete.
-      await db.collection(EVENTS).doc(eventId).set(updatePayload, { merge: true });
+      // ── §39: Conflict validation for manual Professional/Business reschedules ──
+      // Only applies when the time changes AND the event is manual + professional/business
+      // context. Source-owned events use their owning system's scheduling contract (§45).
+      // Personal events are permitted to overlap (§29). The event being edited is
+      // excluded from conflict detection against itself.
+      const enforceConflict = shouldEnforceConflictCheck(
+        existing.source_system || 'manual',
+        existing.operating_context,
+        existing.owner_type,
+      );
+      const startChanged = !!updatePayload.start_time &&
+        new Date(updatePayload.start_time).getTime() !== new Date(existing.start_time).getTime();
+      const endChanged = !!updatePayload.end_time &&
+        new Date(updatePayload.end_time).getTime() !== new Date(existing.end_time).getTime();
+      const timeChanging = startChanged || endChanged;
+
+      if (enforceConflict && timeChanging) {
+        const newStart = updatePayload.start_time || existing.start_time;
+        const newEnd = updatePayload.end_time || existing.end_time;
+        await db.runTransaction(async (tx) => {
+          if (await hasOverlappingEvent(tx, existing.owner_id, newStart, newEnd, eventId)) {
+            throw new HttpsError('failed-precondition', 'Time slot conflicts with an existing event');
+          }
+          await touchScheduleLock(tx, existing.owner_id, nowIso);
+          tx.set(db.collection(EVENTS).doc(eventId), updatePayload, { merge: true });
+        });
+      } else {
+        // Non-conflict-checked path — preserve existing direct-write behaviour.
+        await db.collection(EVENTS).doc(eventId).set(updatePayload, { merge: true });
+      }
 
       const mergedData = { ...existing, ...updatePayload };
       await maintainProjection(eventId, mergedData);
@@ -553,6 +582,19 @@ export const saveCalendarEvent = onCall(
       if (idempSnap.exists && idempSnap.data()?.event_id) {
         existingEventId = idempSnap.data()!.event_id as string;
         return;
+      }
+      // ── §39: Authoritative conflict validation for manual Professional/Business events ──
+      // Personal events (identity-owned, personal context) are permitted to overlap (§29).
+      // Source-owned events use their owning system's scheduling contract (§45, §49) and
+      // are NOT routed through this generic manual-event conflict policy.
+      if (shouldEnforceConflictCheck(sourceSystem, data.operating_context, ownerType)) {
+        if (await hasOverlappingEvent(tx, ownerId, eventData.start_time, eventData.end_time)) {
+          throw new HttpsError('failed-precondition', 'Time slot conflicts with an existing event');
+        }
+        // Touch the schedule sentinel so concurrent manual creations for the same
+        // owner serialize — Firestore retries one transaction, and on retry the
+        // conflict check sees the other's newly committed event (§120 concurrency).
+        await touchScheduleLock(tx, ownerId, nowIso);
       }
       const eventRef = db.collection(EVENTS).doc();
       eventDocId = eventRef.id;
