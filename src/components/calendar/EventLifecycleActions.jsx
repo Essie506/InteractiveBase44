@@ -56,7 +56,12 @@ export default function EventLifecycleActions({
   // ── Owner: canonical event actions (compact icons, matching the
   //    participant branch). Edit opens the EventModal; Cancel / Mark
   //    Completed / Mark Skipped / Archive / Delete operate on the
-  //    canonical event lifecycle_state. Authority gates unchanged. ──
+  //    canonical event lifecycle_state. The Completed/Skipped/Archive
+  //    icons remain visible even after the event is in a personal state
+  //    (so the owner can switch states or archive a completed event);
+  //    a Revert-to-scheduled recovery icon appears when already in a
+  //    personal state. Terminal cancelled/removed events hide them.
+  //    Authority gates unchanged. ──
   if (isOwner) {
     return (
       <div className="flex flex-wrap items-center gap-1 mt-2">
@@ -83,7 +88,7 @@ export default function EventLifecycleActions({
               : <CalendarX className="w-3.5 h-3.5" />}
           </button>
         )}
-        {canSetPersonalLifecycle(event, user) && !PERSONAL_LIFECYCLE_STATES.includes(event.lifecycle_state) && !unavailable && (
+        {canSetPersonalLifecycle(event, user) && event.lifecycle_state !== 'cancelled' && event.lifecycle_state !== 'removed' && !unavailable && (
           <>
             <button
               onClick={() => onSetLifecycle?.(occ, 'completed')}
@@ -109,6 +114,16 @@ export default function EventLifecycleActions({
             >
               <Archive className="w-3.5 h-3.5" />
             </button>
+            {PERSONAL_LIFECYCLE_STATES.includes(event.lifecycle_state) && (
+              <button
+                onClick={() => onSetLifecycle?.(occ, 'scheduled')}
+                aria-label="Revert to scheduled"
+                title="Revert to scheduled (recover from completed/skipped/archived)"
+                className="p-1 text-stone-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
           </>
         )}
         {canDeleteEvent(event, user) && (
