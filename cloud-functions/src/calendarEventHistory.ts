@@ -23,6 +23,7 @@ export type ScheduleChangeType =
   | 'recurrence_changed'
   | 'availability_changed'
   | 'removed'
+  | 'deleted'
   | 'source_unavailable';
 
 export interface ScheduleChangeEntry {
