@@ -42,7 +42,7 @@ import { diffEventChanges, computeUpdateVersion, computeRemovalVersion } from '.
 import { appendScheduleHistory } from './calendarEventHistory';
 import { syncParticipationRecords, revokeParticipationRecords } from './calendarParticipation';
 import { hasOverlappingEvent, touchScheduleLock, shouldEnforceConflictCheck } from './calendarAvailability';
-import { emitCalendarSignalForEvent, emitCalendarSignal } from './calendarSignal';
+import { emitCalendarSignalForEvent } from './calendarSignal';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
