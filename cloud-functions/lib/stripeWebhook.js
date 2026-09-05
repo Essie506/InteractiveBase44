@@ -40,6 +40,10 @@ const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const stripe_1 = require("./stripe");
 const calendarEvent_1 = require("./calendarEvent");
+const dispatcher_1 = require("./notifications/dispatcher");
+const bookingCalendarEvent_1 = require("./bookingCalendarEvent");
+const bookingNotifications_1 = require("./bookingNotifications");
+const booking_1 = require("./notifications/email/payloads/booking");
 const db = (0, firestore_1.getFirestore)();
 // ── Webhook handler ─────────────────────────────────────────
 exports.stripeWebhook = (0, https_1.onRequest)({
@@ -186,12 +190,18 @@ async function handlePaymentSuccess(paymentIntent) {
         confirmed_at: now,
         _updated_date: now,
     });
-    // Confirm slot hold
+    // Release slot hold on conversion (§35) — the calendar event (or the
+    // event-booking capacity) is now the authoritative blocked period, so
+    // the hold must not remain as a duplicate blocked period.
     if (booking.hold_id) {
         await db.collection('slotHolds').doc(booking.hold_id).update({
-            status: 'confirmed',
+            status: 'released',
             _updated_date: now,
         });
+        // §118: cancel the 'held' lifecycle Calendar Event so it no longer
+        // blocks the provider's time. The booking event (or the public event
+        // the customer is attending) is now the authoritative blocked period.
+        await (0, bookingCalendarEvent_1.releaseHoldCalendarEvent)(booking.hold_id, now).catch(() => { });
     }
     // ── Event booking: no private calendar event is created ──
     // The booking attaches to the public CalendarEvent via event_id; the
@@ -201,33 +211,14 @@ async function handlePaymentSuccess(paymentIntent) {
         await (0, calendarEvent_1.refreshEventProjection)(booking.event_id);
         return;
     }
-    // Create calendar event (idempotent — check if exists)
+    // Create calendar event via the canonical booking→Calendar writer (C1 fix).
+    // Correct owner_type ('identity'|'business', NEVER 'professional') +
+    // idempotent creation via calendarEventIdempotency + schedule history.
     if (!booking.calendar_event_id) {
-        const calendarRef = db.collection('calendarEvents').doc();
-        await calendarRef.set({
-            owner_id: booking.provider_identity_id,
-            owner_type: booking.business_id ? 'business' : 'professional',
-            operating_context: booking.business_id ? 'business' : 'professional',
-            title: `Booking: ${booking.booking_type}`,
-            description: `Booking ${payment.booking_id}`,
-            start_time: booking.start_time,
-            end_time: booking.end_time,
-            timezone: booking.timezone,
-            all_day: false,
-            location_type: booking.location_context,
-            meeting_url: booking.meeting_url,
-            visibility: 'private',
-            lifecycle_state: 'confirmed',
-            source_system: 'booking',
-            source_id: payment.booking_id,
-            business_id: booking.business_id,
-            created_by_id: booking.provider_identity_id,
-            _created_date: now,
-            _updated_date: now,
-        });
+        const { calendar_event_id } = await (0, bookingCalendarEvent_1.createBookingCalendarEvent)(payment.booking_id, booking, now);
         // Transition to scheduled (Calendar has an active event — Booking V2)
         await bookingRef.update({
-            calendar_event_id: calendarRef.id,
+            calendar_event_id,
             booking_status: 'scheduled',
             _updated_date: now,
         });
@@ -265,36 +256,51 @@ async function handlePaymentSuccess(paymentIntent) {
             _created_date: now,
         });
     }
-    // Create notification for provider (idempotent — check by source_id)
-    const notifSnap = await db.collection('notificationRecords')
-        .where('source_id', '==', payment.booking_id)
-        .where('event_type', '==', 'booking_confirmed')
-        .limit(1)
-        .get();
-    if (notifSnap.empty) {
-        const notifRef = db.collection('notificationRecords').doc();
-        await notifRef.set({
-            recipient_id: booking.provider_identity_id,
-            source_system: 'messaging',
+    // Notification — routed through the Notifications dispatcher (§81).
+    // C2 fix: booking notifications now carry emailContext + emailPayloadBuilder
+    // so the dispatcher creates email deliveries. Guest email is the primary
+    // guest confirmation channel (Booking §1.7.1, §3.12); identity email
+    // follows preferences (dispatcher resolves channels).
+    const bookingEmailCtx = await (0, bookingNotifications_1.buildBookingEmailContext)(payment.booking_id, booking, 'booking_confirmed');
+    // Provider notification (in-app "New Booking" + email per preferences)
+    await (0, dispatcher_1.emitNotification)({
+        source_system: 'calendar',
+        event_type: 'booking_confirmed',
+        source_id: `booking:${payment.booking_id}`,
+        version: '1',
+        category: 'calendar',
+        title: 'New Booking',
+        body: `New booking confirmed for ${new Date(booking.start_time).toLocaleString()}`,
+        action_url: `/bookings/${payment.booking_id}`,
+        action_label: 'View Booking',
+        priority: 'normal',
+        recipient_id: booking.provider_identity_id,
+        recipient_email: null,
+        emailContext: bookingEmailCtx,
+        emailPayloadBuilder: booking_1.buildBookingEmailPayload,
+    });
+    // Customer/guest confirmation notification (Booking §2.18, §3.12).
+    // For guests, email is the primary confirmation channel. For identity
+    // customers, email follows preferences (dispatcher resolves channels).
+    const customerRecipientId = booking.customer_identity_id || null;
+    const customerRecipientEmail = booking.guest_email || null;
+    if (customerRecipientId || customerRecipientEmail) {
+        await (0, dispatcher_1.emitNotification)({
+            source_system: 'calendar',
             event_type: 'booking_confirmed',
-            title: 'New Booking',
-            body: `New booking confirmed for ${new Date(booking.start_time).toLocaleString()}`,
+            source_id: `booking:${payment.booking_id}`,
+            version: '1',
             category: 'calendar',
-            priority: 'normal',
-            delivery_channels: ['in_app'],
-            is_read: false,
+            title: 'Booking Confirmed',
+            body: `Your booking with ${bookingEmailCtx.providerOrBusinessName || 'your provider'} on ${new Date(booking.start_time).toLocaleString()} has been confirmed.`,
             action_url: `/bookings/${payment.booking_id}`,
             action_label: 'View Booking',
-            source_id: payment.booking_id,
-            _created_date: now,
-            _updated_date: now,
+            priority: 'normal',
+            recipient_id: customerRecipientId,
+            recipient_email: customerRecipientEmail,
+            emailContext: bookingEmailCtx,
+            emailPayloadBuilder: booking_1.buildBookingEmailPayload,
         });
-    }
-    // Guest confirmation email — deferred to email delivery phase
-    // (existing SendEmail integration reaches registered users only;
-    // guest email requires a configured external email provider)
-    if (booking.guest_email) {
-        console.log(`Guest receipt email pending for booking ${payment.booking_id} — email delivery deferred`);
     }
 }
 // ── Payment failure handler ──────────────────────────────────

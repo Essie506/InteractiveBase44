@@ -31,7 +31,7 @@
 // assignment/invitation lists, or private booking records. Availability
 // is a derived value.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveCalendarEvent = void 0;
+exports.deleteCalendarEvent = exports.saveCalendarEvent = void 0;
 exports.idempotencyDocId = idempotencyDocId;
 exports.maintainProjection = maintainProjection;
 exports.refreshEventProjection = refreshEventProjection;
@@ -44,6 +44,10 @@ const eventCapacity_1 = require("./eventCapacity");
 const dispatcher_1 = require("./notifications/dispatcher");
 const calendar_1 = require("./notifications/email/payloads/calendar");
 const calendarEventDiff_1 = require("./calendarEventDiff");
+const calendarEventHistory_1 = require("./calendarEventHistory");
+const calendarParticipation_1 = require("./calendarParticipation");
+const calendarAvailability_1 = require("./calendarAvailability");
+const calendarSignal_1 = require("./calendarSignal");
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
 const IDEMPOTENCY = 'calendarEventIdempotency';
@@ -139,6 +143,21 @@ function dedupeStrings(arr) {
             seen.add(s);
             out.push(s);
         }
+    }
+    return out;
+}
+// ── Trust restriction helper (§87) ──────────────────────────
+// Filters out identities that are blocked (either direction) relative to
+// the caller. Calendar consumes the authoritative BlockRecord to enforce
+// Trust & Safety restrictions on shared Event participation; it does not
+// create the block state. A blocked identity is silently omitted from the
+// invite list rather than rejecting the whole event.
+async function filterBlockedIdentities(callerId, ids) {
+    const out = [];
+    for (const id of ids) {
+        if (await (0, shared_1.isBlocked)(callerId, id))
+            continue;
+        out.push(id);
     }
     return out;
 }
@@ -256,6 +275,35 @@ async function dispatchUpdateNotifications(eventId, existing, updatePayload, mer
         }
     }
 }
+// ── Schedule-change history (§48, §104, §105) ───────────────
+// Records the schedule-change timeline on the event. Uses the same diff
+// as notification dispatch so history and notifications classify changes
+// consistently. Append-only — never rewrites past entries. Does NOT
+// duplicate source-system audit history (Booking keeps its own
+// reschedule_history on the booking); this is Calendar's own timeline.
+async function recordScheduleHistoryFromDiff(eventId, existing, mergedData, updatePayload, actorId, nowIso) {
+    const diff = (0, calendarEventDiff_1.diffEventChanges)(existing, updatePayload);
+    if (diff.isNoOp)
+        return;
+    const sourceSystem = mergedData.source_system || existing.source_system || 'manual';
+    const prevStart = existing.start_time || null;
+    const prevEnd = existing.end_time || null;
+    const newStart = mergedData.start_time || null;
+    const newEnd = mergedData.end_time || null;
+    if (diff.isCancellation) {
+        await (0, calendarEventHistory_1.appendScheduleHistory)({ event_id: eventId, change_type: 'cancelled', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+        return;
+    }
+    if (diff.isReschedule) {
+        await (0, calendarEventHistory_1.appendScheduleHistory)({ event_id: eventId, change_type: 'rescheduled', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+    }
+    if (diff.addedInvitees.length) {
+        await (0, calendarEventHistory_1.appendScheduleHistory)({ event_id: eventId, change_type: 'participant_added', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+    }
+    if (diff.removedInvitees.length) {
+        await (0, calendarEventHistory_1.appendScheduleHistory)({ event_id: eventId, change_type: 'participant_removed', previous_start_time: prevStart, previous_end_time: prevEnd, new_start_time: newStart, new_end_time: newEnd, changed_at: nowIso, actor_id: actorId, source_system: sourceSystem });
+    }
+}
 // ── saveCalendarEvent ───────────────────────────────────────
 exports.saveCalendarEvent = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
     if (!request.auth) {
@@ -322,12 +370,55 @@ exports.saveCalendarEvent = (0, https_1.onCall)({ region: 'europe-west2', cors: 
             updatePayload.invited_identity_ids = mergedInvited;
             updatePayload.invited_guest_emails = mergedGuests;
         }
+        // ── Trust restriction (§87): exclude blocked identities from invitations ──
+        if ('invited_identity_ids' in updatePayload) {
+            updatePayload.invited_identity_ids = await filterBlockedIdentities(callerIdentityId, updatePayload.invited_identity_ids);
+        }
         updatePayload._updated_date = nowIso;
-        // Preserve the authoritative record — merge, never replace/delete.
-        await shared_1.db.collection(EVENTS).doc(eventId).set(updatePayload, { merge: true });
+        // ── §39: Conflict validation for manual Professional/Business reschedules ──
+        // Only applies when the time changes AND the event is manual + professional/business
+        // context. Source-owned events use their owning system's scheduling contract (§45).
+        // Personal events are permitted to overlap (§29). The event being edited is
+        // excluded from conflict detection against itself.
+        const enforceConflict = (0, calendarAvailability_1.shouldEnforceConflictCheck)(existing.source_system || 'manual', existing.operating_context, existing.owner_type);
+        const startChanged = !!updatePayload.start_time &&
+            new Date(updatePayload.start_time).getTime() !== new Date(existing.start_time).getTime();
+        const endChanged = !!updatePayload.end_time &&
+            new Date(updatePayload.end_time).getTime() !== new Date(existing.end_time).getTime();
+        const timeChanging = startChanged || endChanged;
+        if (enforceConflict && timeChanging) {
+            const newStart = updatePayload.start_time || existing.start_time;
+            const newEnd = updatePayload.end_time || existing.end_time;
+            const newResource = updatePayload.resource_label !== undefined ? updatePayload.resource_label : existing.resource_label;
+            await shared_1.db.runTransaction(async (tx) => {
+                if (await (0, calendarAvailability_1.hasOverlappingEvent)(tx, existing.owner_id, newStart, newEnd, eventId, newResource)) {
+                    throw new https_1.HttpsError('failed-precondition', 'Time slot conflicts with an existing event');
+                }
+                await (0, calendarAvailability_1.touchScheduleLock)(tx, existing.owner_id, nowIso);
+                tx.set(shared_1.db.collection(EVENTS).doc(eventId), updatePayload, { merge: true });
+            });
+        }
+        else {
+            // Non-conflict-checked path — preserve existing direct-write behaviour.
+            await shared_1.db.collection(EVENTS).doc(eventId).set(updatePayload, { merge: true });
+        }
         const mergedData = { ...existing, ...updatePayload };
         await maintainProjection(eventId, mergedData);
         await dispatchUpdateNotifications(eventId, existing, updatePayload, mergedData, nowIso);
+        // ── Sync participation records for added/removed invitees (Phase 3) ──
+        // Added invitees get 'pending' records (idempotent — does not overwrite
+        // existing accepted/declined). Removed invitees get 'revoked' records.
+        // Participation state is SEPARATE from the event's lifecycle_state.
+        const partDiff = (0, calendarEventDiff_1.diffEventChanges)(existing, updatePayload);
+        if (partDiff.addedInvitees.length > 0) {
+            await (0, calendarParticipation_1.syncParticipationRecords)(eventId, partDiff.addedInvitees, nowIso);
+        }
+        if (partDiff.removedInvitees.length > 0) {
+            await (0, calendarParticipation_1.revokeParticipationRecords)(eventId, partDiff.removedInvitees, callerIdentityId, nowIso);
+        }
+        await recordScheduleHistoryFromDiff(eventId, existing, mergedData, updatePayload, callerIdentityId, nowIso);
+        // §99: bump realtime signals for all identities affected by this update.
+        await (0, calendarSignal_1.emitCalendarSignalForEvent)(mergedData);
         return { id: eventId, ...mergedData };
     }
     // ════════════════════════════════════════════════════════════
@@ -365,6 +456,8 @@ exports.saveCalendarEvent = (0, https_1.onCall)({ region: 'europe-west2', cors: 
     // Never invite/assign the owner or creator to their own event.
     invitedIdentityIds = invitedIdentityIds.filter((id) => id !== ownerId && id !== callerIdentityId);
     assignedIdentityIds.filter((id) => id !== callerIdentityId);
+    // ── Trust restriction (§87): exclude blocked identities from invitations ──
+    invitedIdentityIds = await filterBlockedIdentities(callerIdentityId, invitedIdentityIds);
     const sourceSystem = data.source_system || 'manual';
     const sourceId = data.source_id || null;
     if (!sourceId) {
@@ -398,6 +491,19 @@ exports.saveCalendarEvent = (0, https_1.onCall)({ region: 'europe-west2', cors: 
             existingEventId = idempSnap.data().event_id;
             return;
         }
+        // ── §39: Authoritative conflict validation for manual Professional/Business events ──
+        // Personal events (identity-owned, personal context) are permitted to overlap (§29).
+        // Source-owned events use their owning system's scheduling contract (§45, §49) and
+        // are NOT routed through this generic manual-event conflict policy.
+        if ((0, calendarAvailability_1.shouldEnforceConflictCheck)(sourceSystem, data.operating_context, ownerType)) {
+            if (await (0, calendarAvailability_1.hasOverlappingEvent)(tx, ownerId, eventData.start_time, eventData.end_time, undefined, eventData.resource_label)) {
+                throw new https_1.HttpsError('failed-precondition', 'Time slot conflicts with an existing event');
+            }
+            // Touch the schedule sentinel so concurrent manual creations for the same
+            // owner serialize — Firestore retries one transaction, and on retry the
+            // conflict check sees the other's newly committed event (§120 concurrency).
+            await (0, calendarAvailability_1.touchScheduleLock)(tx, ownerId, nowIso);
+        }
         const eventRef = shared_1.db.collection(EVENTS).doc();
         eventDocId = eventRef.id;
         tx.set(eventRef, { ...eventData, _created_date: nowIso, _updated_date: nowIso });
@@ -416,6 +522,25 @@ exports.saveCalendarEvent = (0, https_1.onCall)({ region: 'europe-west2', cors: 
     }
     await maintainProjection(eventDocId, eventData);
     await dispatchCreateNotifications(eventDocId, eventData);
+    // ── Create 'pending' participation records for all invitees (Phase 3) ──
+    // Each invited identity gets a participation record with response_state
+    // 'pending'. The invitee sees the event in their Calendar but must
+    // explicitly Accept/Decline — they do NOT silently become an accepted
+    // participant merely because the event is visible.
+    await (0, calendarParticipation_1.syncParticipationRecords)(eventDocId, invitedIdentityIds, nowIso);
+    await (0, calendarEventHistory_1.appendScheduleHistory)({
+        event_id: eventDocId,
+        change_type: 'created',
+        previous_start_time: null,
+        previous_end_time: null,
+        new_start_time: eventData.start_time || null,
+        new_end_time: eventData.end_time || null,
+        changed_at: nowIso,
+        actor_id: callerIdentityId,
+        source_system: eventData.source_system || 'manual',
+    });
+    // §99: bump realtime signals for all identities affected by this create.
+    await (0, calendarSignal_1.emitCalendarSignalForEvent)(eventData);
     return { id: eventDocId, ...eventData };
 });
 // ── Projection maintenance ──────────────────────────────────
@@ -438,6 +563,71 @@ async function maintainProjection(eventId, data) {
     const projection = (0, calendarEventProjection_1.buildEventPublicProjection)(eventId, data, host, locationGeo, locationLabel, reservedCount);
     await shared_1.db.collection(PUBLIC).doc(eventId).set(projection);
 }
+// ── deleteCalendarEvent (§52) ───────────────────────────────
+// Destructive removal of a Calendar-owned object, distinct from Cancel
+// (which preserves the historical relationship). Permitted ONLY for
+// personal manual identity-owned events. History is preserved (§108) —
+// calendarEventHistory is a separate collection and is not deleted.
+exports.deleteCalendarEvent = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    }
+    const callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const data = request.data || {};
+    const eventId = data.event_id || data.id;
+    if (!eventId) {
+        throw new https_1.HttpsError('invalid-argument', 'event_id is required');
+    }
+    const existingSnap = await shared_1.db.collection(EVENTS).doc(eventId).get();
+    if (!existingSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Calendar event not found');
+    }
+    const existing = existingSnap.data();
+    // Authority: creator or identity owner only (delete is personal — no
+    // business-manager path). Server-authoritative.
+    const isCreator = existing.created_by_id === callerIdentityId;
+    const isIdentityOwner = existing.owner_type === 'identity' && existing.owner_id === callerIdentityId;
+    if (!isCreator && !isIdentityOwner) {
+        throw new https_1.HttpsError('permission-denied', 'Not authorised to delete this event');
+    }
+    // Restriction: personal manual identity-owned events only. Source-owned
+    // events (booking/workout/business_scheduling) and business events are
+    // not destructively deletable through Calendar.
+    if (existing.source_system && existing.source_system !== 'manual') {
+        throw new https_1.HttpsError('failed-precondition', 'Only personal events can be deleted. Source-owned events must be removed through their owning system.');
+    }
+    if (existing.owner_type !== 'identity') {
+        throw new https_1.HttpsError('failed-precondition', 'Only identity-owned events can be deleted');
+    }
+    const nowIso = new Date().toISOString();
+    // Revoke participation for all invitees so their visibility is removed.
+    const invitedIds = dedupeStrings(existing.invited_identity_ids);
+    if (invitedIds.length > 0) {
+        await (0, calendarParticipation_1.revokeParticipationRecords)(eventId, invitedIds, callerIdentityId, nowIso);
+    }
+    // Append a 'deleted' history entry (history preserved — §108).
+    await (0, calendarEventHistory_1.appendScheduleHistory)({
+        event_id: eventId,
+        change_type: 'deleted',
+        previous_start_time: existing.start_time || null,
+        previous_end_time: existing.end_time || null,
+        new_start_time: null,
+        new_end_time: null,
+        changed_at: nowIso,
+        actor_id: callerIdentityId,
+        source_system: existing.source_system || 'manual',
+    });
+    // Remove the public projection + idempotency record (best effort).
+    await shared_1.db.collection(PUBLIC).doc(eventId).delete().catch(() => { });
+    const idempKey = idempotencyDocId(existing.owner_type, existing.owner_id, existing.source_system || 'manual', existing.source_id || '');
+    await shared_1.db.collection(IDEMPOTENCY).doc(idempKey).delete().catch(() => { });
+    // Destructive removal of the event document.
+    await shared_1.db.collection(EVENTS).doc(eventId).delete();
+    // §99: bump realtime signals for all identities that previously saw the
+    // deleted event so their Calendars drop it promptly.
+    await (0, calendarSignal_1.emitCalendarSignalForEvent)(existing);
+    return { id: eventId, deleted: true };
+});
 // ── Refresh projection by event ID ──────────────────────────
 async function refreshEventProjection(eventId) {
     const ev = await shared_1.db.collection(EVENTS).doc(eventId).get();

@@ -16,8 +16,9 @@ import {
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
 import { getEventBarClasses } from '@/lib/calendarCategory';
 import EventInvitationBadge from './EventInvitationBadge';
+import EventLifecycleActions from './EventLifecycleActions';
 
-function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMap, onParticipationResponse }) {
+function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMap, onParticipationResponse, user, onSetLifecycle, onDelete, onCancel, cancellingId, deletingId }) {
   const e = occ.event;
   const safe = getSafeDisplayValues(e);
   const sourceLabel = getSourceTypeLabel(e.source_system);
@@ -80,11 +81,20 @@ function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMa
         <p className="text-xs text-stone-600 mt-1.5 line-clamp-2">{safe.description}</p>
       )}
       <EventInvitationBadge event={e} participationMap={participationMap} onResponse={onParticipationResponse} compact />
+      <EventLifecycleActions
+        occ={occ}
+        user={user}
+        onSetLifecycle={onSetLifecycle}
+        onDelete={onDelete}
+        onCancel={onCancel}
+        cancellingId={cancellingId}
+        deletingId={deletingId}
+      />
     </div>
   );
 }
 
-export default function TodayView({ occurrences, timezone, onSelectEvent, reminders = [], participationMap, onParticipationResponse }) {
+export default function TodayView({ occurrences, timezone, onSelectEvent, reminders = [], participationMap, onParticipationResponse, user, onSetLifecycle, onDelete, onCancel, cancellingId, deletingId }) {
   const now = new Date();
   const todayStr = now.toDateString();
 
@@ -150,7 +160,7 @@ export default function TodayView({ occurrences, timezone, onSelectEvent, remind
             <Sun className="w-4 h-4 text-indigo-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-indigo-700">Next activity</h3>
           </div>
-          <TodayEventCard occ={nextActivity} timezone={timezone} onSelectEvent={onSelectEvent} isFirst={true} participationMap={participationMap} onParticipationResponse={onParticipationResponse} />
+          <TodayEventCard occ={nextActivity} timezone={timezone} onSelectEvent={onSelectEvent} isFirst={true} participationMap={participationMap} onParticipationResponse={onParticipationResponse} user={user} onSetLifecycle={onSetLifecycle} onDelete={onDelete} onCancel={onCancel} cancellingId={cancellingId} deletingId={deletingId} />
         </div>
       )}
 
@@ -173,6 +183,12 @@ export default function TodayView({ occurrences, timezone, onSelectEvent, remind
                 isFirst={false}
                 participationMap={participationMap}
                 onParticipationResponse={onParticipationResponse}
+                user={user}
+                onSetLifecycle={onSetLifecycle}
+                onDelete={onDelete}
+                onCancel={onCancel}
+                cancellingId={cancellingId}
+                deletingId={deletingId}
               />
             ))}
           </div>

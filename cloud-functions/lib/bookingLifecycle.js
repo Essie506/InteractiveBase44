@@ -14,6 +14,11 @@ const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const stripe_1 = require("./stripe");
 const calendarEvent_1 = require("./calendarEvent");
+const dispatcher_1 = require("./notifications/dispatcher");
+const calendarEventHistory_1 = require("./calendarEventHistory");
+const bookingNotifications_1 = require("./bookingNotifications");
+const booking_1 = require("./notifications/email/payloads/booking");
+const calendarAvailability_1 = require("./calendarAvailability");
 // ── cancelBooking ────────────────────────────────────────────
 // Evaluates the cancellation policy snapshot, determines the refund
 // amount, creates a Stripe refund if applicable, and transitions
@@ -146,6 +151,8 @@ exports.cancelBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shar
             lifecycle_state: 'cancelled',
             _updated_date: nowIso,
         });
+        // Record schedule history (§48, §104) — Calendar's own change timeline.
+        await (0, calendarEventHistory_1.appendScheduleHistory)({ event_id: booking.calendar_event_id, change_type: 'cancelled', previous_start_time: booking.start_time, previous_end_time: booking.end_time, new_start_time: booking.start_time, new_end_time: booking.end_time, changed_at: nowIso, actor_id: callerIdentityId, source_system: 'booking' });
     }
     // Refresh the public Event projection — event bookings release capacity on cancel.
     if (booking.event_id) {
@@ -169,24 +176,28 @@ exports.cancelBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shar
             });
         }
     }
-    // Notification
-    const recipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
-    if (recipientId) {
-        const notifRef = shared_1.db.collection('notificationRecords').doc();
-        await notifRef.set({
-            recipient_id: recipientId,
-            source_system: 'messaging',
+    // Notification — routed through the Notifications dispatcher (§81).
+    // C2 fix: booking notifications now carry emailContext + emailPayloadBuilder.
+    // Guest email is the primary guest channel (Booking §1.7.1, §3.12).
+    const cancelRecipientId = isCustomer ? booking.provider_identity_id : (booking.customer_identity_id || null);
+    const cancelRecipientEmail = (!isCustomer && !booking.customer_identity_id) ? (booking.guest_email || null) : null;
+    if (cancelRecipientId || cancelRecipientEmail) {
+        const cancelEmailCtx = await (0, bookingNotifications_1.buildBookingEmailContext)(booking_id, booking, 'booking_cancelled');
+        await (0, dispatcher_1.emitNotification)({
+            source_system: 'calendar',
             event_type: 'booking_cancelled',
+            source_id: `booking:${booking_id}`,
+            version: '1',
+            category: 'calendar',
             title: 'Booking Cancelled',
             body: `Booking ${booking_id} has been cancelled${refundAmountPence > 0 ? `. Refund of ${(refundAmountPence / 100).toFixed(2)} ${booking.total_snapshot.currency} processing.` : '.'}`,
-            category: 'calendar',
-            priority: 'normal',
-            delivery_channels: ['in_app'],
-            is_read: false,
             action_url: `/bookings/${booking_id}`,
-            source_id: booking_id,
-            _created_date: nowIso,
-            _updated_date: nowIso,
+            action_label: 'View Booking',
+            priority: 'normal',
+            recipient_id: cancelRecipientId,
+            recipient_email: cancelRecipientEmail,
+            emailContext: cancelEmailCtx,
+            emailPayloadBuilder: booking_1.buildBookingEmailPayload,
         });
     }
     return {
@@ -245,36 +256,25 @@ exports.rescheduleBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: 
         booking_status: 'reschedule_requested',
         _updated_date: now,
     });
+    // ── Calendar-authoritative availability for the new slot (§27, §32) ──
+    const calendarOwner = booking.business_id || booking.provider_identity_id;
+    const calendarOwnerType = booking.business_id ? 'business' : 'identity';
+    const availabilityContext = booking.business_id ? 'business' : 'professional';
+    const availability = await (0, calendarAvailability_1.evaluateAvailabilityRule)(calendarOwner, calendarOwnerType, availabilityContext, new_start_time, new_end_time);
+    if (!availability.eligible) {
+        throw new https_1.HttpsError('failed-precondition', `New slot is not available: ${availability.reason || 'outside availability'}`);
+    }
     // Validate new slot availability (transaction — prevent race conditions)
     const holdResult = await shared_1.db.runTransaction(async (tx) => {
-        // Check for conflicting holds/bookings at the new time
-        const conflictingSnap = await tx.get(shared_1.db.collection('slotHolds')
-            .where('provider_identity_id', '==', booking.provider_identity_id)
-            .where('start_time', '==', new_start_time)
-            .where('status', '==', 'active')
-            .limit(1));
-        if (!conflictingSnap.empty) {
-            throw new https_1.HttpsError('failed-precondition', 'New slot is not available');
+        // ── Overlap conflict detection (§29, §37, §39) ──
+        // Exclude this booking's own hold/calendar event from the conflict check.
+        if (await (0, calendarAvailability_1.hasOverlappingHold)(tx, booking.provider_identity_id, new_start_time, new_end_time, booking.hold_id)) {
+            throw new https_1.HttpsError('failed-precondition', 'New slot overlaps an active hold');
         }
-        const bookedSnap = await tx.get(shared_1.db.collection('bookings')
-            .where('provider_identity_id', '==', booking.provider_identity_id)
-            .where('start_time', '==', new_start_time)
-            .where('booking_status', 'in', [
-            'requested', 'accepted', 'awaiting_customer_confirmation',
-            'awaiting_payment', 'payment_pending', 'confirmed', 'scheduled',
-        ])
-            .limit(1));
-        if (!bookedSnap.empty) {
-            throw new https_1.HttpsError('failed-precondition', 'New slot is already booked');
+        if (await (0, calendarAvailability_1.hasOverlappingBooking)(tx, booking.provider_identity_id, new_start_time, new_end_time, booking_id)) {
+            throw new https_1.HttpsError('failed-precondition', 'New slot overlaps an existing booking');
         }
-        // Check Calendar for existing events (Calendar is authoritative for availability)
-        const calendarOwner = booking.business_id || booking.provider_identity_id;
-        const calendarSnap = await tx.get(shared_1.db.collection('calendarEvents')
-            .where('owner_id', '==', calendarOwner)
-            .where('start_time', '==', new_start_time)
-            .where('lifecycle_state', 'in', ['scheduled', 'confirmed', 'tentative'])
-            .limit(1));
-        if (!calendarSnap.empty) {
+        if (await (0, calendarAvailability_1.hasOverlappingEvent)(tx, calendarOwner, new_start_time, new_end_time, booking.calendar_event_id)) {
             throw new https_1.HttpsError('failed-precondition', 'New slot conflicts with an existing calendar event');
         }
         // Create new hold
@@ -319,6 +319,8 @@ exports.rescheduleBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: 
             end_time: new_end_time,
             _updated_date: now,
         });
+        // Record schedule history (§48, §104) — Calendar's own change timeline.
+        await (0, calendarEventHistory_1.appendScheduleHistory)({ event_id: booking.calendar_event_id, change_type: 'rescheduled', previous_start_time: booking.start_time, previous_end_time: booking.end_time, new_start_time: new_start_time, new_end_time: new_end_time, changed_at: now, actor_id: callerIdentityId, source_system: 'booking' });
     }
     // Release old hold
     if (booking.hold_id) {
@@ -337,24 +339,28 @@ exports.rescheduleBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: 
         booking_status: 'scheduled',
         _updated_date: now,
     });
-    // Notification
-    const recipientId = isCustomer ? booking.provider_identity_id : booking.customer_identity_id;
-    if (recipientId) {
-        const notifRef = shared_1.db.collection('notificationRecords').doc();
-        await notifRef.set({
-            recipient_id: recipientId,
-            source_system: 'messaging',
+    // Notification — routed through the Notifications dispatcher (§81).
+    // C2 fix: booking notifications now carry emailContext + emailPayloadBuilder.
+    // Guest email is the primary guest channel (Booking §1.7.1, §3.12).
+    const rescheduleRecipientId = isCustomer ? booking.provider_identity_id : (booking.customer_identity_id || null);
+    const rescheduleRecipientEmail = (!isCustomer && !booking.customer_identity_id) ? (booking.guest_email || null) : null;
+    if (rescheduleRecipientId || rescheduleRecipientEmail) {
+        const rescheduleEmailCtx = await (0, bookingNotifications_1.buildBookingEmailContext)(booking_id, booking, 'booking_rescheduled');
+        await (0, dispatcher_1.emitNotification)({
+            source_system: 'calendar',
             event_type: 'booking_rescheduled',
+            source_id: `booking:${booking_id}`,
+            version: '1',
+            category: 'calendar',
             title: 'Booking Rescheduled',
             body: `Booking ${booking_id} rescheduled to ${new Date(new_start_time).toLocaleString()}`,
-            category: 'calendar',
-            priority: 'normal',
-            delivery_channels: ['in_app'],
-            is_read: false,
             action_url: `/bookings/${booking_id}`,
-            source_id: booking_id,
-            _created_date: now,
-            _updated_date: now,
+            action_label: 'View Booking',
+            priority: 'normal',
+            recipient_id: rescheduleRecipientId,
+            recipient_email: rescheduleRecipientEmail,
+            emailContext: rescheduleEmailCtx,
+            emailPayloadBuilder: booking_1.buildBookingEmailPayload,
         });
     }
     return { booking_id, status: 'confirmed', new_hold_id: holdResult };
@@ -474,10 +480,12 @@ exports.completeBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: sh
         completed_at: now,
         _updated_date: now,
     });
-    // Update calendar event
+    // Update calendar event — V2 §15: booking-owned events use 'historical'
+    // (not 'completed', which is a Personal-only state per §16). The booking
+    // is completed; the Calendar schedule representation transitions to historical.
     if (booking.calendar_event_id) {
         await shared_1.db.collection('calendarEvents').doc(booking.calendar_event_id).update({
-            lifecycle_state: 'completed',
+            lifecycle_state: 'historical',
             _updated_date: now,
         });
     }

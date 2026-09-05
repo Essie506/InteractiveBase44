@@ -34,7 +34,7 @@ function isConflictError(err) {
 // source_id) so concurrent retries of the same logical Add produce
 // exactly one authoritative event. The source_id is generated once per
 // Add operation and reused across retries.
-export default function EventModal({ ownerId, ownerType, operatingContext, createdBy, businessId, existingEvent, existingEvents, timezone, onClose, onSaved }) {
+export default function EventModal({ ownerId, ownerType, operatingContext, createdBy, businessId, existingEvent, existingEvents, timezone, initialDate, onClose, onSaved }) {
   const isEditing = !!existingEvent;
   // One stable source_id per logical Add operation. Generated on first
   // render of a create modal and preserved across retries; a genuinely
@@ -46,7 +46,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const [title, setTitle] = useState(existingEvent?.title || '');
   const [description, setDescription] = useState(existingEvent?.description || '');
   const [date, setDate] = useState(
-    existingEvent ? new Date(existingEvent.start_time).toISOString().split('T')[0] : ''
+    existingEvent ? new Date(existingEvent.start_time).toISOString().split('T')[0] : (initialDate || '')
   );
   const [startTime, setStartTime] = useState(
     existingEvent ? new Date(existingEvent.start_time).toTimeString().substring(0, 5) : '09:00'

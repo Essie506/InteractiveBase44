@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "rootDir": "src",
     "noImplicitReturns": true,
     "outDir": "lib",
     "sourceMap": true,
@@ -8,8 +10,7 @@
     "target": "es2020",
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "moduleResolution": "node"
+    "resolveJsonModule": true
   },
   "compileOnSave": true,
   "include": ["src"]

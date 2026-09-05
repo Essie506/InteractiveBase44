@@ -4,7 +4,7 @@ import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForE
 import { rescheduleOccurrence, isConflictError } from '@/lib/calendarReschedule';
 import { suggestAlternativeSlots } from '@/lib/calendarAlternatives';
 import { normalizeToOccurrences, groupOccurrencesByDate, filterOccurrences } from '@/lib/calendarOccurrences';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff, AlertCircle, Check, X, Archive } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, AlertCircle } from 'lucide-react';
 import { buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
 import { getEventChipClasses } from '@/lib/calendarCategory';
@@ -17,10 +17,11 @@ import DayView from '@/components/calendar/DayView';
 import AgendaView from '@/components/calendar/AgendaView';
 import InvitationActions from '@/components/calendar/InvitationActions';
 import { loadParticipationForEvents, getParticipationState, isInvitedEvent } from '@/lib/calendarParticipation';
-import { canEditEvent, canCancelEvent, canSetPersonalLifecycle, canDeleteEvent, PERSONAL_LIFECYCLE_STATES } from '@/lib/calendarAuthority';
+import { canEditEvent } from '@/lib/calendarAuthority';
 import EventDetailModal from '@/components/calendar/EventDetailModal';
 import EventHistoryTimeline from '@/components/calendar/EventHistoryTimeline';
 import OccurrenceActions from '@/components/calendar/OccurrenceActions';
+import EventLifecycleActions from '@/components/calendar/EventLifecycleActions';
 import OfflineIndicator from '@/components/calendar/OfflineIndicator';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -65,6 +66,18 @@ export default function CalendarPage() {
 
   const ownerType = activeContext === 'business' ? 'business' : 'identity';
   const ownerId = activeContext === 'business' ? activeBusinessId : user?.id;
+
+  // Pre-populate the New Event date from the clicked/selected calendar day.
+  // selectedDate is updated whenever a day is clicked in the month grid (or
+  // defaults to today), so New Event opens on the day the user is looking at.
+  // The user can still change the date manually in the modal.
+  const initialNewEventDate = useMemo(() => {
+    if (!selectedDate) return '';
+    const y = selectedDate.getFullYear();
+    const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const d = String(selectedDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, [selectedDate]);
 
   // Compute the visible date range based on the current view
   const visibleRange = useMemo(() => {
@@ -459,7 +472,7 @@ export default function CalendarPage() {
           <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
         </div>
       ) : view === 'today' ? (
-        <TodayView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
+        <TodayView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} user={user} onSetLifecycle={handleSetLifecycle} onDelete={handleDeleteEvent} onCancel={handleCancelEvent} cancellingId={cancellingId} deletingId={deletingId} />
       ) : view === 'week' ? (
         <WeekView occurrences={filteredOccurrences} weekStart={weekStart} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} user={user} onReschedule={handleReschedule} reschedulingId={reschedulingId} />
       ) : view === 'day' ? (
@@ -582,62 +595,16 @@ export default function CalendarPage() {
                         {!unavailable && !canEditEvent(e, user) && (
                           <button onClick={() => handleSelectEvent(occ)} className="text-xs text-stone-600 font-medium hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">View details</button>
                         )}
-                        {canCancelEvent(e, user) && !unavailable && (
-                          <button
-                            onClick={() => handleCancelEvent(occ)}
-                            disabled={cancellingId === e.id}
-                            className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
-                          >
-                            {cancellingId === e.id
-                              ? <><Loader2 className="w-3 h-3 animate-spin" /> Cancelling...</>
-                              : <><Trash2 className="w-3 h-3" /> Cancel</>}
-                          </button>
-                        )}
-                        {canSetPersonalLifecycle(e, user) && !PERSONAL_LIFECYCLE_STATES.includes(e.lifecycle_state) && !unavailable && (
-                          <span className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleSetLifecycle(occ, 'completed')}
-                              aria-label="Mark as completed"
-                              title="Mark as completed"
-                              className="p-1 text-stone-600 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleSetLifecycle(occ, 'skipped')}
-                              aria-label="Mark as skipped"
-                              title="Mark as skipped"
-                              className="p-1 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleSetLifecycle(occ, 'archived')}
-                              aria-label="Archive event"
-                              title="Archive event"
-                              className="p-1 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                            >
-                              <Archive className="w-3.5 h-3.5" />
-                            </button>
-                          </span>
-                        )}
-                        {canDeleteEvent(e, user) && (
-                          <button
-                            onClick={() => handleDeleteEvent(occ)}
-                            disabled={deletingId === e.id}
-                            className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
-                          >
-                            {deletingId === e.id
-                              ? <><Loader2 className="w-3 h-3 animate-spin" /> Deleting...</>
-                              : <>Delete</>}
-                          </button>
-                        )}
-                        {canEditEvent(e, user) && e.source_system === 'booking' && e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed' && (
-                          <span className="text-xs text-stone-400 flex items-center gap-1">
-                            <CalendarOff className="w-3 h-3" /> Cancel via Bookings
-                          </span>
-                        )}
                       </div>
+                      <EventLifecycleActions
+                        occ={occ}
+                        user={user}
+                        onSetLifecycle={handleSetLifecycle}
+                        onDelete={handleDeleteEvent}
+                        onCancel={handleCancelEvent}
+                        cancellingId={cancellingId}
+                        deletingId={deletingId}
+                      />
                       {occ.isRecurring && canEditEvent(e, user) && e.source_system !== 'booking' && (
                         <OccurrenceActions occurrence={occ} user={user} onChanged={loadEvents} />
                       )}
@@ -660,6 +627,7 @@ export default function CalendarPage() {
           existingEvent={editingEvent}
           existingEvents={events}
           timezone={timezone}
+          initialDate={editingEvent ? null : initialNewEventDate}
           onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
           onSaved={handleEventSaved}
         />

@@ -30,6 +30,14 @@ const TEMPLATES = {
         subject: (t) => `You were removed from "${t.eventTitle}"`,
         intro: () => `You were removed from an event on Interactive.`,
     },
+    calendar_participation_accepted: {
+        subject: (t) => `Invitation accepted for "${t.eventTitle}"`,
+        intro: () => `A participant accepted your calendar invitation.`,
+    },
+    calendar_participation_declined: {
+        subject: (t) => `Invitation declined for "${t.eventTitle}"`,
+        intro: () => `A participant declined your calendar invitation.`,
+    },
 };
 function buildCalendarEmailPayload(ctx) {
     const tmpl = TEMPLATES[ctx.eventType];
