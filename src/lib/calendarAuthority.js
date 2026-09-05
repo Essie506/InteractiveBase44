@@ -80,3 +80,35 @@ export function canCancelEvent(event, user) {
   if (event.lifecycle_state === 'cancelled' || event.lifecycle_state === 'removed') return false;
   return true;
 }
+
+// ── Personal Event Lifecycle (§16) ──────────────────────────
+// Calendar can support user-controlled Completed/Skipped/Rescheduled/
+// Archived for personal events. These states are meaningful only for
+// identity-owned personal-context events (manual source). Source-owned
+// events (booking, workout, business_scheduling) derive their lifecycle
+// from their owning system and must not be marked completed/skipped here.
+// Mutation authority is the same as edit (creator or identity owner).
+export const PERSONAL_LIFECYCLE_STATES = ['completed', 'skipped', 'archived'];
+
+export function canSetPersonalLifecycle(event, user) {
+  if (!canEditEvent(event, user)) return false;
+  if (!event) return false;
+  if (event.source_system && event.source_system !== 'manual') return false;
+  if (event.owner_type !== 'identity') return false;
+  if (event.operating_context && event.operating_context !== 'personal') return false;
+  return true;
+}
+
+// ── Delete vs Cancel (§52) ───────────────────────────────────
+// Delete is a destructive removal of a Calendar-owned object, distinct
+// from Cancel (which preserves the historical relationship). Permitted
+// only for personal manual events owned by the caller, and only when the
+// event is not booking-owned. Server-side enforcement lives in the
+// deleteCalendarEvent Cloud Function; this helper gates the UI.
+export function canDeleteEvent(event, user) {
+  if (!canEditEvent(event, user)) return false;
+  if (!event) return false;
+  if (event.source_system && event.source_system !== 'manual') return false;
+  if (event.owner_type !== 'identity') return false;
+  return true;
+}

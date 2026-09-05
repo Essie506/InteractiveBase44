@@ -14,6 +14,7 @@ import {
   buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
+import { getEventBarClasses } from '@/lib/calendarCategory';
 import EventInvitationBadge from './EventInvitationBadge';
 
 function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMap, onParticipationResponse }) {
@@ -45,6 +46,7 @@ function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMa
     >
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex items-center gap-2 min-w-0">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getEventBarClasses(e, occ)}`} aria-hidden="true" />
           {isFirst && <span className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">Next up</span>}
           <h4 className="font-medium text-stone-800 text-sm truncate">{safe.title}</h4>
         </div>

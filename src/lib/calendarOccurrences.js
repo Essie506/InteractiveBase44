@@ -140,20 +140,43 @@ export function groupOccurrencesByDate(occurrences, timezone) {
 }
 
 /**
- * Filter occurrences by a search query (title/description) and filter criteria.
+ * Filter occurrences by a search query and filter criteria (§21/§22).
+ *
+ * Search (§21) matches title, description, location, category, and source
+ * label. (Participant/Business name matching requires identity resolution
+ * and is deferred to the live-query layer.)
+ *
+ * Filters (§22): visibility, source system, lifecycle state, event category,
+ * operating context (Personal/Professional/Business), and a scheduled/
+ * historical period selector.
  */
-export function filterOccurrences(occurrences, { search, visibility, sourceSystem, lifecycleState } = {}) {
+export function filterOccurrences(occurrences, {
+  search, visibility, sourceSystem, lifecycleState, category, context, period,
+} = {}) {
+  const nowMs = Date.now();
   return occurrences.filter((occ) => {
     const event = occ.event;
     if (search) {
       const q = search.toLowerCase();
       const title = (event.title || '').toLowerCase();
       const desc = (event.description || '').toLowerCase();
-      if (!title.includes(q) && !desc.includes(q)) return false;
+      const loc = (event.location || '').toLowerCase();
+      const cat = (event.category || '').toLowerCase();
+      const src = (event.source_system || '').toLowerCase();
+      if (!title.includes(q) && !desc.includes(q) && !loc.includes(q) && !cat.includes(q) && !src.includes(q)) return false;
     }
     if (visibility && event.visibility !== visibility) return false;
     if (sourceSystem && event.source_system !== sourceSystem) return false;
     if (lifecycleState && event.lifecycle_state !== lifecycleState) return false;
+    if (category && event.category !== category) return false;
+    if (context && (event.operating_context || 'personal') !== context) return false;
+    if (period === 'upcoming') {
+      if (event.lifecycle_state === 'historical') return false;
+      if (new Date(occ.start).getTime() < nowMs) return false;
+    }
+    if (period === 'past') {
+      if (new Date(occ.start).getTime() >= nowMs) return false;
+    }
     return true;
   });
 }

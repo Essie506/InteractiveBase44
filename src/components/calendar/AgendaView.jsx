@@ -14,6 +14,7 @@ import {
   buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
+import { getEventBarClasses } from '@/lib/calendarCategory';
 import EventInvitationBadge from './EventInvitationBadge';
 
 const PAGE_SIZE = 50;
@@ -133,7 +134,7 @@ export default function AgendaView({ occurrences, timezone, onSelectEvent, selec
                   >
                     <div
                       className={`w-1 h-10 rounded-full flex-shrink-0 ${
-                        unavailable ? 'bg-amber-400' : e.source_system === 'booking' ? 'bg-emerald-400' : occ.isRecurring ? 'bg-purple-400' : 'bg-indigo-400'
+                        unavailable ? 'bg-amber-400' : getEventBarClasses(e, occ)
                       }`}
                       aria-hidden="true"
                     />

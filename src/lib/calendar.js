@@ -1,7 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { calendarRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
-import { callSaveCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries, callHandleSourceUnavailable } from '@/services/firebaseFunctions';
+import { callSaveCalendarEvent, callDeleteCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries, callHandleSourceUnavailable } from '@/services/firebaseFunctions';
 export { subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents, subscribeToParticipationForIdentity } from '@/lib/calendarRealtime';
 
 // Calendar System — M3: routes to Firebase when configured.
@@ -75,6 +75,34 @@ export async function updateEvent(eventId, data) {
 export async function cancelEvent(eventId) {
   if (useFirebase) return callSaveCalendarEvent({ id: eventId, lifecycle_state: 'cancelled' });
   return base44.entities.CalendarEvent.update(eventId, { lifecycle_state: 'cancelled' });
+}
+
+// ── Personal Event Lifecycle (§16) ──────────────────────────
+// Set a personal-only lifecycle state (completed/skipped/archived) on a
+// personal manual event. Routes through the canonical saveCalendarEvent
+// writer so authority + projection are enforced server-side.
+export async function setEventLifecycle(eventId, lifecycleState) {
+  if (useFirebase) return callSaveCalendarEvent({ id: eventId, lifecycle_state: lifecycleState });
+  return base44.entities.CalendarEvent.update(eventId, { lifecycle_state: lifecycleState });
+}
+
+// ── Delete vs Cancel (§52) ───────────────────────────────────
+// Destructive removal of a personal Calendar-owned event. Server-side
+// deleteCalendarEvent enforces authority + the personal-manual restriction
+// and preserves history (§108). Falls back to the Base44 SDK delete in
+// non-Firebase mode.
+export async function deleteEvent(eventId) {
+  if (useFirebase) return callDeleteCalendarEvent({ event_id: eventId });
+  return base44.entities.CalendarEvent.delete(eventId);
+}
+
+// ── Schedule-change history (§48, §104, §105) ───────────────
+// Read-only timeline. Readable by anyone authorised to read the parent
+// event (firestore.rules: canReadCalendarEvent). Writable only by Cloud
+// Function (appendScheduleHistory).
+export async function getEventHistory(eventId) {
+  if (useFirebase) return calendarRepository.listHistoryForEvent(eventId);
+  return [];
 }
 
 // Get events for an owner within a date range

@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents, subscribeToParticipationForIdentity } from '@/lib/calendar';
+import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, setEventLifecycle, deleteEvent, subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents, subscribeToParticipationForIdentity } from '@/lib/calendar';
 import { normalizeToOccurrences, groupOccurrencesByDate, filterOccurrences } from '@/lib/calendarOccurrences';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff, AlertCircle } from 'lucide-react';
 import { buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
+import { getEventChipClasses } from '@/lib/calendarCategory';
 import EventModal from '@/components/calendar/EventModal';
 import CalendarViewSwitcher from '@/components/calendar/CalendarViewSwitcher';
 import CalendarSearchBar from '@/components/calendar/CalendarSearchBar';
@@ -14,8 +15,9 @@ import DayView from '@/components/calendar/DayView';
 import AgendaView from '@/components/calendar/AgendaView';
 import InvitationActions from '@/components/calendar/InvitationActions';
 import { loadParticipationForEvents, getParticipationState, isInvitedEvent } from '@/lib/calendarParticipation';
-import { canEditEvent, canCancelEvent } from '@/lib/calendarAuthority';
+import { canEditEvent, canCancelEvent, canSetPersonalLifecycle, canDeleteEvent, PERSONAL_LIFECYCLE_STATES } from '@/lib/calendarAuthority';
 import EventDetailModal from '@/components/calendar/EventDetailModal';
+import EventHistoryTimeline from '@/components/calendar/EventHistoryTimeline';
 import { useToast } from '@/components/ui/use-toast';
 import { useFirebase } from '@/lib/backendConfig';
 
@@ -43,8 +45,9 @@ export default function CalendarPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [viewingEvent, setViewingEvent] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState({ visibility: '', sourceSystem: '', lifecycleState: '' });
+  const [filters, setFilters] = useState({ visibility: '', sourceSystem: '', lifecycleState: '', category: '', context: '', period: '' });
   const [participationMap, setParticipationMap] = useState(new Map());
   const [queryErrors, setQueryErrors] = useState([]);
   const { toast } = useToast();
@@ -316,6 +319,48 @@ export default function CalendarPage() {
     }
   };
 
+  // ── Personal Event Lifecycle (§16) ──────────────────────
+  // Mark a personal manual event as completed/skipped/archived. Only
+  // personal identity-owned manual events support these states.
+  const handleSetLifecycle = async (occ, state) => {
+    const event = occ?.event || occ;
+    if (!event) return;
+    try {
+      await setEventLifecycle(event.id, state);
+      await loadEvents();
+      toast({ title: `Marked as ${state}`, description: undefined });
+    } catch (err) {
+      toast({
+        title: 'Could not update event',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // ── Delete vs Cancel (§52) ───────────────────────────────
+  // Destructive removal of a personal Calendar-owned event. History is
+  // preserved server-side (§108).
+  const handleDeleteEvent = async (occ) => {
+    const event = occ?.event || occ;
+    if (!event || deletingId) return;
+    if (!window.confirm(`Delete "${event.title}"? This permanently removes the event. History is preserved.`)) return;
+    setDeletingId(event.id);
+    try {
+      await deleteEvent(event.id);
+      await loadEvents();
+      toast({ title: 'Event deleted' });
+    } catch (err) {
+      toast({
+        title: 'Could not delete event',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   // ── Event selection — authority-gated (V2) ──────────────────
   // V2: visibility ≠ participation ≠ mutation authority. An invited/
   // assigned identity can READ the event and respond to their invitation,
@@ -446,9 +491,7 @@ export default function CalendarPage() {
                           <div
                             key={occ.occurrenceId}
                             className={`text-[10px] px-1.5 py-0.5 rounded truncate font-medium ${
-                              unavailable ? 'bg-amber-100 text-amber-700' :
-                              occ.event.source_system === 'booking' ? 'bg-emerald-100 text-emerald-700' :
-                              occ.isRecurring ? 'bg-purple-100 text-purple-700' : 'bg-indigo-100 text-indigo-700'
+                              unavailable ? 'bg-amber-100 text-amber-700' : getEventChipClasses(occ.event, occ)
                             }`}
                           >
                             {safe.title}
@@ -538,6 +581,30 @@ export default function CalendarPage() {
                             {cancellingId === e.id
                               ? <><Loader2 className="w-3 h-3 animate-spin" /> Cancelling...</>
                               : <><Trash2 className="w-3 h-3" /> Cancel</>}
+                          </button>
+                        )}
+                        {canSetPersonalLifecycle(e, user) && !PERSONAL_LIFECYCLE_STATES.includes(e.lifecycle_state) && !unavailable && (
+                          <span className="flex items-center gap-1.5">
+                            {PERSONAL_LIFECYCLE_STATES.map((s) => (
+                              <button
+                                key={s}
+                                onClick={() => handleSetLifecycle(occ, s)}
+                                className="text-xs text-stone-600 font-medium hover:text-stone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded capitalize"
+                              >
+                                Mark {s}
+                              </button>
+                            ))}
+                          </span>
+                        )}
+                        {canDeleteEvent(e, user) && (
+                          <button
+                            onClick={() => handleDeleteEvent(occ)}
+                            disabled={deletingId === e.id}
+                            className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+                          >
+                            {deletingId === e.id
+                              ? <><Loader2 className="w-3 h-3 animate-spin" /> Deleting...</>
+                              : <>Delete</>}
                           </button>
                         )}
                         {canEditEvent(e, user) && e.source_system === 'booking' && e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed' && (

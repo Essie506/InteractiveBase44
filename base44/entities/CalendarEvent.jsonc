@@ -95,6 +95,16 @@
       "default": "private",
       "title": "Visibility"
     },
+    "category": {
+      "type": "string",
+      "title": "Category",
+      "description": "Personal event category (\u00a711). Free-text label from a fixed category list (general, work, health, fitness, social, family, travel, finance, important, birthday). Used for the event-category filter (\u00a722) and to derive a display colour when no explicit color is set. Personal-category data is private \u2014 never projected to calendarEventsPublic."
+    },
+    "color": {
+      "type": "string",
+      "title": "Color",
+      "description": "Display colour palette key (\u00a711 colour/category behaviour). One of: indigo, blue, emerald, amber, rose, violet, cyan, orange, red, pink, purple, teal. Overrides the category-derived colour. Stored as a palette key (not arbitrary hex) so Tailwind class mappings resolve at build time. Personal \u2014 never projected to calendarEventsPublic."
+    },
     "lifecycle_state": {
       "type": "string",
       "enum": [

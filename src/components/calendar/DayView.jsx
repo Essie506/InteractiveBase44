@@ -11,6 +11,7 @@ import {
   buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
+import { getEventCardClasses } from '@/lib/calendarCategory';
 import EventInvitationBadge from './EventInvitationBadge';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -92,14 +93,10 @@ export default function DayView({ occurrences, date, timezone, onSelectEvent, pa
                       onClick={() => onSelectEvent(occ)}
                       onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); onSelectEvent(occ); } }}
                       aria-label={buildEventAriaLabel(occ, timezone)}
-                      className={`px-2.5 py-2 rounded-lg mb-1 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                      className={`px-2.5 py-2 rounded-lg mb-1 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 border ${
                         unavailable
-                          ? 'bg-amber-50 border border-amber-200 hover:bg-amber-100'
-                          : e.source_system === 'booking'
-                          ? 'bg-emerald-50 border border-emerald-200 hover:bg-emerald-100'
-                          : occ.isRecurring
-                          ? 'bg-purple-50 border border-purple-200 hover:bg-purple-100'
-                          : 'bg-indigo-50 border border-indigo-200 hover:bg-indigo-100'
+                          ? 'bg-amber-50 border-amber-200 hover:bg-amber-100'
+                          : getEventCardClasses(e, occ)
                       }`}
                     >
                       <div className="flex items-center justify-between mb-0.5 gap-1">

@@ -7,6 +7,8 @@ import InviteByEmailInput from '@/components/calendar/InviteByEmailInput';
 import StaffAssignPicker from '@/components/calendar/StaffAssignPicker';
 import RecurrenceControls from '@/components/calendar/RecurrenceControls';
 import ReminderControls from '@/components/calendar/ReminderControls';
+import EventHistoryTimeline from '@/components/calendar/EventHistoryTimeline';
+import { EVENT_CATEGORIES, COLOR_PALETTE } from '@/lib/calendarCategory';
 import { useToast } from '@/components/ui/use-toast';
 
 // Classify a save error as a §39 conflict rejection. The canonical
@@ -55,6 +57,8 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const [location, setLocation] = useState(existingEvent?.location || '');
   const [meetingUrl, setMeetingUrl] = useState(existingEvent?.meeting_url || '');
   const [visibility, setVisibility] = useState(existingEvent?.visibility || 'private');
+  const [category, setCategory] = useState(existingEvent?.category || '');
+  const [color, setColor] = useState(existingEvent?.color || '');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [invitedEmails, setInvitedEmails] = useState(
@@ -112,6 +116,8 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         location: locationType !== 'online' ? (location || null) : null,
         meeting_url: locationType !== 'physical' ? meetingUrl : null,
         visibility,
+        category: category || null,
+        color: color || null,
         business_id: businessId,
         created_by_id: createdBy,
         source_system: 'manual',
@@ -238,6 +244,39 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Category</label>
+            <select value={category} onChange={e => { setCategory(e.target.value); setColor(''); }} className={inputClass}>
+              {EVENT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+            <p className="text-xs text-stone-400 mt-1">Personal category for this event (§11). Used for filtering and colour.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Colour</label>
+            <div className="flex flex-wrap gap-1.5">
+              {COLOR_PALETTE.map((key) => {
+                const dotClass = {
+                  indigo: 'bg-indigo-500', blue: 'bg-blue-500', emerald: 'bg-emerald-500',
+                  amber: 'bg-amber-500', rose: 'bg-rose-500', violet: 'bg-violet-500',
+                  cyan: 'bg-cyan-500', orange: 'bg-orange-500', red: 'bg-red-500',
+                  pink: 'bg-pink-500', purple: 'bg-purple-500', teal: 'bg-teal-500',
+                }[key];
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setColor(color === key ? '' : key)}
+                    aria-label={key}
+                    aria-pressed={color === key}
+                    className={`w-7 h-7 rounded-full ${dotClass} transition-transform ${color === key ? 'ring-2 ring-offset-2 ring-stone-800 scale-110' : 'hover:scale-110'}`}
+                  />
+                );
+              })}
+            </div>
+            <p className="text-xs text-stone-400 mt-1">Overrides the category colour. Leave unset to use the category default.</p>
+          </div>
+
           <InviteByEmailInput value={invitedEmails} onChange={setInvitedEmails} />
 
           {ownerType === 'business' && (
@@ -255,6 +294,12 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
           {isEditing && (
             <div className="border-t border-stone-100 pt-4">
               <ReminderControls eventId={existingEvent.id} />
+            </div>
+          )}
+
+          {isEditing && (
+            <div className="border-t border-stone-100 pt-4">
+              <EventHistoryTimeline eventId={existingEvent.id} timezone={timezone} collapsed />
             </div>
           )}
         </div>

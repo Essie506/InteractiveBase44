@@ -54,6 +54,17 @@ export function buildEventAriaLabel(occ, timezone) {
     parts.push('removed');
   } else if (e.lifecycle_state === 'historical') {
     parts.push('past event');
+  } else if (e.lifecycle_state === 'completed') {
+    parts.push('completed');
+  } else if (e.lifecycle_state === 'skipped') {
+    parts.push('skipped');
+  } else if (e.lifecycle_state === 'archived') {
+    parts.push('archived');
+  }
+
+  // Category as text (§11/§22/§114: text label in addition to colour)
+  if (e.category) {
+    parts.push(`category ${e.category}`);
   }
 
   return parts.join(', ');

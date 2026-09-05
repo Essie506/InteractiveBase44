@@ -35,7 +35,7 @@ export { savePersonalProfile, validatePersonalScreenName } from './personalProfi
 export { saveBusinessProfile } from './businessProfile';
 
 // Calendar Event — public projection (Events Discovery)
-export { saveCalendarEvent } from './calendarEvent';
+export { saveCalendarEvent, deleteCalendarEvent } from './calendarEvent';
 export { sweepExpiredHolds } from './holdSweep';
 export { sweepReminders } from './reminderSweep';
 export { saveReminderRule, deleteReminderRule, listReminderRules } from './reminderRule';

@@ -50,25 +50,30 @@ export async function listEventsForOwner(ownerId, ownerType, startDate, endDate)
 
 // Events assigned to an identity (Business staff assignment). These appear
 // on the identity's Calendar but grant VIEW only — never edit authority.
+//
+// NOTE: we deliberately do NOT add orderBy('start_time') here. Firestore
+// requires a composite index for array-contains + orderBy, and that index
+// was not deployed to the live project — which caused the assigned/invited
+// sub-queries to throw FAILED_PRECONDITION and break invitation visibility
+// (§65, §70–§74). Sorting in memory avoids the index dependency entirely.
 export async function listEventsAssignedToIdentity(identityId) {
   const q = query(
     collection(db, 'calendarEvents'),
     where('assigned_identity_ids', 'array-contains', identityId),
-    orderBy('start_time', 'asc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(fromFirestoreDoc);
+  return snap.docs.map(fromFirestoreDoc).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 }
 
 // Events an identity was invited to (via email resolution). View only.
+// (Same index-avoidance rationale as listEventsAssignedToIdentity.)
 export async function listEventsInvitedToIdentity(identityId) {
   const q = query(
     collection(db, 'calendarEvents'),
     where('invited_identity_ids', 'array-contains', identityId),
-    orderBy('start_time', 'asc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(fromFirestoreDoc);
+  return snap.docs.map(fromFirestoreDoc).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
 }
 
 export async function listEventsForBusiness(businessId) {
@@ -92,6 +97,21 @@ export async function listExceptionsForSeries(seriesEventId) {
   );
   const snap = await getDocs(q);
   return snap.docs.map(fromFirestoreDoc);
+}
+
+// ── Calendar Event History (§48, §104, §105) ───────────────
+// Read-only schedule-change timeline. Writable only by Cloud Function
+// (firestore.rules: calendarEventHistory write denied). Readable by
+// anyone authorised to read the parent event (canReadCalendarEvent).
+export async function listHistoryForEvent(eventId) {
+  const q = query(
+    collection(db, 'calendarEventHistory'),
+    where('event_id', '==', eventId),
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(fromFirestoreDoc)
+    .sort((a, b) => new Date(a.changed_at || a._created_date) - new Date(b.changed_at || b._created_date));
 }
 
 export async function listExceptionsForSeriesBatch(seriesEventIds) {

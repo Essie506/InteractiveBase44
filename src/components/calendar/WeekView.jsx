@@ -14,6 +14,7 @@ import {
   buildEventAriaLabel, getSourceTypeLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues } from '@/lib/sourceUnavailable';
+import { getEventChipClasses, getEventBarClasses } from '@/lib/calendarCategory';
 import EventInvitationBadge from './EventInvitationBadge';
 import { getParticipationState } from '@/lib/calendarParticipation';
 
@@ -119,11 +120,7 @@ export default function WeekView({ occurrences, weekStart, timezone, onSelectEve
                           className={`text-[10px] px-1.5 py-1 rounded mb-0.5 cursor-pointer truncate transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 ${
                             unavailable
                               ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                              : e.source_system === 'booking'
-                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                              : occ.isRecurring
-                              ? 'bg-purple-100 text-purple-800 hover:bg-purple-200'
-                              : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                              : getEventChipClasses(e, occ)
                           }`}
                         >
                           <div className="font-medium truncate">{safe.title}</div>
@@ -179,7 +176,7 @@ export default function WeekView({ occurrences, weekStart, timezone, onSelectEve
                       }`}
                     >
                       <div className={`w-1 h-8 rounded-full flex-shrink-0 ${
-                        unavailable ? 'bg-amber-400' : e.source_system === 'booking' ? 'bg-emerald-400' : occ.isRecurring ? 'bg-purple-400' : 'bg-indigo-400'
+                        unavailable ? 'bg-amber-400' : getEventBarClasses(e, occ)
                       }`} aria-hidden="true" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">

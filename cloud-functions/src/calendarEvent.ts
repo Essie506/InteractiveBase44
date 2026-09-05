@@ -665,6 +665,89 @@ export async function maintainProjection(eventId: string, data: any): Promise<vo
   await db.collection(PUBLIC).doc(eventId).set(projection);
 }
 
+// ── deleteCalendarEvent (§52) ───────────────────────────────
+// Destructive removal of a Calendar-owned object, distinct from Cancel
+// (which preserves the historical relationship). Permitted ONLY for
+// personal manual identity-owned events. History is preserved (§108) —
+// calendarEventHistory is a separate collection and is not deleted.
+export const deleteCalendarEvent = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+    const callerIdentityId = await getIdentityId(request.auth.uid);
+    const data = request.data || {};
+    const eventId = data.event_id || data.id;
+    if (!eventId) {
+      throw new HttpsError('invalid-argument', 'event_id is required');
+    }
+
+    const existingSnap = await db.collection(EVENTS).doc(eventId).get();
+    if (!existingSnap.exists) {
+      throw new HttpsError('not-found', 'Calendar event not found');
+    }
+    const existing = existingSnap.data()!;
+
+    // Authority: creator or identity owner only (delete is personal — no
+    // business-manager path). Server-authoritative.
+    const isCreator = existing.created_by_id === callerIdentityId;
+    const isIdentityOwner =
+      existing.owner_type === 'identity' && existing.owner_id === callerIdentityId;
+    if (!isCreator && !isIdentityOwner) {
+      throw new HttpsError('permission-denied', 'Not authorised to delete this event');
+    }
+
+    // Restriction: personal manual identity-owned events only. Source-owned
+    // events (booking/workout/business_scheduling) and business events are
+    // not destructively deletable through Calendar.
+    if (existing.source_system && existing.source_system !== 'manual') {
+      throw new HttpsError(
+        'failed-precondition',
+        'Only personal events can be deleted. Source-owned events must be removed through their owning system.',
+      );
+    }
+    if (existing.owner_type !== 'identity') {
+      throw new HttpsError('failed-precondition', 'Only identity-owned events can be deleted');
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // Revoke participation for all invitees so their visibility is removed.
+    const invitedIds = dedupeStrings(existing.invited_identity_ids);
+    if (invitedIds.length > 0) {
+      await revokeParticipationRecords(eventId, invitedIds, callerIdentityId, nowIso);
+    }
+
+    // Append a 'deleted' history entry (history preserved — §108).
+    await appendScheduleHistory({
+      event_id: eventId,
+      change_type: 'deleted',
+      previous_start_time: existing.start_time || null,
+      previous_end_time: existing.end_time || null,
+      new_start_time: null,
+      new_end_time: null,
+      changed_at: nowIso,
+      actor_id: callerIdentityId,
+      source_system: existing.source_system || 'manual',
+    });
+
+    // Remove the public projection + idempotency record (best effort).
+    await db.collection(PUBLIC).doc(eventId).delete().catch(() => {});
+    const idempKey = idempotencyDocId(
+      existing.owner_type,
+      existing.owner_id,
+      existing.source_system || 'manual',
+      existing.source_id || '',
+    );
+    await db.collection(IDEMPOTENCY).doc(idempKey).delete().catch(() => {});
+
+    // Destructive removal of the event document.
+    await db.collection(EVENTS).doc(eventId).delete();
+    return { id: eventId, deleted: true };
+  },
+);
+
 // ── Refresh projection by event ID ──────────────────────────
 export async function refreshEventProjection(eventId: string): Promise<void> {
   const ev = await db.collection(EVENTS).doc(eventId).get();

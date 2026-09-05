@@ -18,6 +18,7 @@ import { formatTimeRange, formatDate } from '@/lib/calendar';
 import { getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
 import EventInvitationBadge from './EventInvitationBadge';
+import EventHistoryTimeline from './EventHistoryTimeline';
 
 export default function EventDetailModal({ event, timezone, participationMap, onParticipationResponse, onClose }) {
   if (!event) return null;
@@ -103,12 +104,22 @@ export default function EventDetailModal({ event, timezone, participationMap, on
             <p className="text-xs text-purple-500">Recurring event</p>
           )}
 
+          {/* Category indicator (§11) */}
+          {event.category && (
+            <span className="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-600 font-medium capitalize">{event.category}</span>
+          )}
+
           {/* Invitation response — Accept/Decline for invited viewers */}
           <EventInvitationBadge
             event={event}
             participationMap={participationMap}
             onResponse={onParticipationResponse}
           />
+
+          {/* Schedule-change history (§104/§105) — auditable timeline */}
+          <div className="border-t border-stone-100 pt-4">
+            <EventHistoryTimeline eventId={event.id} timezone={tz} collapsed />
+          </div>
         </div>
 
         <div className="flex gap-3 p-6 border-t border-stone-100">

@@ -202,6 +202,14 @@ export async function callSaveCalendarEvent(data) {
   return result.data;
 }
 
+// ── Calendar Event destructive delete (§52) ──
+// Personal manual events only. Server-side deleteCalendarEvent enforces
+// authority + the personal-manual restriction and preserves history (§108).
+export async function callDeleteCalendarEvent(data) {
+  const result = await callable('deleteCalendarEvent')(data);
+  return result.data;
+}
+
 // ── Relationship status read ──
 // Single + batch semantic relationship state for Connect/Pending/
 // Connected UI. The frontend must NOT infer relationship state from

@@ -36,7 +36,7 @@ const END_OPTIONS = [
  * Parse an existing RRULE string into the UI state.
  */
 function parseRRuleToState(rrule) {
-  if (!rrule) return { freq: '', interval: 1, byDay: [], endType: 'never', count: 5, until: '' };
+  if (!rrule) return { freq: '', interval: 1, byDay: [], byMonthDay: [], endType: 'never', count: 5, until: '' };
   const parts = {};
   for (const seg of rrule.replace(/^RRULE:/i, '').split(';')) {
     const [k, v] = seg.split('=');
@@ -53,10 +53,14 @@ function parseRRuleToState(rrule) {
     else if (/^\d{8}T\d{6}Z$/.test(u)) until = `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
     else until = u.slice(0, 10);
   }
+  const byMonthDay = parts.BYMONTHDAY
+    ? parts.BYMONTHDAY.split(',').map((d) => parseInt(d.trim(), 10)).filter((d) => !isNaN(d))
+    : [];
   return {
     freq: parts.FREQ || '',
     interval: parts.INTERVAL ? parseInt(parts.INTERVAL, 10) : 1,
     byDay,
+    byMonthDay,
     endType,
     count: parts.COUNT ? parseInt(parts.COUNT, 10) : 5,
     until,
@@ -71,6 +75,9 @@ function buildRRule(state) {
   const parts = [`FREQ=${state.freq}`];
   if (state.interval && state.interval > 1) parts.push(`INTERVAL=${state.interval}`);
   if (state.freq === 'WEEKLY' && state.byDay.length > 0) parts.push(`BYDAY=${state.byDay.join(',')}`);
+  if (state.freq === 'MONTHLY' && state.byMonthDay && state.byMonthDay.length > 0) {
+    parts.push(`BYMONTHDAY=${state.byMonthDay.join(',')}`);
+  }
   if (state.endType === 'count' && state.count) parts.push(`COUNT=${state.count}`);
   if (state.endType === 'until' && state.until) {
     const compact = state.until.replace(/-/g, '');
@@ -92,6 +99,12 @@ export default function RecurrenceControls({ rrule, onChange }) {
   const toggleByDay = (day) => {
     const has = state.byDay.includes(day);
     update({ byDay: has ? state.byDay.filter(d => d !== day) : [...state.byDay, day] });
+  };
+
+  const toggleByMonthDay = (dom) => {
+    const cur = state.byMonthDay || [];
+    const has = cur.includes(dom);
+    update({ byMonthDay: has ? cur.filter(d => d !== dom) : [...cur, dom] });
   };
 
   const inputClass = "w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
@@ -183,6 +196,29 @@ export default function RecurrenceControls({ rrule, onChange }) {
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {state.freq === 'MONTHLY' && (
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1.5">Days of month</label>
+              <div className="flex flex-wrap gap-1.5">
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((dom) => (
+                  <button
+                    key={dom}
+                    type="button"
+                    onClick={() => toggleByMonthDay(dom)}
+                    className={`w-9 h-9 rounded-lg text-xs font-medium transition-colors ${
+                      (state.byMonthDay || []).includes(dom)
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    }`}
+                  >
+                    {dom}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-stone-400 mt-1">Leave empty to repeat on the same day-of-month as the start date.</p>
             </div>
           )}
         </>
