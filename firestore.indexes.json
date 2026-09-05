@@ -245,6 +245,14 @@
         { "fieldPath": "invited_identity_ids", "arrayConfig": "CONTAINS" },
         { "fieldPath": "start_time", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "calendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "start_time", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
