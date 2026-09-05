@@ -15,7 +15,7 @@ import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount
 import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuantity, resolveEventPrice } from './eventCapacity';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
-import { createBookingCalendarEvent, createHoldCalendarEvent } from './bookingCalendarEvent';
+import { createBookingCalendarEvent, createHoldCalendarEvent, releaseHoldCalendarEvent } from './bookingCalendarEvent';
 import { buildBookingEmailContext } from './bookingNotifications';
 import { buildBookingEmailPayload } from './notifications/email/payloads/booking';
 import { evaluateAvailabilityRule, hasOverlappingHold, hasOverlappingBooking, hasOverlappingEvent } from './calendarAvailability';
@@ -686,6 +686,10 @@ export const confirmFreeBooking = onCall(
         status: 'released',
         _updated_date: now,
       });
+      // §118: cancel the 'held' lifecycle Calendar Event so it no longer
+      // blocks the provider's time. The booking event (or the public event
+      // the customer is attending) is now the authoritative blocked period.
+      await releaseHoldCalendarEvent(booking.hold_id, now).catch(() => {});
     }
 
     // ── Event booking: no private calendar event is created ──

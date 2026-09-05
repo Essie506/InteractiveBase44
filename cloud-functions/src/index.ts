@@ -43,6 +43,7 @@ export { saveReminderRule, deleteReminderRule, listReminderRules } from './remin
 export { saveOccurrenceException } from './occurrenceException';
 export { splitRecurrenceSeries } from './recurrenceSeriesSplit';
 export { migrateCalendarLifecycleStates } from './migrateCalendarLifecycleStates';
+export { deactivateIdentityCalendar } from './identityDeactivation';
 
 // Phase 2 — Source Unavailable handler (§106–§108, §111)
 export { handleSourceUnavailable } from './handleSourceUnavailable';

@@ -39,7 +39,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getStripe } from './stripe';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
-import { createBookingCalendarEvent } from './bookingCalendarEvent';
+import { createBookingCalendarEvent, releaseHoldCalendarEvent } from './bookingCalendarEvent';
 import { buildBookingEmailContext } from './bookingNotifications';
 import { buildBookingEmailPayload } from './notifications/email/payloads/booking';
 
@@ -220,6 +220,10 @@ async function handlePaymentSuccess(paymentIntent: any) {
       status: 'released',
       _updated_date: now,
     });
+    // §118: cancel the 'held' lifecycle Calendar Event so it no longer
+    // blocks the provider's time. The booking event (or the public event
+    // the customer is attending) is now the authoritative blocked period.
+    await releaseHoldCalendarEvent(booking.hold_id, now).catch(() => {});
   }
 
   // ── Event booking: no private calendar event is created ──
