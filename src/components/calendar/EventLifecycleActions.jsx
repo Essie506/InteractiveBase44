@@ -19,7 +19,7 @@
 // The server-side saveCalendarEvent (owner) / setPersonalTimelineState
 // (participant) Cloud Functions remain the authoritative security boundary;
 // this component only PRESENTS actions the viewer is authorised for.
-import { Check, X, Archive, Trash2, Loader2, CalendarOff, EyeOff, RotateCcw } from 'lucide-react';
+import { Check, X, Archive, Trash2, Loader2, CalendarOff, EyeOff, RotateCcw, Pencil, CalendarX } from 'lucide-react';
 import {
   canEditEvent, canCancelEvent, canSetPersonalLifecycle, canDeleteEvent,
   canSetPersonalTimelineState, PERSONAL_LIFECYCLE_STATES,
@@ -41,6 +41,7 @@ export default function EventLifecycleActions({
   onSetPersonalTimelineState,
   onDelete,
   onCancel,
+  onEdit,
   cancellingId,
   deletingId,
   personalStateLoadingId,
@@ -52,23 +53,38 @@ export default function EventLifecycleActions({
   const isOwner = canEditEvent(event, user);
   const isPart = canSetPersonalTimelineState(event, user);
 
-  // ── Owner: canonical event actions ──
+  // ── Owner: canonical event actions (compact icons, matching the
+  //    participant branch). Edit opens the EventModal; Cancel / Mark
+  //    Completed / Mark Skipped / Archive / Delete operate on the
+  //    canonical event lifecycle_state. Authority gates unchanged. ──
   if (isOwner) {
     return (
-      <div className="flex flex-wrap items-center gap-2 mt-2">
+      <div className="flex flex-wrap items-center gap-1 mt-2">
+        {!unavailable && (
+          <button
+            onClick={() => onEdit?.(occ)}
+            aria-label="Edit event"
+            title="Edit event"
+            className="p-1 text-stone-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
         {canCancelEvent(event, user) && !unavailable && (
           <button
             onClick={() => onCancel?.(occ)}
             disabled={cancellingId === event.id}
-            className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+            aria-label="Cancel event"
+            title="Cancel event"
+            className="p-1 text-stone-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
           >
             {cancellingId === event.id
-              ? <><Loader2 className="w-3 h-3 animate-spin" /> Cancelling...</>
-              : <><Trash2 className="w-3 h-3" /> Cancel</>}
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <CalendarX className="w-3.5 h-3.5" />}
           </button>
         )}
         {canSetPersonalLifecycle(event, user) && !PERSONAL_LIFECYCLE_STATES.includes(event.lifecycle_state) && !unavailable && (
-          <span className="flex items-center gap-1">
+          <>
             <button
               onClick={() => onSetLifecycle?.(occ, 'completed')}
               aria-label="Mark as completed"
@@ -93,21 +109,23 @@ export default function EventLifecycleActions({
             >
               <Archive className="w-3.5 h-3.5" />
             </button>
-          </span>
+          </>
         )}
         {canDeleteEvent(event, user) && (
           <button
             onClick={() => onDelete?.(occ)}
             disabled={deletingId === event.id}
-            className="text-xs text-red-500 font-medium hover:text-red-600 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded"
+            aria-label="Delete event"
+            title="Delete event"
+            className="p-1 text-stone-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
           >
             {deletingId === event.id
-              ? <><Loader2 className="w-3 h-3 animate-spin" /> Deleting...</>
-              : <>Delete</>}
+              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              : <Trash2 className="w-3.5 h-3.5" />}
           </button>
         )}
         {isOwner && event.source_system === 'booking' && event.lifecycle_state !== 'cancelled' && event.lifecycle_state !== 'removed' && (
-          <span className="text-xs text-stone-400 flex items-center gap-1">
+          <span className="text-[10px] text-stone-400 flex items-center gap-0.5" title="Cancel this booking event from your Bookings">
             <CalendarOff className="w-3 h-3" /> Cancel via Bookings
           </span>
         )}

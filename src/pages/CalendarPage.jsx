@@ -627,18 +627,16 @@ export default function CalendarPage() {
                           />
                         </div>
                       )}
-                      <div className="flex gap-2 mt-2">
-                        {!unavailable && canEditEvent(e, user) && (
-                          <button onClick={() => handleSelectEvent(occ)} className="text-xs text-indigo-600 font-medium hover:text-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">Edit</button>
-                        )}
-                        {!unavailable && !canEditEvent(e, user) && (
+                      {!unavailable && !canEditEvent(e, user) && (
+                        <div className="flex gap-2 mt-2">
                           <button onClick={() => handleSelectEvent(occ)} className="text-xs text-stone-600 font-medium hover:text-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded">View details</button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                       <EventLifecycleActions
                         occ={occ}
                         user={user}
                         participationMap={participationMap}
+                        onEdit={handleSelectEvent}
                         onSetLifecycle={handleSetLifecycle}
                         onSetPersonalTimelineState={handleSetPersonalTimelineState}
                         onDelete={handleDeleteEvent}
