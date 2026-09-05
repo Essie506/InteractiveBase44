@@ -4,7 +4,7 @@ import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForE
 import { rescheduleOccurrence, isConflictError } from '@/lib/calendarReschedule';
 import { suggestAlternativeSlots } from '@/lib/calendarAlternatives';
 import { normalizeToOccurrences, groupOccurrencesByDate, filterOccurrences } from '@/lib/calendarOccurrences';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff, AlertCircle, Check, X, Archive } from 'lucide-react';
 import { buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
 import { getEventChipClasses } from '@/lib/calendarCategory';
@@ -189,6 +189,10 @@ export default function CalendarPage() {
       setSelectedDate(evDate);
       focusedRef.current = true;
       handleSelectEvent(ev);
+      // Clean the deep-link param so refresh / return doesn't reopen the modal
+      const url = new URL(window.location.href);
+      url.searchParams.delete('event');
+      window.history.replaceState({}, '', url.toString());
     }
   }, [focusEventId, events, loading]);
 
@@ -590,16 +594,31 @@ export default function CalendarPage() {
                           </button>
                         )}
                         {canSetPersonalLifecycle(e, user) && !PERSONAL_LIFECYCLE_STATES.includes(e.lifecycle_state) && !unavailable && (
-                          <span className="flex items-center gap-1.5">
-                            {PERSONAL_LIFECYCLE_STATES.map((s) => (
-                              <button
-                                key={s}
-                                onClick={() => handleSetLifecycle(occ, s)}
-                                className="text-xs text-stone-600 font-medium hover:text-stone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded capitalize"
-                              >
-                                Mark {s}
-                              </button>
-                            ))}
+                          <span className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleSetLifecycle(occ, 'completed')}
+                              aria-label="Mark as completed"
+                              title="Mark as completed"
+                              className="p-1 text-stone-600 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleSetLifecycle(occ, 'skipped')}
+                              aria-label="Mark as skipped"
+                              title="Mark as skipped"
+                              className="p-1 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleSetLifecycle(occ, 'archived')}
+                              aria-label="Archive event"
+                              title="Archive event"
+                              className="p-1 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                            </button>
                           </span>
                         )}
                         {canDeleteEvent(e, user) && (

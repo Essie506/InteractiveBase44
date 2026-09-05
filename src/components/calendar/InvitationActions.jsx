@@ -59,18 +59,42 @@ export default function InvitationActions({ event, participationState, onRespons
 
   if (participationState === 'accepted') {
     return (
-      <div className={`inline-flex items-center gap-1 ${compact ? 'text-[10px]' : 'text-xs'} text-emerald-600 font-medium`}>
-        <UserCheck className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} aria-hidden="true" />
-        <span>Accepted</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className={`inline-flex items-center gap-1 ${compact ? 'text-[10px]' : 'text-xs'} text-emerald-600 font-medium`}>
+          <UserCheck className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} aria-hidden="true" />
+          <span>Accepted</span>
+        </div>
+        <button
+          onClick={handleDecline}
+          disabled={responding}
+          aria-label={`Decline invitation to ${event.title || 'event'}`}
+          title="Can no longer attend"
+          className={`inline-flex items-center gap-1 ${compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs'} text-stone-500 hover:text-red-600 font-medium rounded border border-stone-200 hover:border-red-200 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500`}
+        >
+          {responding ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+          <span>Can no longer attend</span>
+        </button>
       </div>
     );
   }
 
   if (participationState === 'declined') {
     return (
-      <div className={`inline-flex items-center gap-1 ${compact ? 'text-[10px]' : 'text-xs'} text-stone-400 font-medium`}>
-        <UserX className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} aria-hidden="true" />
-        <span>Declined</span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className={`inline-flex items-center gap-1 ${compact ? 'text-[10px]' : 'text-xs'} text-stone-400 font-medium`}>
+          <UserX className={compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} aria-hidden="true" />
+          <span>Declined</span>
+        </div>
+        <button
+          onClick={handleAccept}
+          disabled={responding}
+          aria-label={`Accept invitation to ${event.title || 'event'}`}
+          title="Accept invitation"
+          className={`inline-flex items-center gap-1 ${compact ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-1 text-xs'} bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500`}
+        >
+          {responding ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+          <span>Accept</span>
+        </button>
       </div>
     );
   }

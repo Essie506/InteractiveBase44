@@ -27,9 +27,20 @@ export default function NotificationBell() {
   const loadItems = () => {
     if (!user) return;
     setLoading(true);
-    getNotifications(user.id, 10).then(recs => {
+    getNotifications(user.id, 10).then(async recs => {
       setItems(recs);
       setLoading(false);
+      // Mark presented notifications as read so the badge clears immediately
+      const hasUnread = recs.some(r => !r.is_read);
+      if (hasUnread) {
+        try {
+          await markAllAsRead(user.id);
+          setItems(recs.map(r => ({ ...r, is_read: true })));
+        } catch (err) {
+          console.error('[NotificationBell] markAllAsRead failed:', err);
+        }
+        loadUnread();
+      }
     });
   };
 
@@ -92,7 +103,7 @@ export default function NotificationBell() {
                         {n.body && <div className="text-xs text-stone-500 mt-0.5 line-clamp-2">{n.body}</div>}
                         <div className="flex items-center gap-2 mt-1.5">
                           {n.action_url && (
-                            <Link to={n.action_url} onClick={() => setOpen(false)} className="text-xs text-indigo-600 font-medium hover:underline">
+                            <Link to={n.action_url} onClick={() => { setOpen(false); if (!n.is_read) handleMarkRead(n.id); }} className="text-xs text-indigo-600 font-medium hover:underline">
                               {n.action_label || 'View'}
                             </Link>
                           )}

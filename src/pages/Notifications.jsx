@@ -20,9 +20,19 @@ export default function Notifications() {
 
   const loadItems = () => {
     setLoading(true);
-    getNotifications(user.id, 100).then(recs => {
+    getNotifications(user.id, 100).then(async recs => {
       setItems(recs);
       setLoading(false);
+      // Mark presented notifications as read so the badge clears immediately
+      const hasUnread = recs.some(r => !r.is_read);
+      if (hasUnread) {
+        try {
+          await markAllAsRead(user.id);
+          setItems(recs.map(r => ({ ...r, is_read: true })));
+        } catch (err) {
+          console.error('[Notifications] markAllAsRead failed:', err);
+        }
+      }
     });
   };
 
@@ -104,7 +114,7 @@ export default function Notifications() {
                     <span className="text-xs text-stone-400 capitalize">{n.category}</span>
                     <span className="text-xs text-stone-400">{new Date(n.created_date).toLocaleString()}</span>
                     {n.action_url && (
-                      <Link to={n.action_url} className="text-xs text-indigo-600 font-medium hover:underline">{n.action_label || 'View'}</Link>
+                      <Link to={n.action_url} onClick={() => { if (!n.is_read) handleMarkRead(n.id); }} className="text-xs text-indigo-600 font-medium hover:underline">{n.action_label || 'View'}</Link>
                     )}
                     {!n.is_read && (
                       <button

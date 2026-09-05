@@ -92,3 +92,32 @@ export function googleCalendarUrl(event, opts = {}) {
   });
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
+
+/**
+ * Build an Outlook "add event" URL (Outlook.com / Office 365 deep-link
+ * compose). Uses UTC ISO timestamps for timed events and date values
+ * for all-day events (Outlook treats end as exclusive for all-day).
+ */
+export function outlookCalendarUrl(event, opts = {}) {
+  const start = new Date(event.start_time);
+  const end = new Date(event.end_time);
+  const toIso = (d) => d.toISOString().split('.')[0] + 'Z';
+  const toDate = (d) => d.toISOString().split('T')[0];
+
+  const params = new URLSearchParams({
+    subject: event.title || '',
+    body: event.description || '',
+    location: opts.meetingUrl || event.location || '',
+  });
+
+  if (event.all_day) {
+    params.set('start', toDate(start));
+    const nextDay = new Date(end.getTime() + 86400000);
+    params.set('end', toDate(nextDay));
+  } else {
+    params.set('start', toIso(start));
+    params.set('end', toIso(end));
+  }
+
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
+}
