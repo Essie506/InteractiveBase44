@@ -155,7 +155,7 @@ export function dedupeEventsById(events) {
   return Array.from(byId.values());
 }
 
-export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate, onQueryError) {
+export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate, onQueryError, options = {}) {
   // ── Firebase mode: authoritative server-side read aggregator ──
   // Firestore rules resolve the caller's identity via get(identityMappings)
   // and check resource.data fields against it. The Firestore query validator
@@ -165,12 +165,17 @@ export async function getAllEventsForIdentity(identityId, activeContext, busines
   // composite index. The getCalendarView callable runs under the Admin SDK
   // and enforces the SAME authorization the rules express (owner, creator,
   // business member, assigned, invited), returning only authorised events.
+  //
+  // options.includeHidden: when true, events the caller has hidden from
+  // their timeline (personal hidden_from_timeline) are included — used by
+  // the Calendar "Show hidden" recovery toggle. Default false hides them.
   if (useFirebase) {
     try {
       const result = await callGetCalendarView({
         start_time: startDate ? new Date(startDate).toISOString() : null,
         end_time: endDate ? new Date(endDate).toISOString() : null,
         business_id: activeContext === 'business' ? businessId : null,
+        include_hidden: options.includeHidden === true,
       });
       return Array.isArray(result.events) ? result.events : [];
     } catch (err) {

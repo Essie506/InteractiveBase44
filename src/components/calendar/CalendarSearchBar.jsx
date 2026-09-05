@@ -66,7 +66,7 @@ function FilterSelect({ label, value, onChange, options }) {
   );
 }
 
-export default function CalendarSearchBar({ search, onSearchChange, filters, onFiltersChange }) {
+export default function CalendarSearchBar({ search, onSearchChange, filters, onFiltersChange, showHidden, onToggleShowHidden }) {
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);
 
@@ -129,6 +129,15 @@ export default function CalendarSearchBar({ search, onSearchChange, filters, onF
             <FilterSelect label="Period" value={filters?.period || ''} onChange={(v) => set('period', v)} options={PERIOD_OPTIONS} />
             <FilterSelect label="Visibility" value={filters?.visibility || ''} onChange={(v) => set('visibility', v)} options={VISIBILITY_OPTIONS} />
             <FilterSelect label="State" value={filters?.lifecycleState || ''} onChange={(v) => set('lifecycleState', v)} options={LIFECYCLE_OPTIONS} />
+            <label className="flex items-center gap-2 py-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!showHidden}
+                onChange={(e) => onToggleShowHidden?.(e.target.checked)}
+                className="w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-xs text-stone-600">Show hidden / archived</span>
+            </label>
             {activeFilterCount > 0 && (
               <button
                 onClick={clearAll}

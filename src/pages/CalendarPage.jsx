@@ -16,7 +16,7 @@ import WeekView from '@/components/calendar/WeekView';
 import DayView from '@/components/calendar/DayView';
 import AgendaView from '@/components/calendar/AgendaView';
 import InvitationActions from '@/components/calendar/InvitationActions';
-import { loadParticipationForEvents, getParticipationState, isInvitedEvent } from '@/lib/calendarParticipation';
+import { loadParticipationForEvents, getParticipationState, isInvitedEvent, setPersonalTimelineState } from '@/lib/calendarParticipation';
 import { canEditEvent } from '@/lib/calendarAuthority';
 import EventDetailModal from '@/components/calendar/EventDetailModal';
 import EventHistoryTimeline from '@/components/calendar/EventHistoryTimeline';
@@ -55,6 +55,8 @@ export default function CalendarPage() {
   const [filters, setFilters] = useState({ visibility: '', sourceSystem: '', lifecycleState: '', category: '', context: '', period: '' });
   const [participationMap, setParticipationMap] = useState(new Map());
   const [queryErrors, setQueryErrors] = useState([]);
+  const [showHidden, setShowHidden] = useState(false);
+  const [personalStateLoadingId, setPersonalStateLoadingId] = useState(null);
   const { toast } = useToast();
 
   const focusEventId = useMemo(() => new URLSearchParams(window.location.search).get('event'), []);
@@ -118,9 +120,9 @@ export default function CalendarPage() {
       if (activeContext === 'business' && activeBusinessId) {
         // Combined Business/Staff Calendar (§70–§74) — aggregation over
         // canonical events, not a separate combined-calendar store.
-        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end, (err) => errors.push(err));
+        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end, (err) => errors.push(err), { includeHidden: showHidden });
       } else {
-        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end, (err) => errors.push(err));
+        allEvents = await getAllEventsForIdentity(user.id, activeContext, activeBusinessId, visibleRange.start, visibleRange.end, (err) => errors.push(err), { includeHidden: showHidden });
       }
       setEvents(allEvents);
       setQueryErrors(errors);
@@ -160,7 +162,7 @@ export default function CalendarPage() {
     });
   };
 
-  useEffect(() => { loadEvents(); }, [user, currentMonth, weekStart, selectedDate, view, activeContext, activeBusinessId]);
+  useEffect(() => { loadEvents(); }, [user, currentMonth, weekStart, selectedDate, view, activeContext, activeBusinessId, showHidden]);
 
   // ── Realtime propagation (§99) — secure signal channel ─────────
   // Replaces polling. The client subscribes to its OWN single
@@ -318,6 +320,43 @@ export default function CalendarPage() {
     }
   };
 
+  // ── Personal Timeline State (participant, non-owner) ─────────
+  // Sets the viewer's PERSONAL lifecycle state (completed/skipped/archived)
+  // and/or hidden_from_timeline on their own participation record. This is
+  // personal state — it never alters the canonical event or the organiser's
+  // lifecycle_state. "Remove from my timeline" (archived + hidden) hides the
+  // event from this viewer's Calendar only; recoverable via "Show hidden".
+  const handleSetPersonalTimelineState = async (occ, personalState, hidden) => {
+    const event = occ?.event || occ;
+    if (!event) return;
+    setPersonalStateLoadingId(event.id);
+    try {
+      await setPersonalTimelineState(event.id, personalState, hidden);
+      // Optimistically update the participation map so the UI reflects the
+      // personal state immediately, then reload to reconcile with the
+      // server-side hidden-from-timeline filtering.
+      setParticipationMap((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(event.id) || { event_id: event.id, identity_id: user.id };
+        next.set(event.id, {
+          ...existing,
+          personal_lifecycle_state: personalState,
+          hidden_from_timeline: hidden,
+        });
+        return next;
+      });
+      await loadEvents();
+    } catch (err) {
+      toast({
+        title: 'Could not update personal state',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPersonalStateLoadingId(null);
+    }
+  };
+
   // ── §49 Drag-and-drop reschedule ────────────────────────────
   // Invoked by Week/Day view drop targets. Routes through the canonical
   // server-side writers (saveCalendarEvent / saveOccurrenceException) so
@@ -427,7 +466,7 @@ export default function CalendarPage() {
           <p className="text-stone-500 text-sm">Your authoritative Interactive calendar</p>
         </div>
         <div className="flex items-center gap-3">
-          <CalendarSearchBar search={search} onSearchChange={setSearch} filters={filters} onFiltersChange={setFilters} />
+          <CalendarSearchBar search={search} onSearchChange={setSearch} filters={filters} onFiltersChange={setFilters} showHidden={showHidden} onToggleShowHidden={setShowHidden} />
           <button
             onClick={() => { setEditingEvent(null); setShowEventModal(true); }}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap"
@@ -472,7 +511,7 @@ export default function CalendarPage() {
           <div className="w-8 h-8 border-4 border-stone-200 border-t-indigo-600 rounded-full animate-spin" />
         </div>
       ) : view === 'today' ? (
-        <TodayView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} user={user} onSetLifecycle={handleSetLifecycle} onDelete={handleDeleteEvent} onCancel={handleCancelEvent} cancellingId={cancellingId} deletingId={deletingId} />
+        <TodayView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} user={user} onSetLifecycle={handleSetLifecycle} onSetPersonalTimelineState={handleSetPersonalTimelineState} onDelete={handleDeleteEvent} onCancel={handleCancelEvent} cancellingId={cancellingId} deletingId={deletingId} personalStateLoadingId={personalStateLoadingId} />
       ) : view === 'week' ? (
         <WeekView occurrences={filteredOccurrences} weekStart={weekStart} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} user={user} onReschedule={handleReschedule} reschedulingId={reschedulingId} />
       ) : view === 'day' ? (
@@ -599,11 +638,14 @@ export default function CalendarPage() {
                       <EventLifecycleActions
                         occ={occ}
                         user={user}
+                        participationMap={participationMap}
                         onSetLifecycle={handleSetLifecycle}
+                        onSetPersonalTimelineState={handleSetPersonalTimelineState}
                         onDelete={handleDeleteEvent}
                         onCancel={handleCancelEvent}
                         cancellingId={cancellingId}
                         deletingId={deletingId}
+                        personalStateLoadingId={personalStateLoadingId}
                       />
                       {occ.isRecurring && canEditEvent(e, user) && e.source_system !== 'booking' && (
                         <OccurrenceActions occurrence={occ} user={user} onChanged={loadEvents} />
@@ -637,8 +679,11 @@ export default function CalendarPage() {
         <EventDetailModal
           event={viewingEvent}
           timezone={timezone}
+          user={user}
           participationMap={participationMap}
           onParticipationResponse={handleParticipationResponse}
+          onSetPersonalTimelineState={handleSetPersonalTimelineState}
+          personalStateLoadingId={personalStateLoadingId}
           onClose={() => { setShowDetailModal(false); setViewingEvent(null); }}
         />
       )}

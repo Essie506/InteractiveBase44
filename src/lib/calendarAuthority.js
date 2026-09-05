@@ -112,3 +112,30 @@ export function canDeleteEvent(event, user) {
   if (event.owner_type !== 'identity') return false;
   return true;
 }
+
+// ── Participant (non-owner) authority ──────────────────────────
+// V2: actions are derived from the user's RELATIONSHIP to the event, not
+// just whether they created it. A participant (invited or assigned) is NOT
+// the owner/creator and therefore cannot edit/cancel/reschedule/delete the
+// canonical event — but they CAN manage their own personal timeline state
+// (Mark Completed, Mark Skipped, Archive / Remove from my timeline).
+//
+// isParticipant returns true ONLY for non-owner invited/assigned identities.
+// Owners/creators/business-managers are NOT participants (they have
+// canonical authority, not personal-state authority).
+export function isParticipant(event, user) {
+  if (!event || !user) return false;
+  if (canEditEvent(event, user)) return false;
+  const invited = event.invited_identity_ids || [];
+  const assigned = event.assigned_identity_ids || [];
+  return invited.includes(user.id) || assigned.includes(user.id);
+}
+
+// Personal timeline state authority: a participant can set their own
+// personal_lifecycle_state / hidden_from_timeline. This is independent of
+// the event's source system — imported/read-only/source-controlled events
+// keep canonical fields read-only, but personal timeline actions remain
+// available to participants wherever technically appropriate.
+export function canSetPersonalTimelineState(event, user) {
+  return isParticipant(event, user);
+}

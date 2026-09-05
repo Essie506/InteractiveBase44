@@ -20,9 +20,10 @@ import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } 
 import EventInvitationBadge from './EventInvitationBadge';
 import EventHistoryTimeline from './EventHistoryTimeline';
 import AddToCalendarButton from './AddToCalendarButton';
+import EventLifecycleActions from './EventLifecycleActions';
 import { dualTimezoneDisplay } from '@/lib/dualTimezone';
 
-export default function EventDetailModal({ event, timezone, participationMap, onParticipationResponse, onClose }) {
+export default function EventDetailModal({ event, timezone, user, participationMap, onParticipationResponse, onSetPersonalTimelineState, personalStateLoadingId, onClose }) {
   if (!event) return null;
   const safe = getSafeDisplayValues(event);
   const sourceLabel = getSourceTypeLabel(event.source_system);
@@ -125,6 +126,17 @@ export default function EventDetailModal({ event, timezone, participationMap, on
             event={event}
             participationMap={participationMap}
             onResponse={onParticipationResponse}
+          />
+
+          {/* Personal timeline actions — Mark Completed / Skipped / Remove
+              from my timeline. Personal state; never alters the canonical
+              event or the organiser's lifecycle_state. */}
+          <EventLifecycleActions
+            occ={{ event }}
+            user={user}
+            participationMap={participationMap}
+            onSetPersonalTimelineState={onSetPersonalTimelineState}
+            personalStateLoadingId={personalStateLoadingId}
           />
 
           {/* Schedule-change history (§104/§105) — auditable timeline */}

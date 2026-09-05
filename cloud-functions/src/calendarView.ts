@@ -93,20 +93,42 @@ export const getCalendarView = onCall(
       }
     }
 
-    // ── Filter lifecycle + visible range ──
+    // ── Participation records (caller's own only) ──
+    // Loaded BEFORE event filtering so personal "hidden from timeline"
+    // state can exclude hidden events from the caller's view.
+    const partSnap = await db.collection(PARTICIPATION)
+      .where('identity_id', '==', callerIdentityId)
+      .get();
+    const participation = partSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    // ── Personal "hidden from timeline" filter ──
+    // A participant can hide an event from their own Calendar view without
+    // affecting the canonical event, the organiser, or other participants.
+    // Build the set of event_ids the caller has hidden, then exclude those
+    // events — unless the caller is the owner/creator (owners use the
+    // canonical lifecycle, not personal hide) or include_hidden is
+    // requested (the Calendar "Show hidden" recovery toggle).
+    const includeHidden = data.include_hidden === true;
+    const hiddenEventIds = new Set<string>();
+    for (const p of participation) {
+      if (p.hidden_from_timeline === true) hiddenEventIds.add(p.event_id);
+    }
+
+    // ── Filter lifecycle + visible range + personal hide ──
     const events = Array.from(byId.values())
       .filter((e: any) => e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed')
       .filter((e: any) => {
         const eventStart = new Date(e.start_time).getTime();
         return eventStart >= startMs && eventStart <= endMs;
       })
+      .filter((e: any) => {
+        if (includeHidden) return true;
+        if (!hiddenEventIds.has(e.id)) return true;
+        // Hidden event — keep only if the caller owns/created it (owners
+        // don't hide their own events via personal state; defensive).
+        return e.owner_id === callerIdentityId || e.created_by_id === callerIdentityId;
+      })
       .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
-
-    // ── Participation records (caller's own only) ──
-    const partSnap = await db.collection(PARTICIPATION)
-      .where('identity_id', '==', callerIdentityId)
-      .get();
-    const participation = partSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     return { events, participation };
   },

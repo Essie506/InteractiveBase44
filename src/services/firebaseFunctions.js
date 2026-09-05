@@ -291,6 +291,15 @@ export async function callRevokeCalendarInvitation(data) {
   return result.data;
 }
 
+// ── Personal Timeline State (participant, non-owner) ──
+// Sets the caller's PERSONAL lifecycle state (completed/skipped/archived)
+// and/or hidden_from_timeline flag on their own participation record. Does
+// NOT modify the canonical event. Called by a participant (invited/assigned).
+export async function callSetPersonalTimelineState(data) {
+  const result = await callable('setPersonalTimelineState')(data);
+  return result.data;
+}
+
 // ── Business Relationship Exit (§109) ──
 // Called by the Business system when a membership ends. Calendar removes
 // the identity from assigned/invited lists on all affected Business events.

@@ -49,7 +49,7 @@ export { deactivateIdentityCalendar } from './identityDeactivation';
 export { handleSourceUnavailable } from './handleSourceUnavailable';
 
 // Phase 3 — Calendar Participation (invitation response lifecycle)
-export { respondCalendarInvitation, revokeCalendarInvitation } from './calendarParticipation';
+export { respondCalendarInvitation, revokeCalendarInvitation, setPersonalTimelineState } from './calendarParticipation';
 
 // Phase 3 — Business Relationship Exit (§109)
 export { handleBusinessRelationshipExit } from './handleBusinessRelationshipExit';

@@ -359,3 +359,112 @@ export const revokeCalendarInvitation = onCall(
     return { revoked: true };
   },
 );
+
+// ── setPersonalTimelineState ────────────────────────────────
+// Personal timeline state for PARTICIPANTS (non-owners). A participant
+// can independently record whether they personally completed/skipped an
+// event, or remove it from their own timeline (archive + hide) — WITHOUT
+// rewriting the organiser's canonical lifecycle_state, deleting the
+// canonical event, or affecting other participants.
+//
+// This is the authority-model counterpart to the owner's canonical
+// lifecycle: owners use saveCalendarEvent (canonical lifecycle_state);
+// participants use this function (personal_lifecycle_state on their own
+// participation record). The canonical event is NEVER modified here.
+//
+// Request: {
+//   event_id,
+//   personal_lifecycle_state: 'completed' | 'skipped' | 'archived' | null,
+//   hidden_from_timeline: boolean
+// }
+// Returns: { personal_lifecycle_state, hidden_from_timeline }
+export const setPersonalTimelineState = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Authentication required');
+    }
+    const callerIdentityId = await getIdentityId(request.auth.uid);
+    const { event_id, personal_lifecycle_state, hidden_from_timeline } = request.data || {};
+
+    if (!event_id) {
+      throw new HttpsError('invalid-argument', 'event_id is required');
+    }
+    const validStates = ['completed', 'skipped', 'archived', null];
+    if (!validStates.includes(personal_lifecycle_state)) {
+      throw new HttpsError(
+        'invalid-argument',
+        "personal_lifecycle_state must be 'completed', 'skipped', 'archived', or null",
+      );
+    }
+    if (typeof hidden_from_timeline !== 'boolean') {
+      throw new HttpsError('invalid-argument', 'hidden_from_timeline must be a boolean');
+    }
+
+    // ── Verify the event exists ──
+    const eventSnap = await db.collection(EVENTS).doc(event_id).get();
+    if (!eventSnap.exists) {
+      throw new HttpsError('not-found', 'Calendar event not found');
+    }
+    const event = eventSnap.data()!;
+
+    // ── Authority: caller must be a PARTICIPANT (invited or assigned),
+    //    NOT the owner/creator. Owners use the canonical lifecycle. ──
+    const invitedIds = event.invited_identity_ids || [];
+    const assignedIds = event.assigned_identity_ids || [];
+    const isParticipant =
+      invitedIds.includes(callerIdentityId) || assignedIds.includes(callerIdentityId);
+    if (!isParticipant) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only participants can set personal timeline state',
+      );
+    }
+
+    // ── Update (or create) the caller's participation record ──
+    // Assigned staff may not have a participation record yet; create one
+    // silently (no notification) so personal state can be stored. The
+    // response_state reflects assignment (accepted) — they are on the event.
+    const partDocId = participationDocId(event_id, callerIdentityId);
+    const partSnap = await db.collection(PARTICIPATION).doc(partDocId).get();
+    const nowIso = new Date().toISOString();
+
+    if (!partSnap.exists) {
+      await db.collection(PARTICIPATION).doc(partDocId).set({
+        event_id,
+        identity_id: callerIdentityId,
+        response_state: 'accepted',
+        invited_at: event._created_date || nowIso,
+        responded_at: null,
+        revoked_at: null,
+        revoked_by: null,
+        source_system: 'calendar',
+        personal_lifecycle_state: personal_lifecycle_state,
+        hidden_from_timeline: hidden_from_timeline,
+        _created_date: event._created_date || nowIso,
+        _updated_date: nowIso,
+      });
+    } else {
+      await db.collection(PARTICIPATION).doc(partDocId).set(
+        {
+          personal_lifecycle_state: personal_lifecycle_state,
+          hidden_from_timeline: hidden_from_timeline,
+          _updated_date: nowIso,
+        },
+        { merge: true },
+      );
+    }
+
+    // ── Personal state is SILENT ──
+    // It does NOT affect the organiser or the canonical event, so no
+    // notification is emitted and no schedule history is appended (the
+    // canonical event is unchanged). Bump only the caller's realtime
+    // signal so their own Calendar refreshes.
+    await emitCalendarSignal([callerIdentityId]);
+
+    return {
+      personal_lifecycle_state: personal_lifecycle_state,
+      hidden_from_timeline: hidden_from_timeline,
+    };
+  },
+);

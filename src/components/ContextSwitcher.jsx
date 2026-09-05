@@ -3,11 +3,13 @@ import { useAuth } from '@/lib/AuthContext';
 import * as userService from '@/services/userService';
 import { getUserBusinesses } from '@/services/businessService';
 import { User, Briefcase, Building2, ChevronDown, Check, Loader2, Plus } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { resolveContextDestination } from '@/lib/contextDestination';
 
 export default function ContextSwitcher() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [businesses, setBusinesses] = useState([]);
@@ -42,7 +44,10 @@ export default function ContextSwitcher() {
       await userService.updateUserState(updates);
       await refreshUser();
       setOpen(false);
-      navigate('/dashboard');
+      // Preserve the current destination when it exists in the target
+      // context (Calendar→Calendar, Dashboard→Dashboard, Profile→Profile);
+      // fall back to the context's Dashboard when it does not.
+      navigate(resolveContextDestination(location.pathname, context, businessId));
     } finally {
       setSwitching(false);
     }

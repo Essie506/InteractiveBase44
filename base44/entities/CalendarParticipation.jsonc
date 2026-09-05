@@ -48,6 +48,22 @@
       "type": "string",
       "default": "calendar",
       "title": "Source System"
+    },
+    "personal_lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "skipped",
+        "archived"
+      ],
+      "title": "Personal Lifecycle State",
+      "description": "Participant's PERSONAL timeline state \u2014 SEPARATE from the canonical event lifecycle_state. A participant can independently record whether they personally completed/skipped/archived an event WITHOUT rewriting the organiser's canonical lifecycle_state. Null/absent = no personal state set. 'archived' corresponds to 'Remove from my timeline' (paired with hidden_from_timeline). This field is personal to the owning identity and is never projected to other participants or the organiser."
+    },
+    "hidden_from_timeline": {
+      "type": "boolean",
+      "default": false,
+      "title": "Hidden From My Timeline",
+      "description": "When true, the event is removed from THIS participant's personal Calendar view only. It does NOT delete or alter the canonical event, affect the organiser, or affect other participants. Set by the participant via 'Remove from my timeline'. Recoverable via the Calendar 'Show hidden' filter. Only meaningful for non-owner participants (owners use the canonical archive/delete)."
     }
   },
   "required": [

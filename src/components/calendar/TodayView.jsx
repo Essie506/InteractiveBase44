@@ -18,7 +18,7 @@ import { getEventBarClasses } from '@/lib/calendarCategory';
 import EventInvitationBadge from './EventInvitationBadge';
 import EventLifecycleActions from './EventLifecycleActions';
 
-function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMap, onParticipationResponse, user, onSetLifecycle, onDelete, onCancel, cancellingId, deletingId }) {
+function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMap, onParticipationResponse, user, onSetLifecycle, onSetPersonalTimelineState, onDelete, onCancel, cancellingId, deletingId, personalStateLoadingId }) {
   const e = occ.event;
   const safe = getSafeDisplayValues(e);
   const sourceLabel = getSourceTypeLabel(e.source_system);
@@ -84,17 +84,20 @@ function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMa
       <EventLifecycleActions
         occ={occ}
         user={user}
+        participationMap={participationMap}
         onSetLifecycle={onSetLifecycle}
+        onSetPersonalTimelineState={onSetPersonalTimelineState}
         onDelete={onDelete}
         onCancel={onCancel}
         cancellingId={cancellingId}
         deletingId={deletingId}
+        personalStateLoadingId={personalStateLoadingId}
       />
     </div>
   );
 }
 
-export default function TodayView({ occurrences, timezone, onSelectEvent, reminders = [], participationMap, onParticipationResponse, user, onSetLifecycle, onDelete, onCancel, cancellingId, deletingId }) {
+export default function TodayView({ occurrences, timezone, onSelectEvent, reminders = [], participationMap, onParticipationResponse, user, onSetLifecycle, onSetPersonalTimelineState, onDelete, onCancel, cancellingId, deletingId, personalStateLoadingId }) {
   const now = new Date();
   const todayStr = now.toDateString();
 
@@ -160,7 +163,7 @@ export default function TodayView({ occurrences, timezone, onSelectEvent, remind
             <Sun className="w-4 h-4 text-indigo-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-indigo-700">Next activity</h3>
           </div>
-          <TodayEventCard occ={nextActivity} timezone={timezone} onSelectEvent={onSelectEvent} isFirst={true} participationMap={participationMap} onParticipationResponse={onParticipationResponse} user={user} onSetLifecycle={onSetLifecycle} onDelete={onDelete} onCancel={onCancel} cancellingId={cancellingId} deletingId={deletingId} />
+          <TodayEventCard occ={nextActivity} timezone={timezone} onSelectEvent={onSelectEvent} isFirst={true} participationMap={participationMap} onParticipationResponse={onParticipationResponse} user={user} onSetLifecycle={onSetLifecycle} onSetPersonalTimelineState={onSetPersonalTimelineState} onDelete={onDelete} onCancel={onCancel} cancellingId={cancellingId} deletingId={deletingId} personalStateLoadingId={personalStateLoadingId} />
         </div>
       )}
 
@@ -185,10 +188,12 @@ export default function TodayView({ occurrences, timezone, onSelectEvent, remind
                 onParticipationResponse={onParticipationResponse}
                 user={user}
                 onSetLifecycle={onSetLifecycle}
+                onSetPersonalTimelineState={onSetPersonalTimelineState}
                 onDelete={onDelete}
                 onCancel={onCancel}
                 cancellingId={cancellingId}
                 deletingId={deletingId}
+                personalStateLoadingId={personalStateLoadingId}
               />
             ))}
           </div>
