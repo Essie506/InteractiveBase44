@@ -17,6 +17,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessCalendarPermission } from './shared';
 import { setOccurrenceException, ExceptionType } from './calendarEventExceptions';
 import { appendScheduleHistory } from './calendarEventHistory';
+import { emitCalendarSignalForEvent } from './calendarSignal';
 
 // ── saveOccurrenceException ─────────────────────────────────
 // Request: {
@@ -89,6 +90,9 @@ export const saveOccurrenceException = onCall(
       source_system: 'manual',
     });
 
+    // §99: bump realtime signals for all identities affected by the series so
+    // the rescheduled/cancelled occurrence propagates to every viewer.
+    await emitCalendarSignalForEvent(event);
     return { exception_id: docId };
   },
 );

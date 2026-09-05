@@ -5,20 +5,51 @@
 // visible focus, text labels alongside colour, reduced motion.
 // Source Unavailable (§111): privacy-safe representation for redacted events.
 
-import { Clock, MapPin, CalendarOff, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, MapPin, CalendarOff, AlertCircle, Loader2 } from 'lucide-react';
 import { formatTimeRange } from '@/lib/calendar';
 import {
   buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
 import { getEventCardClasses } from '@/lib/calendarCategory';
+import { canEditEvent } from '@/lib/calendarAuthority';
 import EventInvitationBadge from './EventInvitationBadge';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export default function DayView({ occurrences, date, timezone, onSelectEvent, participationMap, onParticipationResponse }) {
+// §49: draggable only with edit authority, manual source, timed + active.
+function isDraggable(occ, user) {
+  const e = occ?.event || occ;
+  if (!e || !user) return false;
+  if (!canEditEvent(e, user)) return false;
+  if (e.source_system && e.source_system !== 'manual') return false;
+  if (e.all_day) return false;
+  if (isSourceUnavailable(e)) return false;
+  if (e.lifecycle_state === 'cancelled' || e.lifecycle_state === 'removed') return false;
+  return true;
+}
+
+export default function DayView({ occurrences, date, timezone, onSelectEvent, participationMap, onParticipationResponse, user, onReschedule, reschedulingId }) {
+  const [dragOccurrenceId, setDragOccurrenceId] = useState(null);
+  const [dragOverHour, setDragOverHour] = useState(null);
   const dateStr = date.toDateString();
   const isoDate = date.toISOString().split('T')[0];
+
+  // §49: new start ISO for a drop on an hour row, preserving the original
+  // within-hour minute offset (viewer-tz-aware).
+  const computeNewStart = (occ, hour) => {
+    const orig = new Date(occ.start);
+    const next = new Date(date);
+    next.setHours(hour, orig.getMinutes(), 0, 0);
+    return next.toISOString();
+  };
+
+  const handleDrop = (occ, hour) => {
+    setDragOverHour(null);
+    if (!occ || !onReschedule) return;
+    onReschedule(occ, computeNewStart(occ, hour));
+  };
 
   const dayOccurrences = occurrences.filter((occ) => {
     if (occ.event.all_day) return occ.start.slice(0, 10) === isoDate;
@@ -73,23 +104,47 @@ export default function DayView({ occurrences, date, timezone, onSelectEvent, pa
       <div className="overflow-y-auto max-h-[500px]">
         {HOURS.map((hour) => {
           const hourOccs = timedOccs.filter(occ => new Date(occ.start).getHours() === hour);
+          const isDropTarget = dragOccurrenceId && dragOverHour === hour;
           return (
             <div key={hour} className="flex border-b border-stone-50 min-h-[56px]">
               <div className="w-16 p-2 text-xs text-stone-400 text-right" aria-hidden="true">
                 {hour === 0 ? '' : `${String(hour).padStart(2, '0')}:00`}
               </div>
-              <div className="flex-1 p-1.5 border-l border-stone-100">
+              <div
+                className={`flex-1 p-1.5 border-l border-stone-100 transition-colors ${isDropTarget ? 'bg-indigo-50 ring-1 ring-inset ring-indigo-300' : ''}`}
+                onDragOver={(ev) => { if (dragOccurrenceId) { ev.preventDefault(); setDragOverHour(hour); } }}
+                onDragLeave={() => { if (dragOverHour === hour) setDragOverHour(null); }}
+                onDrop={(ev) => {
+                  ev.preventDefault();
+                  const raw = ev.dataTransfer.getData('text/plain');
+                  if (!raw) return;
+                  try {
+                    const { occurrenceId } = JSON.parse(raw);
+                    const occ = occurrences.find((o) => o.occurrenceId === occurrenceId);
+                    handleDrop(occ, hour);
+                  } catch { /* ignore malformed */ }
+                }}
+              >
                 {hourOccs.map(occ => {
                   const e = occ.event;
                   const safe = getSafeDisplayValues(e);
                   const sourceLabel = getSourceTypeLabel(e.source_system);
                   const stateLabel = getLifecycleStateLabel(e.lifecycle_state);
                   const unavailable = isSourceUnavailable(e);
+                  const draggable = isDraggable(occ, user);
+                  const isRescheduling = reschedulingId === e.id;
                   return (
                     <div
                       key={occ.occurrenceId}
                       role="button"
                       tabIndex={0}
+                      draggable={draggable}
+                      onDragStart={(ev) => {
+                        setDragOccurrenceId(occ.occurrenceId);
+                        ev.dataTransfer.setData('text/plain', JSON.stringify({ occurrenceId: occ.occurrenceId, eventId: e.id }));
+                        ev.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragEnd={() => setDragOccurrenceId(null)}
                       onClick={() => onSelectEvent(occ)}
                       onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); onSelectEvent(occ); } }}
                       aria-label={buildEventAriaLabel(occ, timezone)}
@@ -97,10 +152,13 @@ export default function DayView({ occurrences, date, timezone, onSelectEvent, pa
                         unavailable
                           ? 'bg-amber-50 border-amber-200 hover:bg-amber-100'
                           : getEventCardClasses(e, occ)
-                      }`}
+                      } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isRescheduling ? 'opacity-50' : ''}`}
                     >
                       <div className="flex items-center justify-between mb-0.5 gap-1">
-                        <span className="text-sm font-medium text-stone-800 truncate">{safe.title}</span>
+                        <span className="text-sm font-medium text-stone-800 truncate flex items-center gap-1">
+                          {isRescheduling && <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" aria-hidden="true" />}
+                          {safe.title}
+                        </span>
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <span className="text-[10px] px-1 py-0.5 rounded bg-white/70 text-stone-600">{sourceLabel}</span>
                           {stateLabel && <span className="text-[10px] text-red-500">{stateLabel}</span>}

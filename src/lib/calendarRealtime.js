@@ -1,123 +1,68 @@
-// Calendar Real-Time Updates — Firestore onSnapshot subscriptions (§99).
+// Calendar Real-Time Updates — secure signal-channel subscription (§99).
 // ───────────────────────────────────────────────────────────
-// Real-time presentation of Calendar state changes. Where current
-// scheduling state matters, Calendar updates propagate promptly to
-// authorised surfaces (Calendar views, Dashboard, Business Calendar,
-// connected participant views — §98).
+// Real-time presentation of Calendar state changes WITHOUT weakening
+// security. See cloud-functions/src/calendarSignal.ts for the full
+// rationale.
 //
-// CRITICAL (§99): Real-time presentation does NOT replace server-side
-// authoritative conflict/availability validation. onSnapshot is a
-// PRESENTATION mechanism. Conflict detection, availability evaluation,
-// and slot-hold validation remain server-side authoritative (Cloud
-// Functions with transactions). The client never treats a real-time
-// snapshot as authoritative for committing time.
+// WHY NOT direct onSnapshot on calendarEvents/calendarParticipation:
+// Firestore rules resolve the caller's identity via get(identityMappings)
+// and check resource.data against it. The query validator CANNOT
+// evaluate get()/exists()-derived values for LIST (collection query)
+// operations, so any where()-filtered onSnapshot on those collections
+// fails with "Missing or insufficient permissions" — a permission
+// denial, not a missing index. Weakening the rules to allow those
+// queries would compromise the security boundary.
 //
-// §98: Changes to Calendar state propagate to authorised surfaces
-// without duplicate manual editing. onSnapshot achieves this — any
-// surface subscribed to the same Firestore collections receives
-// updates automatically.
+// ARCHITECTURE: the client subscribes via onSnapshot to its OWN single
+// `calendarSignals/{identityId}` document. A single-document realtime
+// listen evaluates the document read rule, where get()-derived identity
+// checks ARE allowed (unlike list queries). Cloud Functions bump a
+// version counter on that doc whenever a calendar event / participation
+// / invitation changes for the identity. On any signal change the
+// client re-fetches the authoritative view via getCalendarView.
+//
+// This is true realtime (event-driven, not polled) and the authoritative
+// read remains server-side, so conflict/availability validation is never
+// bypassed (§99). The signal carries NO event data — only a version
+// counter + timestamp — so it cannot leak data to an unauthorised reader.
 
 import { db } from '@/firebase/firebaseClient';
-import {
-  collection, query, where, orderBy, onSnapshot,
-} from 'firebase/firestore';
-import { fromFirestoreDoc } from '@/data/firebase/mappers';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 /**
- * Subscribe to real-time Calendar Event changes for an owner.
+ * Subscribe to realtime Calendar change signals for the current identity.
  *
- * Returns an unsubscribe function. The callback receives the full
- * refreshed event list on every change (added/modified/removed).
+ * On every signal change (another user or the server mutated an event
+ * affecting this identity), `onChange` is called with the new signal
+ * version. The caller should re-fetch the authoritative view (e.g.
+ * loadEvents()) in response. Returns an unsubscribe function.
  *
- * @param {string} ownerId — identity ID or business ID
- * @param {string} ownerType — 'identity' | 'business'
- * @param {function} callback — (events: Array) => void
- * @param {object} options — { onError?: (error) => void }
- * @returns {function} unsubscribe
+ * @param {string} identityId — the caller's stable Interactive identity ID
+ * @param {(version: number|null) => void} onChange
+ * @param {(error: Error) => void} [onError]
+ * @returns {() => void} unsubscribe
  */
-export function subscribeToOwnerEvents(ownerId, ownerType, callback, options = {}) {
-  if (!ownerId) {
-    callback([]);
+export function subscribeToCalendarSignal(identityId, onChange, onError) {
+  if (!identityId) {
     return () => {};
   }
-
-  const constraints = [
-    where('owner_id', '==', ownerId),
-    orderBy('start_time', 'asc'),
-  ];
-  if (ownerType) {
-    constraints.splice(1, 0, where('owner_type', '==', ownerType));
-  }
-
-  const q = query(collection(db, 'calendarEvents'), ...constraints);
-
+  const ref = doc(db, 'calendarSignals', identityId);
   return onSnapshot(
-    q,
+    ref,
     (snap) => {
-      const events = snap.docs.map(fromFirestoreDoc);
-      callback(events);
+      const version = snap.exists() ? (snap.data().version ?? null) : null;
+      onChange(version);
     },
     (error) => {
-      if (options.onError) options.onError(error);
-      else console.error('[calendarRealtime] subscription error:', error);
-    },
-  );
-}
-
-/**
- * Subscribe to real-time Calendar Events assigned to an identity
- * (Business staff assignment — view/participation only).
- */
-export function subscribeToAssignedEvents(identityId, callback, options = {}) {
-  if (!identityId) {
-    callback([]);
-    return () => {};
-  }
-
-  const q = query(
-    collection(db, 'calendarEvents'),
-    where('assigned_identity_ids', 'array-contains', identityId),
-    orderBy('start_time', 'asc'),
-  );
-
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map(fromFirestoreDoc)),
-    (error) => {
-      if (options.onError) options.onError(error);
-      else console.error('[calendarRealtime] assigned subscription error:', error);
-    },
-  );
-}
-
-/**
- * Subscribe to real-time Calendar Events an identity was invited to.
- */
-export function subscribeToInvitedEvents(identityId, callback, options = {}) {
-  if (!identityId) {
-    callback([]);
-    return () => {};
-  }
-
-  const q = query(
-    collection(db, 'calendarEvents'),
-    where('invited_identity_ids', 'array-contains', identityId),
-    orderBy('start_time', 'asc'),
-  );
-
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map(fromFirestoreDoc)),
-    (error) => {
-      if (options.onError) options.onError(error);
-      else console.error('[calendarRealtime] invited subscription error:', error);
+      if (onError) onError(error);
+      else console.error('[calendarRealtime] signal subscription error:', error);
     },
   );
 }
 
 /**
  * Merge multiple event lists and deduplicate by authoritative Event ID.
- * Used when combining owner + assigned + invited event streams.
+ * Retained for combined-calendar aggregation callers.
  */
 export function mergeAndDedupeEvents(...eventLists) {
   const byId = new Map();
@@ -130,35 +75,5 @@ export function mergeAndDedupeEvents(...eventLists) {
   }
   return Array.from(byId.values()).sort(
     (a, b) => new Date(a.start_time) - new Date(b.start_time),
-  );
-}
-
-/**
- * Subscribe to real-time Calendar Participation changes for an identity.
- * (Phase 3) — propagates invitation response state changes (pending →
- * accepted/declined/revoked) to authorised Calendar surfaces without
- * duplicate manual editing.
- *
- * Returns an unsubscribe function. The callback receives the full
- * refreshed participation list on every change.
- */
-export function subscribeToParticipationForIdentity(identityId, callback, options = {}) {
-  if (!identityId) {
-    callback([]);
-    return () => {};
-  }
-
-  const q = query(
-    collection(db, 'calendarParticipation'),
-    where('identity_id', '==', identityId),
-  );
-
-  return onSnapshot(
-    q,
-    (snap) => callback(snap.docs.map(fromFirestoreDoc)),
-    (error) => {
-      if (options.onError) options.onError(error);
-      else console.error('[calendarRealtime] participation subscription error:', error);
-    },
   );
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, setEventLifecycle, deleteEvent } from '@/lib/calendar';
+import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, setEventLifecycle, deleteEvent, subscribeToCalendarSignal } from '@/lib/calendar';
+import { rescheduleOccurrence, isConflictError } from '@/lib/calendarReschedule';
+import { suggestAlternativeSlots } from '@/lib/calendarAlternatives';
 import { normalizeToOccurrences, groupOccurrencesByDate, filterOccurrences } from '@/lib/calendarOccurrences';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff, AlertCircle } from 'lucide-react';
 import { buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccessibility';
@@ -47,6 +49,7 @@ export default function CalendarPage() {
   const [viewingEvent, setViewingEvent] = useState(null);
   const [cancellingId, setCancellingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [reschedulingId, setReschedulingId] = useState(null);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ visibility: '', sourceSystem: '', lifecycleState: '', category: '', context: '', period: '' });
   const [participationMap, setParticipationMap] = useState(new Map());
@@ -146,25 +149,30 @@ export default function CalendarPage() {
 
   useEffect(() => { loadEvents(); }, [user, currentMonth, weekStart, selectedDate, view, activeContext, activeBusinessId]);
 
-  // ── Presentation propagation (§99) ─────────────────────────────
-  // §99 is PRESENTATION only — server-side authoritative conflict/
-  // availability validation is NOT replaced by client polling.
+  // ── Realtime propagation (§99) — secure signal channel ─────────
+  // Replaces polling. The client subscribes to its OWN single
+  // calendarSignals/{identityId} document via onSnapshot. A single-document
+  // realtime listen evaluates the document read rule, where the get()-
+  // derived identity check (`isOwner(identityId)`) IS allowed by the rules
+  // engine — unlike collection LIST queries, which cannot evaluate
+  // get()/exists()-derived values and therefore fail with "Missing or
+  // insufficient permissions". Cloud Functions bump a version counter on
+  // this doc whenever a calendar event / participation / invitation changes
+  // for the identity. On any signal change we re-fetch the authoritative
+  // view via getCalendarView. The authoritative read stays server-side, so
+  // conflict/availability validation is never bypassed (§99). The signal
+  // carries NO event data — only a version counter — so it cannot leak.
   //
-  // Firestore rules resolve the caller's identity via get(identityMappings)
-  // and check resource.data against it; the query validator cannot evaluate
-  // get()/exists()-derived values for list requests, so direct onSnapshot
-  // queries on calendarEvents/calendarParticipation fail with
-  // "Missing or insufficient permissions". Rather than weaken the rules,
-  // presentation propagation is achieved via the authoritative getCalendarView
-  // callable (already used for the initial load) on a periodic refresh, plus
-  // an immediate reload after every local mutation (create/update/cancel/
-  // delete/respond). This propagates other users' changes promptly without
-  // compromising the security boundary.
+  // A ref holds the latest loadEvents so the persistent subscription always
+  // invokes the current closure (range/view/context-aware) without
+  // re-subscribing on every navigation.
+  const loadEventsRef = useRef(loadEvents);
+  loadEventsRef.current = loadEvents;
   useEffect(() => {
-    if (!user) return;
-    const interval = setInterval(() => { loadEvents(); }, 60000);
-    return () => clearInterval(interval);
-  }, [user, activeContext, activeBusinessId]);
+    if (!user?.id) return;
+    const unsubscribe = subscribeToCalendarSignal(user.id, () => loadEventsRef.current());
+    return () => unsubscribe();
+  }, [user?.id]);
 
   // After events load, jump to + highlight the deep-linked event once.
   // Auto-open the appropriate modal so a user following a notification
@@ -293,6 +301,47 @@ export default function CalendarPage() {
     }
   };
 
+  // ── §49 Drag-and-drop reschedule ────────────────────────────
+  // Invoked by Week/Day view drop targets. Routes through the canonical
+  // server-side writers (saveCalendarEvent / saveOccurrenceException) so
+  // authority, §39 conflict, booking/source ownership, timezone, recurrence
+  // and security rules are preserved exactly. The UI gate (canEditEvent)
+  // is applied inside rescheduleOccurrence; the server re-checks.
+  const handleReschedule = async (occ, newStartIso) => {
+    const event = occ?.event || occ;
+    if (!event || reschedulingId) return;
+    setReschedulingId(event.id);
+    try {
+      await rescheduleOccurrence(occ, newStartIso, user);
+      await loadEvents();
+      toast({ title: 'Event rescheduled' });
+    } catch (err) {
+      if (isConflictError(err)) {
+        const d = new Date(newStartIso);
+        const dateStr = d.toISOString().split('T')[0];
+        const startTime = d.toTimeString().substring(0, 5);
+        const durMs = new Date(occ.end).getTime() - new Date(occ.start).getTime();
+        const durationMin = Math.max(15, Math.round(durMs / 60000));
+        const alts = suggestAlternativeSlots({ date: dateStr, startTime, durationMinutes: durationMin, events });
+        toast({
+          title: 'Time slot unavailable',
+          description: alts.length > 0
+            ? `This time conflicts with an existing event. Try ${alts.slice(0, 3).map(a => `${a.start}–${a.end}`).join(', ')}.`
+            : 'This time conflicts with an existing event.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Could not reschedule event',
+          description: err?.message || 'Please try again.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setReschedulingId(null);
+    }
+  };
+
   // ── Delete vs Cancel (§52) ───────────────────────────────
   // Destructive removal of a personal Calendar-owned event. History is
   // preserved server-side (§108).
@@ -408,9 +457,9 @@ export default function CalendarPage() {
       ) : view === 'today' ? (
         <TodayView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
       ) : view === 'week' ? (
-        <WeekView occurrences={filteredOccurrences} weekStart={weekStart} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
+        <WeekView occurrences={filteredOccurrences} weekStart={weekStart} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} user={user} onReschedule={handleReschedule} reschedulingId={reschedulingId} />
       ) : view === 'day' ? (
-        <DayView occurrences={filteredOccurrences} date={selectedDate} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
+        <DayView occurrences={filteredOccurrences} date={selectedDate} timezone={timezone} onSelectEvent={handleSelectEvent} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} user={user} onReschedule={handleReschedule} reschedulingId={reschedulingId} />
       ) : view === 'agenda' ? (
         <AgendaView occurrences={filteredOccurrences} timezone={timezone} onSelectEvent={handleSelectEvent} selectedDate={selectedDate} participationMap={participationMap} onParticipationResponse={handleParticipationResponse} />
       ) : (

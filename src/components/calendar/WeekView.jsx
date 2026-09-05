@@ -8,25 +8,58 @@
 // the same occurrences are shown, just a different layout.
 // Source Unavailable (§111): privacy-safe representation for redacted events.
 
-import { Clock, CalendarOff, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { Clock, CalendarOff, AlertCircle, Loader2 } from 'lucide-react';
 import { formatTimeRange } from '@/lib/calendar';
 import {
   buildEventAriaLabel, getSourceTypeLabel,
 } from '@/lib/calendarAccessibility';
 import { isSourceUnavailable, getSafeDisplayValues } from '@/lib/sourceUnavailable';
 import { getEventChipClasses, getEventBarClasses } from '@/lib/calendarCategory';
+import { canEditEvent } from '@/lib/calendarAuthority';
 import EventInvitationBadge from './EventInvitationBadge';
 import { getParticipationState } from '@/lib/calendarParticipation';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-export default function WeekView({ occurrences, weekStart, timezone, onSelectEvent, selectedDate, participationMap, onParticipationResponse }) {
+// §49: an event is draggable only when the viewer has edit authority, the
+// event is manual (not booking/source-owned), not all-day, and active.
+// Booking-owned events must be rescheduled via the Booking flow (§45).
+function isDraggable(occ, user) {
+  const e = occ?.event || occ;
+  if (!e || !user) return false;
+  if (!canEditEvent(e, user)) return false;
+  if (e.source_system && e.source_system !== 'manual') return false;
+  if (e.all_day) return false;
+  if (isSourceUnavailable(e)) return false;
+  if (e.lifecycle_state === 'cancelled' || e.lifecycle_state === 'removed') return false;
+  return true;
+}
+
+export default function WeekView({ occurrences, weekStart, timezone, onSelectEvent, selectedDate, participationMap, onParticipationResponse, user, onReschedule, reschedulingId }) {
+  const [dragOccurrenceId, setDragOccurrenceId] = useState(null);
+  const [dragOverKey, setDragOverKey] = useState(null);
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
     return d;
   });
+
+  // §49: compute the new start ISO (viewer-tz-aware) for a drop on a
+  // day/hour cell, preserving the original within-hour minute offset.
+  const computeNewStart = (occ, day, hour) => {
+    const orig = new Date(occ.start);
+    const next = new Date(day);
+    next.setHours(hour, orig.getMinutes(), 0, 0);
+    return next.toISOString();
+  };
+
+  const handleDrop = (occ, day, hour) => {
+    setDragOverKey(null);
+    if (!occ || !onReschedule) return;
+    onReschedule(occ, computeNewStart(occ, day, hour));
+  };
 
   const occurrencesByDay = days.map((day) => {
     const dateStr = day.toDateString();
@@ -102,18 +135,44 @@ export default function WeekView({ occurrences, weekStart, timezone, onSelectEve
                   if (occ.event.all_day) return false;
                   return new Date(occ.start).getHours() === hour;
                 });
+                const dropKey = `${dayIdx}-${hour}`;
+                const isDropTarget = dragOccurrenceId && dragOverKey === dropKey;
                 return (
-                  <div key={dayIdx} className={`border-l border-stone-100 p-0.5 relative ${isToday ? 'bg-indigo-50/30' : ''}`}>
+                  <div
+                    key={dayIdx}
+                    onDragOver={(ev) => { if (dragOccurrenceId) { ev.preventDefault(); setDragOverKey(dropKey); } }}
+                    onDragLeave={() => { if (dragOverKey === dropKey) setDragOverKey(null); }}
+                    onDrop={(ev) => {
+                      ev.preventDefault();
+                      const raw = ev.dataTransfer.getData('text/plain');
+                      if (!raw) return;
+                      try {
+                        const { occurrenceId } = JSON.parse(raw);
+                        const occ = occurrences.find((o) => o.occurrenceId === occurrenceId);
+                        handleDrop(occ, day, hour);
+                      } catch { /* ignore malformed */ }
+                    }}
+                    className={`border-l border-stone-100 p-0.5 relative transition-colors ${isToday ? 'bg-indigo-50/30' : ''} ${isDropTarget ? 'bg-indigo-100/60 ring-1 ring-inset ring-indigo-300' : ''}`}
+                  >
                     {hourOccs.map(occ => {
                       const e = occ.event;
                       const safe = getSafeDisplayValues(e);
                       const sourceLabel = getSourceTypeLabel(e.source_system);
                       const unavailable = isSourceUnavailable(e);
+                      const draggable = isDraggable(occ, user);
+                      const isRescheduling = reschedulingId === e.id;
                       return (
                         <div
                           key={occ.occurrenceId}
                           role="button"
                           tabIndex={0}
+                          draggable={draggable}
+                          onDragStart={(ev) => {
+                            setDragOccurrenceId(occ.occurrenceId);
+                            ev.dataTransfer.setData('text/plain', JSON.stringify({ occurrenceId: occ.occurrenceId, eventId: e.id }));
+                            ev.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragEnd={() => setDragOccurrenceId(null)}
                           onClick={() => onSelectEvent(occ)}
                           onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.stopPropagation(); onSelectEvent(occ); } }}
                           aria-label={buildEventAriaLabel(occ, timezone)}
@@ -121,9 +180,12 @@ export default function WeekView({ occurrences, weekStart, timezone, onSelectEve
                             unavailable
                               ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                               : getEventChipClasses(e, occ)
-                          }`}
+                          } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${isRescheduling ? 'opacity-50' : ''}`}
                         >
-                          <div className="font-medium truncate">{safe.title}</div>
+                          <div className="font-medium truncate flex items-center gap-1">
+                            {isRescheduling && <Loader2 className="w-2.5 h-2.5 animate-spin flex-shrink-0" aria-hidden="true" />}
+                            {safe.title}
+                          </div>
                           <div className="text-[9px] opacity-70 flex items-center gap-0.5">
                             <span>{sourceLabel}</span>
                             <span>•</span>

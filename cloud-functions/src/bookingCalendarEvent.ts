@@ -14,6 +14,7 @@
 import { db } from './shared';
 import { idempotencyDocId } from './calendarEvent';
 import { appendScheduleHistory } from './calendarEventHistory';
+import { emitCalendarSignal } from './calendarSignal';
 
 const EVENTS = 'calendarEvents';
 const IDEMPOTENCY = 'calendarEventIdempotency';
@@ -104,6 +105,12 @@ export async function createBookingCalendarEvent(
     });
   }
 
+  // §99: bump the provider's realtime signal so the new booking event appears
+  // on their Calendar without a manual refresh. (Business bookings are
+  // private + assigned only to the provider, so no other member sees them.)
+  if (created) {
+    await emitCalendarSignal([booking.provider_identity_id]);
+  }
   return { calendar_event_id: calendarEventId, created };
 }
 
@@ -190,6 +197,10 @@ export async function createHoldCalendarEvent(
       source_system: sourceSystem,
     });
   }
+  // §99: bump the provider's signal so the held slot appears immediately.
+  if (created) {
+    await emitCalendarSignal([hold.provider_identity_id]);
+  }
   return { calendar_event_id: calendarEventId, created };
 }
 
@@ -214,4 +225,6 @@ export async function releaseHoldCalendarEvent(holdId: string, nowIso: string): 
     actor_id: ev.created_by_id,
     source_system: ev.source_system || 'booking',
   });
+  // §99: bump the provider's signal so the released/cancelled hold disappears.
+  await emitCalendarSignal([ev.created_by_id, ...(ev.assigned_identity_ids || [])]);
 }

@@ -42,6 +42,7 @@ import { diffEventChanges, computeUpdateVersion, computeRemovalVersion } from '.
 import { appendScheduleHistory } from './calendarEventHistory';
 import { syncParticipationRecords, revokeParticipationRecords } from './calendarParticipation';
 import { hasOverlappingEvent, touchScheduleLock, shouldEnforceConflictCheck } from './calendarAvailability';
+import { emitCalendarSignalForEvent, emitCalendarSignal } from './calendarSignal';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
@@ -500,6 +501,8 @@ export const saveCalendarEvent = onCall(
       }
 
       await recordScheduleHistoryFromDiff(eventId, existing, mergedData, updatePayload, callerIdentityId, nowIso);
+      // §99: bump realtime signals for all identities affected by this update.
+      await emitCalendarSignalForEvent(mergedData);
       return { id: eventId, ...mergedData };
     }
 
@@ -637,6 +640,8 @@ export const saveCalendarEvent = onCall(
       source_system: eventData.source_system || 'manual',
     });
 
+    // §99: bump realtime signals for all identities affected by this create.
+    await emitCalendarSignalForEvent(eventData);
     return { id: eventDocId, ...eventData };
   },
 );
@@ -745,6 +750,9 @@ export const deleteCalendarEvent = onCall(
 
     // Destructive removal of the event document.
     await db.collection(EVENTS).doc(eventId).delete();
+    // §99: bump realtime signals for all identities that previously saw the
+    // deleted event so their Calendars drop it promptly.
+    await emitCalendarSignalForEvent(existing);
     return { id: eventId, deleted: true };
   },
 );

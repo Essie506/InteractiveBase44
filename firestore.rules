@@ -837,6 +837,22 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // CALENDAR REALTIME SIGNALS (§99)
+    // Per-identity "something changed" signal doc. Cloud Functions bump
+    // a version counter on it whenever a calendar event / participation /
+    // invitation changes for that identity. The client subscribes to its
+    // OWN single doc via onSnapshot (a single-document realtime listen —
+    // NOT a list query — so the get()-derived identity check below IS
+    // evaluated by the rules engine) and re-fetches the authoritative
+    // view via getCalendarView on change. The doc carries NO event data.
+    // Server-only writes; readable only by the owning identity.
+    // ═══════════════════════════════════════════════════════════
+    match /calendarSignals/{identityId} {
+      allow read: if isOwner(identityId);
+      allow write: if false; // Server-only — Cloud Functions (Admin SDK)
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // SPECVAULT — PROJECTS, SPECIFICATIONS, VERSIONS
     // ═══════════════════════════════════════════════════════════
 

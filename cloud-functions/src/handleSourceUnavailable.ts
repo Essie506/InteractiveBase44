@@ -58,6 +58,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins } from './shared';
 import { refreshEventProjection } from './calendarEvent';
 import { appendScheduleHistory } from './calendarEventHistory';
+import { emitCalendarSignalForEvent } from './calendarSignal';
 
 const EVENTS = 'calendarEvents';
 
@@ -213,6 +214,9 @@ export const handleSourceUnavailable = onCall(
         // discoverable). refreshEventProjection handles this via
         // isEventListable which checks lifecycle_state.
         await refreshEventProjection(doc.id).catch(() => {});
+
+        // §99: bump realtime signals so affected Calendars drop the event.
+        await emitCalendarSignalForEvent(eventData);
       }
 
       transitions.push({ event_id: doc.id, new_state: newLifecycleState || currentLifecycle });

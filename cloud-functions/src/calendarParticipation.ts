@@ -36,6 +36,7 @@ import { db, allowedOrigins, getIdentityId, hasBusinessCalendarPermission } from
 import { emitNotification } from './notifications/dispatcher';
 import { buildCalendarEmailPayload, CalendarEmailContext, CalendarEventType } from './notifications/email/payloads/calendar';
 import { appendScheduleHistory } from './calendarEventHistory';
+import { emitCalendarSignal } from './calendarSignal';
 
 const EVENTS = 'calendarEvents';
 const PARTICIPATION = 'calendarParticipation';
@@ -237,6 +238,9 @@ export const respondCalendarInvitation = onCall(
       source_system: 'calendar',
     });
 
+    // §99: bump realtime signals for the responder and the organiser so both
+    // Calendars reflect the participation change promptly.
+    await emitCalendarSignal([callerIdentityId, organiserId]);
     return { response_state: response, responded_at: nowIso };
   },
 );
@@ -349,6 +353,9 @@ export const revokeCalendarInvitation = onCall(
       source_system: 'calendar',
     });
 
+    // §99: bump realtime signals for the revoked invitee (their Calendar drops
+    // the event) and the organiser (combined view refresh).
+    await emitCalendarSignal([identity_id, callerIdentityId]);
     return { revoked: true };
   },
 );
