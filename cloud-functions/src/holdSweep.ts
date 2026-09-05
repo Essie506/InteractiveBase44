@@ -7,6 +7,7 @@
 
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db } from './shared';
+import { releaseHoldCalendarEvent } from './bookingCalendarEvent';
 
 export const sweepExpiredHolds = onSchedule(
   { region: 'europe-west2', schedule: 'every 5 minutes' },
@@ -19,6 +20,9 @@ export const sweepExpiredHolds = onSchedule(
     let count = 0;
     for (const doc of snap.docs) {
       await doc.ref.update({ status: 'expired', _updated_date: now });
+      // §118: cancel the 'held' calendar event so the released time frees up
+      // on the provider's Calendar. Best-effort — a missing event is a no-op.
+      await releaseHoldCalendarEvent(doc.id, now).catch(() => {});
       count++;
     }
     if (count) console.log(`sweepExpiredHolds released ${count} expired holds`);

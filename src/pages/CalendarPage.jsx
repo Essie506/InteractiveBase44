@@ -18,6 +18,8 @@ import { loadParticipationForEvents, getParticipationState, isInvitedEvent } fro
 import { canEditEvent, canCancelEvent, canSetPersonalLifecycle, canDeleteEvent, PERSONAL_LIFECYCLE_STATES } from '@/lib/calendarAuthority';
 import EventDetailModal from '@/components/calendar/EventDetailModal';
 import EventHistoryTimeline from '@/components/calendar/EventHistoryTimeline';
+import OccurrenceActions from '@/components/calendar/OccurrenceActions';
+import OfflineIndicator from '@/components/calendar/OfflineIndicator';
 import { useToast } from '@/components/ui/use-toast';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -387,6 +389,8 @@ export default function CalendarPage() {
 
       {/* Query failure observability (Phase 3 hardening) — a failed sub-query
           must never masquerade as a legitimate empty result. */}
+      <OfflineIndicator />
+
       {queryErrors.length > 0 && !loading && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2" role="alert">
           <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" aria-hidden="true" />
@@ -566,6 +570,9 @@ export default function CalendarPage() {
                           </span>
                         )}
                       </div>
+                      {occ.isRecurring && canEditEvent(e, user) && e.source_system !== 'booking' && (
+                        <OccurrenceActions occurrence={occ} user={user} onChanged={loadEvents} />
+                      )}
                     </div>
                   );
                 })}
@@ -583,6 +590,7 @@ export default function CalendarPage() {
           createdBy={user.id}
           businessId={activeContext === 'business' ? activeBusinessId : null}
           existingEvent={editingEvent}
+          existingEvents={events}
           timezone={timezone}
           onClose={() => { setShowEventModal(false); setEditingEvent(null); }}
           onSaved={handleEventSaved}

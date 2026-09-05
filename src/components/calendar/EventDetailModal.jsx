@@ -19,6 +19,8 @@ import { getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccess
 import { isSourceUnavailable, getSafeDisplayValues, getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
 import EventInvitationBadge from './EventInvitationBadge';
 import EventHistoryTimeline from './EventHistoryTimeline';
+import AddToCalendarButton from './AddToCalendarButton';
+import { dualTimezoneDisplay } from '@/lib/dualTimezone';
 
 export default function EventDetailModal({ event, timezone, participationMap, onParticipationResponse, onClose }) {
   if (!event) return null;
@@ -64,6 +66,15 @@ export default function EventDetailModal({ event, timezone, participationMap, on
               <p className="text-xs text-stone-500 mt-0.5">
                 <time dateTime={start}>{formatDate(start, tz)}</time>
               </p>
+              {!event.all_day && (() => {
+                const dual = dualTimezoneDisplay(event, timezone);
+                if (dual.sameZone) return null;
+                return (
+                  <p className="text-xs text-stone-400 mt-1">
+                    {dual.eventTzTime} ({dual.eventTzLabel}) · your time: {dual.viewerTzTime} ({dual.viewerTzLabel})
+                  </p>
+                );
+              })()}
             </div>
           </div>
 
@@ -123,6 +134,7 @@ export default function EventDetailModal({ event, timezone, participationMap, on
         </div>
 
         <div className="flex gap-3 p-6 border-t border-stone-100">
+          <AddToCalendarButton event={event} meetingUrl={safe.meetingUrl} compact />
           <button
             onClick={onClose}
             className="flex-1 py-2.5 bg-stone-100 text-stone-700 rounded-lg font-medium hover:bg-stone-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"

@@ -8,7 +8,9 @@ import StaffAssignPicker from '@/components/calendar/StaffAssignPicker';
 import RecurrenceControls from '@/components/calendar/RecurrenceControls';
 import ReminderControls from '@/components/calendar/ReminderControls';
 import EventHistoryTimeline from '@/components/calendar/EventHistoryTimeline';
+import LocationPicker from '@/components/LocationPicker';
 import { EVENT_CATEGORIES, COLOR_PALETTE } from '@/lib/calendarCategory';
+import { suggestAlternativeSlots } from '@/lib/calendarAlternatives';
 import { useToast } from '@/components/ui/use-toast';
 
 // Classify a save error as a §39 conflict rejection. The canonical
@@ -32,7 +34,7 @@ function isConflictError(err) {
 // source_id) so concurrent retries of the same logical Add produce
 // exactly one authoritative event. The source_id is generated once per
 // Add operation and reused across retries.
-export default function EventModal({ ownerId, ownerType, operatingContext, createdBy, businessId, existingEvent, timezone, onClose, onSaved }) {
+export default function EventModal({ ownerId, ownerType, operatingContext, createdBy, businessId, existingEvent, existingEvents, timezone, onClose, onSaved }) {
   const isEditing = !!existingEvent;
   // One stable source_id per logical Add operation. Generated on first
   // render of a create modal and preserved across retries; a genuinely
@@ -55,10 +57,13 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const [allDay, setAllDay] = useState(existingEvent?.all_day || false);
   const [locationType, setLocationType] = useState(existingEvent?.location_type || 'physical');
   const [location, setLocation] = useState(existingEvent?.location || '');
+  const [locationId, setLocationId] = useState(existingEvent?.location_id || '');
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [meetingUrl, setMeetingUrl] = useState(existingEvent?.meeting_url || '');
   const [visibility, setVisibility] = useState(existingEvent?.visibility || 'private');
   const [category, setCategory] = useState(existingEvent?.category || '');
   const [color, setColor] = useState(existingEvent?.color || '');
+  const [resourceLabel, setResourceLabel] = useState(existingEvent?.resource_label || '');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [invitedEmails, setInvitedEmails] = useState(
@@ -68,7 +73,14 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
     Array.isArray(existingEvent?.assigned_identity_ids) ? existingEvent.assigned_identity_ids : []
   );
   const [recurrenceRule, setRecurrenceRule] = useState(existingEvent?.recurrence_rule || null);
+  const [alternatives, setAlternatives] = useState([]);
   const { toast } = useToast();
+
+  const applyAlternative = (alt) => {
+    setStartTime(alt.start);
+    setEndTime(alt.end);
+    setAlternatives([]);
+  };
 
   const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
 
@@ -114,10 +126,12 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         // Persist the venue/address through the canonical Calendar event
         // schema. Only meaningful for physical/hybrid events.
         location: locationType !== 'online' ? (location || null) : null,
+        location_id: locationType !== 'online' ? (locationId || null) : null,
         meeting_url: locationType !== 'physical' ? meetingUrl : null,
         visibility,
         category: category || null,
         color: color || null,
+        resource_label: resourceLabel || null,
         business_id: businessId,
         created_by_id: createdBy,
         source_system: 'manual',
@@ -147,9 +161,20 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         // Show a clear "time unavailable" message and keep the modal open
         // so the user can adjust the time. The authoritative check stays
         // server-side; no client-side conflict engine is added.
+        // §38: suggest nearby non-conflicting alternative slots from the
+        // already-loaded owner events so the user can pick one quickly.
+        // Recompute the duration from the form state (startIso/endIso are
+        // block-scoped to the try above and not visible here).
+        if (!allDay && date && startTime && endTime) {
+          const durMs = new Date(`${date}T${endTime}`).getTime() - new Date(`${date}T${startTime}`).getTime();
+          const durationMin = Math.max(15, Math.round(durMs / 60000));
+          setAlternatives(suggestAlternativeSlots({
+            date, startTime, durationMinutes: durationMin, events: existingEvents,
+          }));
+        }
         toast({
           title: 'Time slot unavailable',
-          description: 'This time conflicts with an existing event. Please choose a different time.',
+          description: 'This time conflicts with an existing event. Try one of the suggested alternatives.',
           variant: 'destructive',
         });
       } else {
@@ -173,6 +198,18 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
         </div>
 
         <div className="p-6 space-y-4">
+          {alternatives.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-700 font-medium mb-2">Suggested available slots on {date}:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {alternatives.map((alt) => (
+                  <button key={alt.start} type="button" onClick={() => applyAlternative(alt)} className="text-xs px-2.5 py-1 bg-white border border-amber-300 rounded-md text-amber-700 hover:bg-amber-100 transition-colors">
+                    {alt.start}–{alt.end}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <MandatoryLabel htmlFor="evt-title" required>Title</MandatoryLabel>
             <input id="evt-title" type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="Event title" />
@@ -224,6 +261,21 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
               <input type="text" value={location} onChange={e => setLocation(e.target.value)} className={inputClass} placeholder="Venue name or address" />
               <p className="text-xs text-stone-400 mt-1">The venue or address for this {locationType} event.</p>
+              <button type="button" onClick={() => setShowLocationPicker(v => !v)} className="text-xs text-indigo-600 font-medium hover:text-indigo-700 mt-1.5">
+                {showLocationPicker ? 'Hide location picker' : 'Use location picker (§93)'}
+              </button>
+              {showLocationPicker && (
+                <div className="mt-2">
+                  <LocationPicker
+                    ownerId={createdBy}
+                    ownerType={ownerType}
+                    context="event"
+                    initialLocationId={locationId}
+                    initialLabel={location}
+                    onLocationSaved={(id, label) => { setLocationId(id); setLocation(label); }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -275,6 +327,12 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
               })}
             </div>
             <p className="text-xs text-stone-400 mt-1">Overrides the category colour. Leave unset to use the category default.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">Resource (optional)</label>
+            <input type="text" value={resourceLabel} onChange={e => setResourceLabel(e.target.value)} className={inputClass} placeholder="e.g. Studio A, Tennis Court 2" />
+            <p className="text-xs text-stone-400 mt-1">Book a resource (room/equipment). Events sharing the same resource cannot overlap (§41). Leave blank for no resource constraint.</p>
           </div>
 
           <InviteByEmailInput value={invitedEmails} onChange={setInvitedEmails} />

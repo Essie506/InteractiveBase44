@@ -470,8 +470,9 @@ export const saveCalendarEvent = onCall(
       if (enforceConflict && timeChanging) {
         const newStart = updatePayload.start_time || existing.start_time;
         const newEnd = updatePayload.end_time || existing.end_time;
+        const newResource = updatePayload.resource_label !== undefined ? updatePayload.resource_label : existing.resource_label;
         await db.runTransaction(async (tx) => {
-          if (await hasOverlappingEvent(tx, existing.owner_id, newStart, newEnd, eventId)) {
+          if (await hasOverlappingEvent(tx, existing.owner_id, newStart, newEnd, eventId, newResource)) {
             throw new HttpsError('failed-precondition', 'Time slot conflicts with an existing event');
           }
           await touchScheduleLock(tx, existing.owner_id, nowIso);
@@ -588,7 +589,7 @@ export const saveCalendarEvent = onCall(
       // Source-owned events use their owning system's scheduling contract (§45, §49) and
       // are NOT routed through this generic manual-event conflict policy.
       if (shouldEnforceConflictCheck(sourceSystem, data.operating_context, ownerType)) {
-        if (await hasOverlappingEvent(tx, ownerId, eventData.start_time, eventData.end_time)) {
+        if (await hasOverlappingEvent(tx, ownerId, eventData.start_time, eventData.end_time, undefined, eventData.resource_label)) {
           throw new HttpsError('failed-precondition', 'Time slot conflicts with an existing event');
         }
         // Touch the schedule sentinel so concurrent manual creations for the same

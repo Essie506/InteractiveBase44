@@ -24,6 +24,8 @@ export default function AvailabilityPage() {
   const [awayMessage, setAwayMessage] = useState('');
   const [awaySaving, setAwaySaving] = useState(false);
   const [awaySaved, setAwaySaved] = useState(false);
+  const [exceptionDate, setExceptionDate] = useState('');
+  const [exceptionSaving, setExceptionSaving] = useState(false);
 
   const timezone = getLocalTimezone();
 
@@ -87,6 +89,32 @@ export default function AvailabilityPage() {
     await deleteAvailabilityRule(ruleId);
     loadRules();
   };
+
+  // §27/§28: one-off unavailable/blocked dates (exceptions to recurring
+  // working hours). Stored as AvailabilityRule with rule_type 'unavailable'
+  // and a specific_date. The booking slot resolver consumes these.
+  const handleAddException = async () => {
+    if (!exceptionDate) return;
+    setExceptionSaving(true);
+    try {
+      await createAvailabilityRule({
+        owner_id: user.id,
+        owner_type: 'identity',
+        operating_context: 'professional',
+        rule_type: 'unavailable',
+        specific_date: exceptionDate,
+        start_time: '00:00',
+        end_time: '23:59',
+        timezone,
+      });
+      setExceptionDate('');
+      await loadRules();
+    } finally {
+      setExceptionSaving(false);
+    }
+  };
+
+  const exceptionRules = rules.filter((r) => r.rule_type === 'unavailable' && r.specific_date);
 
   const rulesByDay = (dayNum) => rules.filter((r) => r.day_of_week === dayNum && r.rule_type === 'working_hours');
 
@@ -160,6 +188,39 @@ export default function AvailabilityPage() {
         })}
         </div>
       }
+
+      {/* Date Exceptions (§27/§28) — one-off unavailable dates */}
+      <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6 mt-6">
+        <h2 className="font-semibold text-stone-800 mb-2 flex items-center gap-2">
+          <Clock className="w-4 h-4 text-indigo-600" /> Date Exceptions
+        </h2>
+        <p className="text-sm text-stone-500 mb-4">Block out specific dates when you are unavailable (holidays, sick leave). These override your recurring working hours for that date.</p>
+        <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="flex-1 w-full">
+            <label className="block text-xs font-medium text-stone-600 mb-1">Unavailable date</label>
+            <input type="date" value={exceptionDate} onChange={(e) => setExceptionDate(e.target.value)} className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
+          </div>
+          <button onClick={handleAddException} disabled={exceptionSaving || !exceptionDate} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5 transition-colors">
+            {exceptionSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Block date
+          </button>
+        </div>
+        {exceptionRules.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {exceptionRules.sort((a, b) => (a.specific_date || '').localeCompare(b.specific_date || '')).map((rule) => (
+              <div key={rule.id} className="flex items-center gap-2 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                <Clock className="w-3.5 h-3.5 text-rose-600" />
+                <span className="text-sm text-stone-700 font-medium">
+                  {new Date(rule.specific_date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+                <span className="text-xs text-stone-400">Unavailable</span>
+                <button onClick={() => handleDelete(rule.id)} className="ml-auto text-stone-400 hover:text-red-500 transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Away Message */}
       <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6 mt-6">

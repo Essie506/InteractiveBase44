@@ -48,7 +48,7 @@ function getZonedParts(iso: string, timezone: string): { dayOfWeek: number; hhmm
 // aStart < bEnd && aEnd > bStart. We query start_time < newEnd (single
 // range) and filter end_time > newStart in memory.
 export async function hasOverlappingEvent(
-  store: Store, ownerId: string, startIso: string, endIso: string, excludeEventId?: string,
+  store: Store, ownerId: string, startIso: string, endIso: string, excludeEventId?: string, resourceLabel?: string | null,
 ): Promise<boolean> {
   const snap = await store.get(
     db.collection('calendarEvents')
@@ -59,10 +59,17 @@ export async function hasOverlappingEvent(
   );
   const startMs = new Date(startIso).getTime();
   const endMs = new Date(endIso).getTime();
+  // §41 resource scheduling: resource_label partitions the conflict space.
+  // Two events conflict only if they book the same resource (including both
+  // null). A resource-booked event does NOT conflict with a resource-less
+  // event, and events booking different resources do not conflict.
+  const newResource = resourceLabel || null;
   for (const doc of snap.docs) {
     if (excludeEventId && doc.id === excludeEventId) continue;
     const ev = doc.data();
     if (!ACTIVE_LIFECYCLE.includes(ev.lifecycle_state)) continue;
+    const evResource = ev.resource_label || null;
+    if (evResource !== newResource) continue;
     if (ev.recurrence_rule) {
       // Recurring event — expand occurrences within the range and check
       // each (applying exceptions). §53–§56.

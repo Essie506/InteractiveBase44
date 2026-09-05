@@ -6,6 +6,7 @@ import { getUserSettings } from '@/services/settingsService';
 import { getInvitationsForEmail, getUserBusinesses } from '@/services/businessService';
 import * as userService from '@/services/userService';
 import VerificationBadge from '@/components/VerificationBadge';
+import CalendarWidget from '@/components/dashboard/CalendarWidget';
 import { User as UserIcon, Settings, FileText, Briefcase, Building2, Plus, ArrowRight, Mail } from 'lucide-react';
 
 export default function Dashboard() {
@@ -359,6 +360,9 @@ export default function Dashboard() {
 
       {/* Secondary context cards */}
       {secondaryCards}
+
+      {/* Upcoming calendar events (§82) */}
+      <CalendarWidget />
 
       {/* Quick actions */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

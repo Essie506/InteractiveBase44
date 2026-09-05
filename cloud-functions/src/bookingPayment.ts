@@ -15,7 +15,7 @@ import { getStripe, calculateBookingFee, resolveFeeRule, resolveConnectedAccount
 import { CAPACITY_CONSUMING_STATES, normaliseAttendeeQuantity, sumAttendeeQuantity, resolveEventPrice } from './eventCapacity';
 import { refreshEventProjection } from './calendarEvent';
 import { emitNotification } from './notifications/dispatcher';
-import { createBookingCalendarEvent } from './bookingCalendarEvent';
+import { createBookingCalendarEvent, createHoldCalendarEvent } from './bookingCalendarEvent';
 import { buildBookingEmailContext } from './bookingNotifications';
 import { buildBookingEmailPayload } from './notifications/email/payloads/booking';
 import { evaluateAvailabilityRule, hasOverlappingHold, hasOverlappingBooking, hasOverlappingEvent } from './calendarAvailability';
@@ -319,6 +319,15 @@ export const createBookingDraft = onCall(
         return { bookingId: bookingRef.id, holdId: holdRef.id };
       });
 
+      // §118: create a 'held' lifecycle calendar event so the tentative booking
+      // appears on the provider's Calendar and blocks the time. Best-effort —
+      // the slotHolds record remains the authoritative hold.
+      await createHoldCalendarEvent(txResult.holdId, {
+        provider_identity_id, business_id: business_id || null,
+        start_time, end_time, timezone: timezone || 'UTC',
+        created_by_identity_id: callerIdentityId,
+      }, now.toISOString()).catch(() => {});
+
       // Refresh the public projection so spaces_remaining reflects the new booking.
       await refreshEventProjection(event_id);
 
@@ -373,6 +382,13 @@ export const createBookingDraft = onCall(
       });
       return holdRef.id;
     });
+
+    // §118: create a 'held' lifecycle calendar event for the one-to-one hold.
+    await createHoldCalendarEvent(holdResult, {
+      provider_identity_id, business_id: business_id || null,
+      start_time, end_time, timezone: timezone || 'UTC',
+      created_by_identity_id: callerIdentityId,
+    }, now.toISOString()).catch(() => {});
 
     // ── Create booking draft ──
     const bookingRef = db.collection('bookings').doc();

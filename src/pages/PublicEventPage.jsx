@@ -6,6 +6,7 @@ import { useFirebase } from '@/lib/backendConfig';
 import { Calendar, Clock, MapPin, Users, ShieldCheck, ArrowLeft, Video, Wifi, Globe } from 'lucide-react';
 import { formatDistance } from '@/lib/geo';
 import { useAuth } from '@/lib/AuthContext';
+import AddToCalendarButton from '@/components/calendar/AddToCalendarButton';
 
 // Public Event page — /e/:eventId
 // ───────────────────────────────────────────────────────────
@@ -261,6 +262,12 @@ export default function PublicEventPage() {
                     ? 'Meeting link revealed after booking'
                     : 'Exact address revealed after booking'}
                 </p>
+              </div>
+
+              {/* Guest Add-to-Calendar (§44/§103) — public projection
+                  carries no meeting_url, so the .ics uses the public location. */}
+              <div className="mt-3">
+                <AddToCalendarButton event={event} />
               </div>
             </div>
           </aside>

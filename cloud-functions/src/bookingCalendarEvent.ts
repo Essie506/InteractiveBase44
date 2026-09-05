@@ -106,3 +106,112 @@ export async function createBookingCalendarEvent(
 
   return { calendar_event_id: calendarEventId, created };
 }
+
+// ── §118: Hold/availability semantic events ──────────────────
+// When a slot hold is placed, a 'held' lifecycle Calendar Event is created
+// so the tentative booking appears on the provider's Calendar and blocks
+// the time (hasOverlappingEvent includes 'held' in ACTIVE_LIFECYCLE). On
+// confirmation the booking event (source_id = bookingId) supersedes it; on
+// release/expiry the hold event is cancelled. History is preserved.
+//
+// Idempotent via calendarEventIdempotency (source_system 'booking',
+// source_id `hold:${holdId}`). Owner is the provider identity (or business
+// for business holds). operating_context professional/business.
+
+export async function createHoldCalendarEvent(
+  holdId: string,
+  hold: Record<string, any>,
+  nowIso: string,
+): Promise<{ calendar_event_id: string; created: boolean }> {
+  const isBusinessHold = !!hold.business_id;
+  const ownerType = isBusinessHold ? 'business' : 'identity';
+  const ownerId = isBusinessHold ? hold.business_id : hold.provider_identity_id;
+  const sourceSystem = 'booking';
+  const sourceId = `hold:${holdId}`;
+  const idempKey = idempotencyDocId(ownerType, ownerId, sourceSystem, sourceId);
+  const idempRef = db.collection(IDEMPOTENCY).doc(idempKey);
+
+  let existingEventId: string | null = null;
+  let eventDocId = '';
+  await db.runTransaction(async (tx) => {
+    const idempSnap = await tx.get(idempRef);
+    if (idempSnap.exists && idempSnap.data()?.event_id) {
+      existingEventId = idempSnap.data()!.event_id as string;
+      return;
+    }
+    const eventRef = db.collection(EVENTS).doc();
+    eventDocId = eventRef.id;
+    tx.set(eventRef, {
+      owner_id: ownerId,
+      owner_type: ownerType,
+      operating_context: isBusinessHold ? 'business' : 'professional',
+      title: 'Held slot',
+      description: `Hold ${holdId}`,
+      start_time: hold.start_time,
+      end_time: hold.end_time,
+      timezone: hold.timezone || 'UTC',
+      all_day: false,
+      location_type: 'physical',
+      visibility: 'private',
+      lifecycle_state: 'held',
+      source_system: sourceSystem,
+      source_id: sourceId,
+      business_id: hold.business_id || null,
+      created_by_id: hold.created_by_identity_id || hold.provider_identity_id,
+      assigned_identity_ids: isBusinessHold ? [hold.provider_identity_id] : [],
+      invited_identity_ids: [],
+      invited_guest_emails: [],
+      _created_date: nowIso,
+      _updated_date: nowIso,
+    });
+    tx.set(idempRef, {
+      event_id: eventRef.id,
+      owner_type: ownerType,
+      owner_id: ownerId,
+      source_system: sourceSystem,
+      source_id: sourceId,
+      _created_date: nowIso,
+      _updated_date: nowIso,
+    });
+  });
+
+  const calendarEventId = existingEventId || eventDocId;
+  const created = !existingEventId;
+  if (created) {
+    await appendScheduleHistory({
+      event_id: calendarEventId,
+      change_type: 'created',
+      previous_start_time: null,
+      previous_end_time: null,
+      new_start_time: hold.start_time,
+      new_end_time: hold.end_time,
+      changed_at: nowIso,
+      actor_id: hold.created_by_identity_id || hold.provider_identity_id,
+      source_system: sourceSystem,
+    });
+  }
+  return { calendar_event_id: calendarEventId, created };
+}
+
+// Release a hold's calendar event (cancel it). Called on hold release/expiry
+// or when the booking is confirmed (the booking event supersedes the hold).
+// Idempotent — a missing or already-cancelled event is a no-op.
+export async function releaseHoldCalendarEvent(holdId: string, nowIso: string): Promise<void> {
+  const snap = await db.collection(EVENTS).where('source_id', '==', `hold:${holdId}`).limit(1).get();
+  if (snap.empty) return;
+  const doc = snap.docs[0];
+  const ev = doc.data();
+  if (ev.lifecycle_state === 'cancelled' || ev.lifecycle_state === 'removed') return;
+  await doc.ref.set({ lifecycle_state: 'cancelled', _updated_date: nowIso }, { merge: true });
+  await appendScheduleHistory({
+    event_id: doc.id,
+    change_type: 'cancelled',
+    previous_start_time: ev.start_time,
+    previous_end_time: ev.end_time,
+    new_start_time: null,
+    new_end_time: null,
+    changed_at: nowIso,
+    actor_id: ev.created_by_id,
+    source_system: ev.source_system || 'booking',
+  });
+}

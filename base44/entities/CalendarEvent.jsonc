@@ -84,6 +84,16 @@
       "title": "Meeting URL",
       "description": "Private \u2014 never projected to calendarEventsPublic. Revealed only through the booking/attendance flow."
     },
+    "resource_label": {
+      "type": "string",
+      "title": "Resource Label",
+      "description": "Optional resource (room/equipment) this event books (\u00a741 resource scheduling). Free-text label for the resource. When present, the server-side conflict check scopes overlap detection to events sharing the same resource_label for the same owner, so two events can overlap only if they book the same resource. Null/absent means no resource constraint (default overlap behaviour)."
+    },
+    "resource_id": {
+      "type": "string",
+      "title": "Resource ID",
+      "description": "Stable reference to an authoritative Resource record if a resource taxonomy exists. Null for custom free-text resource_label entries."
+    },
     "visibility": {
       "type": "string",
       "enum": [
