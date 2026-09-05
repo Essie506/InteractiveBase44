@@ -1,7 +1,7 @@
 import { base44 } from '@/api/base44Client';
 import { calendarRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
-import { callSaveCalendarEvent, callDeleteCalendarEvent, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries, callHandleSourceUnavailable } from '@/services/firebaseFunctions';
+import { callSaveCalendarEvent, callDeleteCalendarEvent, callGetCalendarView, callSaveReminderRule, callDeleteReminderRule, callListReminderRules, callSaveOccurrenceException, callSplitRecurrenceSeries, callHandleSourceUnavailable } from '@/services/firebaseFunctions';
 export { subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents, subscribeToParticipationForIdentity } from '@/lib/calendarRealtime';
 
 // Calendar System — M3: routes to Firebase when configured.
@@ -156,48 +156,41 @@ export function dedupeEventsById(events) {
 }
 
 export async function getAllEventsForIdentity(identityId, activeContext, businessId, startDate, endDate, onQueryError) {
-  const events = [];
+  // ── Firebase mode: authoritative server-side read aggregator ──
+  // Firestore rules resolve the caller's identity via get(identityMappings)
+  // and check resource.data fields against it. The Firestore query validator
+  // CANNOT evaluate get()/exists()-derived values for list requests, so direct
+  // client queries (owner equality, array-contains assigned/invited) fail with
+  // "Missing or insufficient permissions" — a permission denial, not a missing
+  // composite index. The getCalendarView callable runs under the Admin SDK
+  // and enforces the SAME authorization the rules express (owner, creator,
+  // business member, assigned, invited), returning only authorised events.
+  if (useFirebase) {
+    try {
+      const result = await callGetCalendarView({
+        start_time: startDate ? new Date(startDate).toISOString() : null,
+        end_time: endDate ? new Date(endDate).toISOString() : null,
+        business_id: activeContext === 'business' ? businessId : null,
+      });
+      return Array.isArray(result.events) ? result.events : [];
+    } catch (err) {
+      console.error('[calendar] getCalendarView failed:', err?.message || err);
+      if (onQueryError) onQueryError({ query: 'view', error: err?.message || String(err) });
+      return [];
+    }
+  }
 
-  // ONE identity-owned event set — queried once. Personal and Professional
-  // are operating contexts of the same identity, NOT separate owners, so
-  // both contexts render the same identity-owned events.
+  // ── Non-Firebase fallback: direct SDK reads ──
+  const events = [];
   try {
     events.push(...await getEvents(identityId, 'identity', startDate, endDate));
   } catch (err) {
     console.error('[calendar] Failed to load owner events:', err?.message || err);
     if (onQueryError) onQueryError({ query: 'owner', error: err?.message || String(err) });
   }
-
-  if (useFirebase) {
-    // Events assigned to this identity (e.g. Business staff assignments) —
-    // view/participation only, never edit authority. Each sub-query is
-    // isolated so a missing composite index on one path does not reject
-    // the entire load (which would silently hide the owner's own events).
-    //
-    // FAILURE ISOLATION ≠ SILENT DATA LOSS: a failed sub-query is logged
-    // AND reported via onQueryError so the UI can surface a warning. The
-    // successfully retrieved data remains usable. A failed query must
-    // never masquerade as a legitimate empty result (Phase 3 hardening).
-    try {
-      events.push(...await calendarRepository.listEventsAssignedToIdentity(identityId));
-    } catch (err) {
-      console.error('[calendar] Failed to load assigned events:', err?.message || err);
-      if (onQueryError) onQueryError({ query: 'assigned', error: err?.message || String(err) });
-    }
-    try {
-      events.push(...await calendarRepository.listEventsInvitedToIdentity(identityId));
-    } catch (err) {
-      console.error('[calendar] Failed to load invited events:', err?.message || err);
-      if (onQueryError) onQueryError({ query: 'invited', error: err?.message || String(err) });
-    }
-  }
-
-  // Business context adds the active Business's owned events. Business-owned
-  // events remain owned by businessId (a separate organisational owner).
   if (activeContext === 'business' && businessId) {
     events.push(...await getEvents(businessId, 'business', startDate, endDate));
   }
-
   const deduped = dedupeEventsById(events);
   const startMs = startDate ? new Date(startDate).getTime() : 0;
   const endMs = endDate ? new Date(endDate).getTime() : Date.now() + 365 * 24 * 60 * 60 * 1000;

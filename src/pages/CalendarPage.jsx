@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, setEventLifecycle, deleteEvent, subscribeToOwnerEvents, subscribeToAssignedEvents, subscribeToInvitedEvents, mergeAndDedupeEvents, subscribeToParticipationForIdentity } from '@/lib/calendar';
+import { getAllEventsForIdentity, getCombinedBusinessCalendar, getExceptionsForEvents, formatTimeRange, getLocalTimezone, cancelEvent, setEventLifecycle, deleteEvent } from '@/lib/calendar';
 import { normalizeToOccurrences, groupOccurrencesByDate, filterOccurrences } from '@/lib/calendarOccurrences';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, MapPin, Trash2, Loader2, CalendarOff, AlertCircle } from 'lucide-react';
 import { buildEventAriaLabel, getSourceTypeLabel, getLifecycleStateLabel } from '@/lib/calendarAccessibility';
@@ -19,7 +19,6 @@ import { canEditEvent, canCancelEvent, canSetPersonalLifecycle, canDeleteEvent, 
 import EventDetailModal from '@/components/calendar/EventDetailModal';
 import EventHistoryTimeline from '@/components/calendar/EventHistoryTimeline';
 import { useToast } from '@/components/ui/use-toast';
-import { useFirebase } from '@/lib/backendConfig';
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -145,71 +144,25 @@ export default function CalendarPage() {
 
   useEffect(() => { loadEvents(); }, [user, currentMonth, weekStart, selectedDate, view, activeContext, activeBusinessId]);
 
-  // ── Real-time subscriptions (§99) ──────────────────────────────
-  // onSnapshot propagates Calendar state changes promptly to this view.
-  // CRITICAL (§99): this is PRESENTATION only — server-side authoritative
-  // conflict/availability validation is NOT replaced by real-time.
-  // The subscription merges owner + assigned + invited event streams and
-  // deduplicates by Event ID. When Firebase is not configured, this is a
-  // no-op (the polling loadEvents above handles non-Firebase mode).
+  // ── Presentation propagation (§99) ─────────────────────────────
+  // §99 is PRESENTATION only — server-side authoritative conflict/
+  // availability validation is NOT replaced by client polling.
+  //
+  // Firestore rules resolve the caller's identity via get(identityMappings)
+  // and check resource.data against it; the query validator cannot evaluate
+  // get()/exists()-derived values for list requests, so direct onSnapshot
+  // queries on calendarEvents/calendarParticipation fail with
+  // "Missing or insufficient permissions". Rather than weaken the rules,
+  // presentation propagation is achieved via the authoritative getCalendarView
+  // callable (already used for the initial load) on a periodic refresh, plus
+  // an immediate reload after every local mutation (create/update/cancel/
+  // delete/respond). This propagates other users' changes promptly without
+  // compromising the security boundary.
   useEffect(() => {
-    if (!user || !useFirebase) return;
-    let ownerUnsub, assignedUnsub, invitedUnsub;
-    const identityId = user.id;
-    const oType = activeContext === 'business' ? 'business' : 'identity';
-    const oId = activeContext === 'business' ? activeBusinessId : identityId;
-
-    let pending = { owner: [], assigned: [], invited: [] };
-    const flushMerged = () => {
-      const merged = mergeAndDedupeEvents(pending.owner, pending.assigned, pending.invited);
-      // Only update if we got real data — avoid overwriting a loaded set with empty
-      if (merged.length > 0 || events.length === 0) {
-        setEvents(merged);
-      }
-    };
-
-    try {
-      ownerUnsub = subscribeToOwnerEvents(oId, oType, (evts) => {
-        pending.owner = evts;
-        flushMerged();
-      });
-      if (oType === 'identity') {
-        assignedUnsub = subscribeToAssignedEvents(identityId, (evts) => {
-          pending.assigned = evts;
-          flushMerged();
-        });
-        invitedUnsub = subscribeToInvitedEvents(identityId, (evts) => {
-          pending.invited = evts;
-          flushMerged();
-        });
-      }
-    } catch (err) {
-      // Real-time subscription failed — fall back to polling (already running)
-      console.error('[CalendarPage] realtime subscription error:', err);
-    }
-
-    return () => {
-      if (ownerUnsub) ownerUnsub();
-      if (assignedUnsub) assignedUnsub();
-      if (invitedUnsub) invitedUnsub();
-    };
-  }, [user, activeContext, activeBusinessId, useFirebase]);
-
-  // ── Real-time participation subscription (Phase 3) ──────────
-  // Propagates invitation response state changes (pending → accepted/
-  // declined/revoked) to the Calendar UI without refresh. The organiser
-  // sees invitee responses update in real-time; the invitee sees their
-  // own responses reflected immediately. Uses the existing
-  // subscribeToParticipationForIdentity from calendarRealtime — the
-  // same authoritative participation collection written by
-  // respondCalendarInvitation.
-  useEffect(() => {
-    if (!user || !useFirebase) return;
-    const unsub = subscribeToParticipationForIdentity(user.id, (records) => {
-      setParticipationMap(new Map(records.map((p) => [p.event_id, p])));
-    });
-    return unsub;
-  }, [user, useFirebase]);
+    if (!user) return;
+    const interval = setInterval(() => { loadEvents(); }, 60000);
+    return () => clearInterval(interval);
+  }, [user, activeContext, activeBusinessId]);
 
   // After events load, jump to + highlight the deep-linked event once.
   // Auto-open the appropriate modal so a user following a notification

@@ -12,33 +12,29 @@
 import { base44 } from '@/api/base44Client';
 import { useFirebase } from '@/lib/backendConfig';
 import {
+  callGetCalendarView,
   callRespondCalendarInvitation,
   callRevokeCalendarInvitation,
 } from '@/services/firebaseFunctions';
 
 // ── Load participation records for a set of events ─────────
 // Returns a Map: event_id → participation record (for the current user).
-// Used by CalendarPage to show pending/accepted/declined state.
+// In Firebase mode, the direct calendarParticipation query is not
+// rule-validatable (get()-derived identity), so we reuse the authoritative
+// getCalendarView callable which returns the caller's own participation
+// records alongside the event set.
 export async function loadParticipationForEvents(identityId, eventIds) {
   if (!identityId || !eventIds || eventIds.length === 0) return new Map();
 
   if (useFirebase) {
-    // Firebase: query calendarParticipation by identity_id + event_id.
-    // Firestore 'in' query supports max 10 values — batch accordingly.
-    const all = [];
-    for (let i = 0; i < eventIds.length; i += 10) {
-      const batch = eventIds.slice(i, i + 10);
-      const { db } = await import('@/firebase/firebaseClient');
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const q = query(
-        collection(db, 'calendarParticipation'),
-        where('identity_id', '==', identityId),
-        where('event_id', 'in', batch),
-      );
-      const snap = await getDocs(q);
-      all.push(...snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    }
-    return new Map(all.map((p) => [p.event_id, p]));
+    const result = await callGetCalendarView({});
+    const records = Array.isArray(result.participation) ? result.participation : [];
+    const eventIdSet = new Set(eventIds);
+    return new Map(
+      records
+        .filter((p) => eventIdSet.has(p.event_id))
+        .map((p) => [p.event_id, p]),
+    );
   }
 
   // Non-Firebase: use Base44 SDK
@@ -59,14 +55,8 @@ export async function loadAllParticipationForIdentity(identityId) {
   if (!identityId) return [];
 
   if (useFirebase) {
-    const { db } = await import('@/firebase/firebaseClient');
-    const { collection, query, where, getDocs } = await import('firebase/firestore');
-    const q = query(
-      collection(db, 'calendarParticipation'),
-      where('identity_id', '==', identityId),
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const result = await callGetCalendarView({});
+    return Array.isArray(result.participation) ? result.participation : [];
   }
 
   return base44.entities.CalendarParticipation.filter({ identity_id: identityId });

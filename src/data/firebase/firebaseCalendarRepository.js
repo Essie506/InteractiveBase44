@@ -51,11 +51,15 @@ export async function listEventsForOwner(ownerId, ownerType, startDate, endDate)
 // Events assigned to an identity (Business staff assignment). These appear
 // on the identity's Calendar but grant VIEW only — never edit authority.
 //
-// NOTE: we deliberately do NOT add orderBy('start_time') here. Firestore
-// requires a composite index for array-contains + orderBy, and that index
-// was not deployed to the live project — which caused the assigned/invited
-// sub-queries to throw FAILED_PRECONDITION and break invitation visibility
-// (§65, §70–§74). Sorting in memory avoids the index dependency entirely.
+// NOTE: these direct client queries are NOT used by the main Calendar view
+// path. Firestore rules resolve the caller's identity via get(identityMappings)
+// and check resource.data against it; the query validator cannot evaluate
+// get()/exists()-derived values for list requests, so these queries fail
+// with "Missing or insufficient permissions" (a permission denial, NOT a
+// missing composite index). The authoritative read path is the getCalendarView
+// Cloud Function (Admin SDK). These repository helpers are retained for
+// non-view callers that read by doc ID or via the server. We deliberately
+// do not add orderBy('start_time') to avoid an unnecessary composite index.
 export async function listEventsAssignedToIdentity(identityId) {
   const q = query(
     collection(db, 'calendarEvents'),
@@ -66,7 +70,8 @@ export async function listEventsAssignedToIdentity(identityId) {
 }
 
 // Events an identity was invited to (via email resolution). View only.
-// (Same index-avoidance rationale as listEventsAssignedToIdentity.)
+// (Same permission-denial rationale as listEventsAssignedToIdentity —
+// the authoritative read path is the getCalendarView Cloud Function.)
 export async function listEventsInvitedToIdentity(identityId) {
   const q = query(
     collection(db, 'calendarEvents'),

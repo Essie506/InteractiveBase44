@@ -210,6 +210,16 @@ export async function callDeleteCalendarEvent(data) {
   return result.data;
 }
 
+// ── Calendar View (authoritative read aggregator) ──
+// Returns owner + assigned + invited events + the caller's participation
+// records. Firestore rules cannot validate the underlying list queries
+// (get()/exists()-derived identity), so this callable is the authoritative
+// read path — the Admin SDK enforces the same authorization the rules express.
+export async function callGetCalendarView(data) {
+  const result = await callable('getCalendarView')(data);
+  return result.data;
+}
+
 // ── Relationship status read ──
 // Single + batch semantic relationship state for Connect/Pending/
 // Connected UI. The frontend must NOT infer relationship state from
