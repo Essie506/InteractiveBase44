@@ -9,6 +9,20 @@ import RecurrenceControls from '@/components/calendar/RecurrenceControls';
 import ReminderControls from '@/components/calendar/ReminderControls';
 import { useToast } from '@/components/ui/use-toast';
 
+// Classify a save error as a §39 conflict rejection. The canonical
+// saveCalendarEvent throws HttpsError('failed-precondition', 'Time slot
+// conflicts with an existing event') when the server-side transaction +
+// sentinel detects an overlap for protected Professional/Business time.
+// The Firebase SDK surfaces this as code 'functions/failed-precondition'.
+// We detect it (by code or the word "conflict") so the UI can show a
+// clear, specific message instead of a generic save failure — without
+// adding a second, divergent client-side conflict engine.
+function isConflictError(err) {
+  const code = err?.code || '';
+  const msg = (err?.message || '').toLowerCase();
+  return code.includes('failed-precondition') || msg.includes('conflict');
+}
+
 // EventModal — create or edit a calendar event.
 // Calendar is authoritative for the event record. Manual creates flow
 // through the canonical saveCalendarEvent Cloud Function, which uses a
@@ -121,11 +135,24 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
       }
       onSaved(saved);
     } catch (err) {
-      toast({
-        title: 'Could not save event',
-        description: err?.message || 'Please try again.',
-        variant: 'destructive',
-      });
+      if (isConflictError(err)) {
+        // §39 rejection — the server's transaction/sentinel blocked the
+        // save because the time overlaps an existing protected event.
+        // Show a clear "time unavailable" message and keep the modal open
+        // so the user can adjust the time. The authoritative check stays
+        // server-side; no client-side conflict engine is added.
+        toast({
+          title: 'Time slot unavailable',
+          description: 'This time conflicts with an existing event. Please choose a different time.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Could not save event',
+          description: err?.message || 'Please try again.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setSaving(false);
     }

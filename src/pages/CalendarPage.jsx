@@ -209,6 +209,11 @@ export default function CalendarPage() {
   }, [user, useFirebase]);
 
   // After events load, jump to + highlight the deep-linked event once.
+  // Auto-open the appropriate modal so a user following a notification
+  // deep link (/calendar?event=X) lands directly on the event detail —
+  // for an invitee that means the read-only EventDetailModal with
+  // Accept/Decline; for an editor the EventModal. This mirrors a click
+  // (handleSelectEvent) and changes no authority model.
   useEffect(() => {
     if (!focusEventId || focusedRef.current || loading || events.length === 0) return;
     const ev = events.find((e) => e.id === focusEventId);
@@ -217,6 +222,7 @@ export default function CalendarPage() {
       setCurrentMonth(new Date(evDate.getFullYear(), evDate.getMonth(), 1));
       setSelectedDate(evDate);
       focusedRef.current = true;
+      handleSelectEvent(ev);
     }
   }, [focusEventId, events, loading]);
 

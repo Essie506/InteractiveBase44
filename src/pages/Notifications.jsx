@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { getNotifications, markAsRead, markAllAsRead } from '@/lib/notifications';
 import { Loader2, Check, CheckCheck, Bell, Filter } from 'lucide-react';
@@ -103,7 +104,7 @@ export default function Notifications() {
                     <span className="text-xs text-stone-400 capitalize">{n.category}</span>
                     <span className="text-xs text-stone-400">{new Date(n.created_date).toLocaleString()}</span>
                     {n.action_url && (
-                      <a href={n.action_url} className="text-xs text-indigo-600 font-medium hover:underline">{n.action_label || 'View'}</a>
+                      <Link to={n.action_url} className="text-xs text-indigo-600 font-medium hover:underline">{n.action_label || 'View'}</Link>
                     )}
                     {!n.is_read && (
                       <button
