@@ -99,7 +99,7 @@ export const getCalendarView = onCall(
     const partSnap = await db.collection(PARTICIPATION)
       .where('identity_id', '==', callerIdentityId)
       .get();
-    const participation = partSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const participation: any[] = partSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     // ── Personal "hidden from timeline" filter ──
     // A participant can hide an event from their own Calendar view without
