@@ -22,6 +22,9 @@ export { createBookingDraft, createPaymentIntent, confirmFreeBooking } from './b
 export { stripeWebhook } from './stripeWebhook';
 export { cancelBooking, rescheduleBooking, reportNoShow, completeBooking } from './bookingLifecycle';
 
+// Phase 6 — Plans & Monetisation (Spec 17): recurring subscriptions via Stripe
+export { createSubscriptionCheckout, getMySubscription, createCustomerPortal } from './subscriptionManage';
+
 // Relationship System — Connections + Professional access
 export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses } from './connections';
 

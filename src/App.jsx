@@ -53,6 +53,7 @@ import BusinessOverview from '@/pages/business/BusinessOverview';
 import BusinessBookings from '@/pages/business/BusinessBookings';
 import BusinessServicesFacilities from '@/pages/business/BusinessServicesFacilities';
 import BusinessAvailability from '@/pages/business/BusinessAvailability';
+import Plans from '@/pages/Plans';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -136,6 +137,7 @@ const AuthenticatedApp = () => {
             <Route path="/upload" element={<UploadPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/book/:screenName" element={<BookingPage />} />
+            <Route path="/plans" element={<Plans />} />
           </Route>
         </Route>
       </Route>

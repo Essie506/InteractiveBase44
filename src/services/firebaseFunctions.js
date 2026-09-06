@@ -139,6 +139,22 @@ export async function callCompleteBooking(data) {
   return result.data;
 }
 
+// ── Plans & Subscriptions (Spec 17) ──
+export async function callCreateSubscriptionCheckout(data) {
+  const result = await callable('createSubscriptionCheckout')(data);
+  return result.data;
+}
+
+export async function callGetMySubscription(data) {
+  const result = await callable('getMySubscription')(data);
+  return result.data;
+}
+
+export async function callCreateCustomerPortal(data) {
+  const result = await callable('createCustomerPortal')(data);
+  return result.data;
+}
+
 // ── Professional Profile (public projection + screen_name uniqueness) ──
 export async function callSaveProfessionalProfile(data) {
   const result = await callable('saveProfessionalProfile')(data);
