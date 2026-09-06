@@ -80,7 +80,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const [category, setCategory] = useState(existingEvent?.category || '');
   const [color, setColor] = useState(existingEvent?.color || '');
   const [resourceLabel, setResourceLabel] = useState(existingEvent?.resource_label || '');
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState(/** @type {Record<string, string>} */({}));
   const [saving, setSaving] = useState(false);
   const [invitedEmails, setInvitedEmails] = useState(
     existingEvent?.invited_guest_emails?.join(', ') || ''
@@ -126,7 +126,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
 
   const validate = () => {
-    const e = {};
+    const e = /** @type {Record<string, string>} */({});
     if (!title.trim()) e.title = 'Title is required';
     if (!date) e.date = 'Date is required';
     if (!allDay) {

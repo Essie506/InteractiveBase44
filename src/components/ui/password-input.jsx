@@ -4,6 +4,10 @@ import { Lock, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PasswordInput = forwardRef(
+  /**
+   * @param {React.ComponentProps<'input'>} props
+   * @param {React.Ref<HTMLInputElement>} ref
+   */
   ({ id, autoComplete, placeholder, value, onChange, autoFocus, required, className }, ref) => {
     const [visible, setVisible] = useState(false);
     const inputId = id || "password";

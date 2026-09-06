@@ -24,6 +24,11 @@ function getClient() {
   return _client;
 }
 
+/**
+ * Lazy-initialized Base44 SDK client. The Proxy delegates all property
+ * access to the real client created on first access.
+ * @type {ReturnType<typeof createClient>}
+ */
 export const base44 = new Proxy({}, {
   get(_target, prop) {
     return getClient()[prop];

@@ -1,5 +1,8 @@
 // FieldError — displays a field-level validation error message.
 // Used when a mandatory field is missing on Continue attempt.
+/**
+ * @param {{ error?: string, id?: string }} props
+ */
 export default function FieldError({ error, id }) {
   if (!error) return null;
   return (
