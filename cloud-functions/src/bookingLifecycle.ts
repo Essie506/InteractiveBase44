@@ -494,6 +494,38 @@ export const reportNoShow = onCall(
       _created_date: nowIso,
     });
 
+    // Notification — notify the affected party that a no-show was recorded
+    // (Booking V2 no-show communication). If the provider reported a customer
+    // no-show, the customer is notified; if the customer reported a provider
+    // no-show, the provider is notified. Routed through the Notifications
+    // dispatcher (§81). Guest email is the primary guest channel.
+    const noShowAffectedIsCustomer = noShowState === 'no_show_customer';
+    const noShowRecipientId = noShowAffectedIsCustomer
+      ? (booking.customer_identity_id || null)
+      : (booking.provider_identity_id || null);
+    const noShowRecipientEmail = (noShowAffectedIsCustomer && !booking.customer_identity_id)
+      ? (booking.guest_email || null)
+      : null;
+    if (noShowRecipientId || noShowRecipientEmail) {
+      const noShowEmailCtx = await buildBookingEmailContext(booking_id, booking, 'booking_no_show');
+      await emitNotification({
+        source_system: 'calendar',
+        event_type: 'booking_no_show',
+        source_id: `booking:${booking_id}`,
+        version: '1',
+        category: 'calendar',
+        title: 'No-show recorded',
+        body: `A no-show has been recorded for booking ${booking_id}.`,
+        action_url: `/bookings/${booking_id}`,
+        action_label: 'View Booking',
+        priority: 'normal',
+        recipient_id: noShowRecipientId,
+        recipient_email: noShowRecipientEmail,
+        emailContext: noShowEmailCtx,
+        emailPayloadBuilder: buildBookingEmailPayload,
+      });
+    }
+
     return { booking_id, no_show: true };
   },
 );
@@ -551,6 +583,31 @@ export const completeBooking = onCall(
       await db.collection('calendarEvents').doc(booking.calendar_event_id).update({
         lifecycle_state: 'historical',
         _updated_date: now,
+      });
+    }
+
+    // Notification — notify the customer their booking is completed (Booking V2
+    // completion communication). Routed through the Notifications dispatcher (§81).
+    // Guest email is the primary guest channel (Booking §1.7.1, §3.12).
+    const completeRecipientId = booking.customer_identity_id || null;
+    const completeRecipientEmail = (!booking.customer_identity_id) ? (booking.guest_email || null) : null;
+    if (completeRecipientId || completeRecipientEmail) {
+      const completeEmailCtx = await buildBookingEmailContext(booking_id, booking, 'booking_completed');
+      await emitNotification({
+        source_system: 'calendar',
+        event_type: 'booking_completed',
+        source_id: `booking:${booking_id}`,
+        version: '1',
+        category: 'calendar',
+        title: 'Booking Completed',
+        body: `Booking ${booking_id} has been marked as completed.`,
+        action_url: `/bookings/${booking_id}`,
+        action_label: 'View Booking',
+        priority: 'normal',
+        recipient_id: completeRecipientId,
+        recipient_email: completeRecipientEmail,
+        emailContext: completeEmailCtx,
+        emailPayloadBuilder: buildBookingEmailPayload,
       });
     }
 
