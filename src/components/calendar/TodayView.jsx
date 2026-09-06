@@ -97,6 +97,24 @@ function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMa
   );
 }
 
+/**
+ * @param {{
+ *   occurrences: object[],
+ *   timezone: string,
+ *   onSelectEvent: (occ: object) => void,
+ *   reminders?: object[],
+ *   participationMap: Record<string, object>,
+ *   onParticipationResponse: (event: object, response: string) => void,
+ *   user: object | null,
+ *   onSetLifecycle?: (occ: object, state: string) => void,
+ *   onSetPersonalTimelineState?: (occ: object, state: string | null, hidden: boolean) => void,
+ *   onDelete?: (occ: object) => void,
+ *   onCancel?: (occ: object) => void,
+ *   cancellingId: string | null,
+ *   deletingId: string | null,
+ *   personalStateLoadingId: string | null,
+ * }} props
+ */
 export default function TodayView({ occurrences, timezone, onSelectEvent, reminders = [], participationMap, onParticipationResponse, user, onSetLifecycle, onSetPersonalTimelineState, onDelete, onCancel, cancellingId, deletingId, personalStateLoadingId }) {
   const now = new Date();
   const todayStr = now.toDateString();
@@ -109,7 +127,7 @@ export default function TodayView({ occurrences, timezone, onSelectEvent, remind
         }
         return new Date(occ.start).toDateString() === todayStr;
       })
-      .sort((a, b) => new Date(a.start) - new Date(b.start));
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }, [occurrences, todayStr]);
 
   // Next activity = first upcoming occurrence today (or the next future occurrence)

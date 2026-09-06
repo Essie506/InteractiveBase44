@@ -205,7 +205,7 @@ export async function getAllEventsForIdentity(identityId, activeContext, busines
       const eventStart = new Date(e.start_time).getTime();
       return eventStart >= startMs && eventStart <= endMs;
     })
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 }
 
 // ── Source Unavailable (§106–§111) ────────────────────────────
@@ -369,5 +369,5 @@ export async function getCombinedBusinessCalendar(businessId, staffIdentityIds, 
       const eventStart = new Date(e.start_time).getTime();
       return eventStart >= startMs && eventStart <= endMs;
     })
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 }

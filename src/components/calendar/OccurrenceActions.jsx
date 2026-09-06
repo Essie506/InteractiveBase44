@@ -20,6 +20,13 @@ import FieldError from '@/components/FieldError';
 //
 // The occurrence is identified by its stable original_start_time (the
 // occurrenceId is seriesId__originalStart).
+/**
+ * @param {{
+ *   occurrence: { event?: object, start?: string, end?: string, isRecurring?: boolean, isException?: boolean },
+ *   user: object | null,
+ *   onChanged: () => void,
+ * }} props
+ */
 export default function OccurrenceActions({ occurrence, user, onChanged }) {
   const event = occurrence?.event || occurrence;
   const [open, setOpen] = useState(false);

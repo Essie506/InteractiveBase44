@@ -7,6 +7,13 @@ import { businessRepository, userRepository } from '@/data/firebase';
 // actual active memberships of the active Business — no separate staff
 // directory is created. Assignment grants view/participation only; edit
 // authority comes from the manage_calendar permission, NOT from assignment.
+/**
+ * @param {{
+ *   businessId: string | null,
+ *   selected: string[],
+ *   onChange: (ids: string[]) => void,
+ * }} props
+ */
 export default function StaffAssignPicker({ businessId, selected, onChange }) {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);

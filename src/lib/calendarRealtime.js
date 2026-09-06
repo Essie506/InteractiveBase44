@@ -74,6 +74,6 @@ export function mergeAndDedupeEvents(...eventLists) {
     }
   }
   return Array.from(byId.values()).sort(
-    (a, b) => new Date(a.start_time) - new Date(b.start_time),
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
   );
 }

@@ -37,6 +37,20 @@ function isDraggable(occ, user) {
   return true;
 }
 
+/**
+ * @param {{
+ *   occurrences: object[],
+ *   weekStart: Date,
+ *   timezone: string,
+ *   onSelectEvent: (occ: object) => void,
+ *   selectedDate: Date,
+ *   participationMap: Record<string, object>,
+ *   onParticipationResponse: (event: object, response: string) => void,
+ *   user: object | null,
+ *   onReschedule: (occ: object, newStart: Date) => void,
+ *   reschedulingId: string | null,
+ * }} props
+ */
 export default function WeekView({ occurrences, weekStart, timezone, onSelectEvent, selectedDate, participationMap, onParticipationResponse, user, onReschedule, reschedulingId }) {
   const [dragOccurrenceId, setDragOccurrenceId] = useState(null);
   const [dragOverKey, setDragOverKey] = useState(null);

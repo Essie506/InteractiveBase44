@@ -31,7 +31,7 @@ export default function CalendarWidget() {
         if (!active) return;
         const occs = normalizeToOccurrences(events, [], start, end)
           .filter((o) => new Date(o.start).getTime() >= Date.now())
-          .sort((a, b) => new Date(a.start) - new Date(b.start))
+          .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
           .slice(0, 5);
         setOccurrences(occs);
       } catch (err) {

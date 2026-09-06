@@ -66,6 +66,16 @@ function FilterSelect({ label, value, onChange, options }) {
   );
 }
 
+/**
+ * @param {{
+ *   search: string,
+ *   onSearchChange: (s: string) => void,
+ *   filters: object,
+ *   onFiltersChange: (f: object) => void,
+ *   showHidden: boolean,
+ *   onToggleShowHidden: (checked: boolean) => void,
+ * }} props
+ */
 export default function CalendarSearchBar({ search, onSearchChange, filters, onFiltersChange, showHidden, onToggleShowHidden }) {
   const [showFilters, setShowFilters] = useState(false);
   const filterRef = useRef(null);

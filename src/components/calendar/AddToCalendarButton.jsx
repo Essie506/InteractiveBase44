@@ -9,6 +9,14 @@ import { useToast } from '@/components/ui/use-toast';
 // The meeting URL is passed through only by authorised viewers (the
 // public projection never carries it). Event data/timezone information
 // supplied to external calendars is preserved unchanged.
+/**
+ * @param {{
+ *   event: object | null,
+ *   meetingUrl: string | null,
+ *   organiserName?: string | null,
+ *   compact?: boolean,
+ * }} props
+ */
 export default function AddToCalendarButton({ event, meetingUrl, organiserName, compact }) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();

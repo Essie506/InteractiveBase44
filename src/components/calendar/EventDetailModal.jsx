@@ -23,6 +23,18 @@ import AddToCalendarButton from './AddToCalendarButton';
 import EventLifecycleActions from './EventLifecycleActions';
 import { dualTimezoneDisplay } from '@/lib/dualTimezone';
 
+/**
+ * @param {{
+ *   event: object | null,
+ *   timezone: string,
+ *   user: object | null,
+ *   participationMap: Record<string, object>,
+ *   onParticipationResponse: (event: object, response: string) => void,
+ *   onSetPersonalTimelineState: (occ: object, state: string | null, hidden: boolean) => void,
+ *   personalStateLoadingId: string | null,
+ *   onClose: () => void,
+ * }} props
+ */
 export default function EventDetailModal({ event, timezone, user, participationMap, onParticipationResponse, onSetPersonalTimelineState, personalStateLoadingId, onClose }) {
   if (!event) return null;
   const safe = getSafeDisplayValues(event);

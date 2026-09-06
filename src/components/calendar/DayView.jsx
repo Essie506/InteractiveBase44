@@ -30,6 +30,19 @@ function isDraggable(occ, user) {
   return true;
 }
 
+/**
+ * @param {{
+ *   occurrences: object[],
+ *   date: Date,
+ *   timezone: string,
+ *   onSelectEvent: (occ: object) => void,
+ *   participationMap: Record<string, object>,
+ *   onParticipationResponse: (event: object, response: string) => void,
+ *   user: object | null,
+ *   onReschedule: (occ: object, newStart: Date) => void,
+ *   reschedulingId: string | null,
+ * }} props
+ */
 export default function DayView({ occurrences, date, timezone, onSelectEvent, participationMap, onParticipationResponse, user, onReschedule, reschedulingId }) {
   const [dragOccurrenceId, setDragOccurrenceId] = useState(null);
   const [dragOverHour, setDragOverHour] = useState(null);

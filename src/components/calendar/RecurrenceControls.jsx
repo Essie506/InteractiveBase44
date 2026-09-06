@@ -86,6 +86,7 @@ function buildRRule(state) {
   return parts.join(';');
 }
 
+/** @param {{ rrule: string | null, onChange: (rrule: string | null) => void }} props */
 export default function RecurrenceControls({ rrule, onChange }) {
   const [state, setState] = useState(() => parseRRuleToState(rrule));
 

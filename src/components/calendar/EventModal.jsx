@@ -21,6 +21,7 @@ import { useToast } from '@/components/ui/use-toast';
 // We detect it (by code or the word "conflict") so the UI can show a
 // clear, specific message instead of a generic save failure — without
 // adding a second, divergent client-side conflict engine.
+/** @param {{code?: string, message?: string}} err */
 function isConflictError(err) {
   const code = err?.code || '';
   const msg = (err?.message || '').toLowerCase();
@@ -34,6 +35,21 @@ function isConflictError(err) {
 // source_id) so concurrent retries of the same logical Add produce
 // exactly one authoritative event. The source_id is generated once per
 // Add operation and reused across retries.
+/**
+ * @param {{
+ *   ownerId: string,
+ *   ownerType: string,
+ *   operatingContext: string,
+ *   createdBy: string,
+ *   businessId: string | null,
+ *   existingEvent: object | null,
+ *   existingEvents: object[],
+ *   timezone: string,
+ *   initialDate: string,
+ *   onClose: () => void,
+ *   onSaved: (event: object) => void,
+ * }} props
+ */
 export default function EventModal({ ownerId, ownerType, operatingContext, createdBy, businessId, existingEvent, existingEvents, timezone, initialDate, onClose, onSaved }) {
   const isEditing = !!existingEvent;
   // One stable source_id per logical Add operation. Generated on first
@@ -76,11 +92,36 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
   const [alternatives, setAlternatives] = useState([]);
   const { toast } = useToast();
 
+  /** @param {{start: string, end: string}} alt */
   const applyAlternative = (alt) => {
     setStartTime(alt.start);
     setEndTime(alt.end);
     setAlternatives([]);
   };
+
+  // Typed handler factories — avoid implicit-any on inline event params.
+  // val() covers text/date/time/select/textarea inputs (e.target.value);
+  // onAllDayChange covers checkbox (e.target.checked).
+  /**
+   * @param {(v: string) => void} setter
+   * @returns {(e: {target: {value: string}}) => void}
+   */
+  const val = (setter) => (e) => setter(e.target.value);
+
+  /** @param {{target: {checked: boolean}}} e */
+  const onAllDayChange = (e) => setAllDay(e.target.checked);
+
+  /** @param {{target: {value: string}}} e */
+  const onCategoryChange = (e) => { setCategory(e.target.value); setColor(''); };
+
+  /** @param {import('react').SyntheticEvent} e */
+  const stopPropagation = (e) => e.stopPropagation();
+
+  /** @param {boolean} v */
+  const togglePicker = (v) => !v;
+
+  /** @param {string} id @param {string} label */
+  const onLocationSaved = (id, label) => { setLocationId(id); setLocation(label); };
 
   const inputClass = "w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400";
 
@@ -191,7 +232,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={stopPropagation}>
         <div className="flex items-center justify-between p-6 border-b border-stone-100">
           <h2 className="text-xl font-bold text-stone-800">{isEditing ? 'Edit Event' : 'New Calendar Event'}</h2>
           <button onClick={onClose} className="text-stone-400 hover:text-stone-600"><X className="w-5 h-5" /></button>
@@ -212,18 +253,18 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
           )}
           <div>
             <MandatoryLabel htmlFor="evt-title" required>Title</MandatoryLabel>
-            <input id="evt-title" type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="Event title" />
+            <input id="evt-title" type="text" value={title} onChange={val(setTitle)} className={inputClass} placeholder="Event title" />
             <FieldError error={errors.title} />
           </div>
 
           <div>
             <MandatoryLabel htmlFor="evt-date" required>Date</MandatoryLabel>
-            <input id="evt-date" type="date" value={date} onChange={e => setDate(e.target.value)} className={inputClass} />
+            <input id="evt-date" type="date" value={date} onChange={val(setDate)} className={inputClass} />
             <FieldError error={errors.date} />
           </div>
 
           <label className="flex items-center gap-2.5 cursor-pointer">
-            <input type="checkbox" checked={allDay} onChange={e => setAllDay(e.target.checked)} className="w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
+            <input type="checkbox" checked={allDay} onChange={onAllDayChange} className="w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
             <span className="text-sm text-stone-700">All day</span>
           </label>
 
@@ -231,12 +272,12 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <MandatoryLabel htmlFor="evt-start" required>Start Time</MandatoryLabel>
-                <input id="evt-start" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputClass} />
+                <input id="evt-start" type="time" value={startTime} onChange={val(setStartTime)} className={inputClass} />
                 <FieldError error={errors.startTime} />
               </div>
               <div>
                 <MandatoryLabel htmlFor="evt-end" required>End Time</MandatoryLabel>
-                <input id="evt-end" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className={inputClass} />
+                <input id="evt-end" type="time" value={endTime} onChange={val(setEndTime)} className={inputClass} />
                 <FieldError error={errors.endTime} />
               </div>
             </div>
@@ -244,12 +285,12 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Description</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className={inputClass + " resize-none"} placeholder="Optional description" />
+            <textarea value={description} onChange={val(setDescription)} rows={2} className={inputClass + " resize-none"} placeholder="Optional description" />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Location Type</label>
-            <select value={locationType} onChange={e => setLocationType(e.target.value)} className={inputClass}>
+            <select value={locationType} onChange={val(setLocationType)} className={inputClass}>
               <option value="physical">Physical</option>
               <option value="online">Online</option>
               <option value="hybrid">Hybrid</option>
@@ -259,9 +300,9 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
           {locationType !== 'online' && (
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Location</label>
-              <input type="text" value={location} onChange={e => setLocation(e.target.value)} className={inputClass} placeholder="Venue name or address" />
+              <input type="text" value={location} onChange={val(setLocation)} className={inputClass} placeholder="Venue name or address" />
               <p className="text-xs text-stone-400 mt-1">The venue or address for this {locationType} event.</p>
-              <button type="button" onClick={() => setShowLocationPicker(v => !v)} className="text-xs text-indigo-600 font-medium hover:text-indigo-700 mt-1.5">
+              <button type="button" onClick={() => setShowLocationPicker(togglePicker)} className="text-xs text-indigo-600 font-medium hover:text-indigo-700 mt-1.5">
                 {showLocationPicker ? 'Hide location picker' : 'Use location picker (§93)'}
               </button>
               {showLocationPicker && (
@@ -272,7 +313,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
                     context="event"
                     initialLocationId={locationId}
                     initialLabel={location}
-                    onLocationSaved={(id, label) => { setLocationId(id); setLocation(label); }}
+                    onLocationSaved={onLocationSaved}
                   />
                 </div>
               )}
@@ -282,13 +323,13 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
           {locationType !== 'physical' && (
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1.5">Meeting URL</label>
-              <input type="url" value={meetingUrl} onChange={e => setMeetingUrl(e.target.value)} placeholder="https://..." className={inputClass} />
+              <input type="url" value={meetingUrl} onChange={val(setMeetingUrl)} placeholder="https://..." className={inputClass} />
             </div>
           )}
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Visibility</label>
-            <select value={visibility} onChange={e => setVisibility(e.target.value)} className={inputClass}>
+            <select value={visibility} onChange={val(setVisibility)} className={inputClass}>
               <option value="private">Private</option>
               <option value="connections">Connections</option>
               <option value="public">Public</option>
@@ -298,7 +339,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Category</label>
-            <select value={category} onChange={e => { setCategory(e.target.value); setColor(''); }} className={inputClass}>
+            <select value={category} onChange={onCategoryChange} className={inputClass}>
               {EVENT_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
             <p className="text-xs text-stone-400 mt-1">Personal category for this event (§11). Used for filtering and colour.</p>
@@ -331,7 +372,7 @@ export default function EventModal({ ownerId, ownerType, operatingContext, creat
 
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">Resource (optional)</label>
-            <input type="text" value={resourceLabel} onChange={e => setResourceLabel(e.target.value)} className={inputClass} placeholder="e.g. Studio A, Tennis Court 2" />
+            <input type="text" value={resourceLabel} onChange={val(setResourceLabel)} className={inputClass} placeholder="e.g. Studio A, Tennis Court 2" />
             <p className="text-xs text-stone-400 mt-1">Book a resource (room/equipment). Events sharing the same resource cannot overlap (§41). Leave blank for no resource constraint.</p>
           </div>
 

@@ -113,7 +113,7 @@ export function normalizeToOccurrences(events, exceptions, rangeStart, rangeEnd)
     }
   }
 
-  return occurrences.sort((a, b) => new Date(a.start) - new Date(b.start));
+  return occurrences.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 }
 
 /**

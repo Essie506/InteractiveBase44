@@ -7,6 +7,15 @@ import { CalendarX, CalendarClock, Loader2, AlertCircle } from 'lucide-react';
 const CANCELLABLE_STATES = ['draft', 'scheduled', 'confirmed', 'accepted', 'awaiting_customer_confirmation', 'requested'];
 const RESCHEDULABLE_STATES = ['scheduled', 'confirmed'];
 
+/**
+ * @param {{
+ *   booking: object,
+ *   onCancel: () => void,
+ *   onReschedule: () => void,
+ *   actionLoading: boolean,
+ *   actionType: string | null,
+ * }} props
+ */
 export default function GuestBookingActions({ booking, onCancel, onReschedule, actionLoading, actionType }) {
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');

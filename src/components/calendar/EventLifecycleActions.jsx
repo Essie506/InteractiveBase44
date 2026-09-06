@@ -33,6 +33,21 @@ const PERSONAL_STATE_LABELS = {
   archived: 'Removed from your timeline',
 };
 
+/**
+ * @param {{
+ *   occ: { event?: object, occurrenceId?: string, start?: string, end?: string, isRecurring?: boolean, isException?: boolean } | null,
+ *   user: object,
+ *   participationMap: Record<string, object>,
+ *   onSetLifecycle?: (occ: object, state: string) => void,
+ *   onSetPersonalTimelineState?: (occ: object, state: string | null, hidden: boolean) => void,
+ *   onDelete?: (occ: object) => void,
+ *   onCancel?: (occ: object) => void,
+ *   onEdit?: (occ: object) => void,
+ *   cancellingId: string | null,
+ *   deletingId: string | null,
+ *   personalStateLoadingId: string | null,
+ * }} props
+ */
 export default function EventLifecycleActions({
   occ,
   user,

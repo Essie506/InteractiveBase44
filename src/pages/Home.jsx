@@ -31,7 +31,7 @@ export default function Home() {
   const projectMap = {};
   projects.forEach(p => { projectMap[p.id] = p; });
 
-  const recentSpecs = [...specs].sort((a, b) => new Date(b.updated_date) - new Date(a.updated_date)).slice(0, 5);
+  const recentSpecs = [...specs].sort((a, b) => new Date(b.updated_date).getTime() - new Date(a.updated_date).getTime()).slice(0, 5);
 
   if (loading) {
     return (

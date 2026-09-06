@@ -12,6 +12,7 @@ const VIEWS = [
   { key: 'agenda', label: 'Agenda', icon: List },
 ];
 
+/** @param {{ view: string, onChange: (view: string) => void }} props */
 export default function CalendarViewSwitcher({ view, onChange }) {
   return (
     <div

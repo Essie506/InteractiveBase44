@@ -66,7 +66,7 @@ export async function listEventsAssignedToIdentity(identityId) {
     where('assigned_identity_ids', 'array-contains', identityId),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(fromFirestoreDoc).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  return snap.docs.map(fromFirestoreDoc).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 }
 
 // Events an identity was invited to (via email resolution). View only.
@@ -78,7 +78,7 @@ export async function listEventsInvitedToIdentity(identityId) {
     where('invited_identity_ids', 'array-contains', identityId),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(fromFirestoreDoc).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  return snap.docs.map(fromFirestoreDoc).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 }
 
 export async function listEventsForBusiness(businessId) {
@@ -116,7 +116,7 @@ export async function listHistoryForEvent(eventId) {
   const snap = await getDocs(q);
   return snap.docs
     .map(fromFirestoreDoc)
-    .sort((a, b) => new Date(a.changed_at || a._created_date) - new Date(b.changed_at || b._created_date));
+    .sort((a, b) => new Date(a.changed_at || a._created_date).getTime() - new Date(b.changed_at || b._created_date).getTime());
 }
 
 export async function listExceptionsForSeriesBatch(seriesEventIds) {

@@ -26,6 +26,14 @@ function generateTimeSlots() {
   return slots;
 }
 
+/**
+ * @param {{
+ *   booking: object,
+ *   onConfirm: (date: string, time: string) => void,
+ *   onClose: () => void,
+ *   loading: boolean,
+ * }} props
+ */
 export default function GuestRescheduleDialog({ booking, onConfirm, onClose, loading }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
@@ -34,7 +42,7 @@ export default function GuestRescheduleDialog({ booking, onConfirm, onClose, loa
   const dates = generateDates();
   const timeSlots = generateTimeSlots();
   const durationMinutes = booking.start_time && booking.end_time
-    ? Math.round((new Date(booking.end_time) - new Date(booking.start_time)) / 60000)
+    ? Math.round((new Date(booking.end_time).getTime() - new Date(booking.start_time).getTime()) / 60000)
     : 60;
 
   const handleConfirm = () => {

@@ -10,6 +10,14 @@
 import InvitationActions from './InvitationActions';
 import { getParticipationState } from '@/lib/calendarParticipation';
 
+/**
+ * @param {{
+ *   event: object,
+ *   participationMap: Record<string, object> | null,
+ *   onResponse: (event: object, response: string) => void,
+ *   compact?: boolean,
+ * }} props
+ */
 export default function EventInvitationBadge({ event, participationMap, onResponse, compact = false }) {
   if (!participationMap) return null;
   const participationState = getParticipationState(event, participationMap);

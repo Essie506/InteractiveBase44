@@ -12,6 +12,7 @@ import { AlertCircle, Clock } from 'lucide-react';
 import { getSourceUnavailableLabel } from '@/lib/sourceUnavailable';
 import { formatTimeRange } from '@/lib/calendar';
 
+/** @param {{ occ: { event?: object, start?: string }, timezone: string }} props */
 export default function SourceUnavailableState({ occ, timezone }) {
   const e = occ.event;
   const label = getSourceUnavailableLabel(e);

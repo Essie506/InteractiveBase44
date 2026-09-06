@@ -15,6 +15,17 @@ import { ZoomIn, RotateCcw, Move } from 'lucide-react';
  * Props:
  *   imageUrl, value { x, y, zoom }, onChange, shape, aspect, label, preview
  */
+/**
+ * @param {{
+ *   imageUrl: string,
+ *   value: { x?: number, y?: number, zoom?: number },
+ *   onChange: (v: { x: number, y: number, zoom: number }) => void,
+ *   shape?: string,
+ *   aspect?: string,
+ *   label?: string,
+ *   preview?: { label: string, width: number } | null,
+ * }} props
+ */
 export default function ImagePositioner({
   imageUrl,
   value,
@@ -69,6 +80,7 @@ export default function ImagePositioner({
     ? { width: 180, height: 180, borderRadius: 16 }
     : { width: '100%', aspectRatio: aspect, borderRadius: 16 };
 
+  /** @type {import('react').CSSProperties} */
   const imgStyle = {
     width: '100%',
     height: '100%',

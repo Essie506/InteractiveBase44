@@ -4,6 +4,7 @@ import { Calendar, Clock, MapPin, Video, User, Building2, Mail, Phone, PoundSter
 function formatDateTime(iso, timezone) {
   try {
     const d = new Date(iso);
+    /** @type {Intl.DateTimeFormatOptions} */
     const opts = { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' };
     if (timezone) opts.timeZone = timezone;
     return d.toLocaleString('en-GB', opts);
@@ -52,6 +53,7 @@ const STATUS_COLORS = {
   awaiting_customer_confirmation: 'bg-amber-100 text-amber-700',
 };
 
+/** @param {{ booking: object }} props */
 export default function GuestBookingDetails({ booking }) {
   const statusLabel = STATUS_LABELS[booking.booking_status] || booking.booking_status;
   const statusColor = STATUS_COLORS[booking.booking_status] || 'bg-stone-100 text-stone-700';
@@ -96,7 +98,7 @@ export default function GuestBookingDetails({ booking }) {
               {formatDateTime(booking.start_time, booking.timezone)}
             </p>
             <p className="text-xs text-stone-500 mt-0.5">
-              Duration: {Math.round((new Date(booking.end_time) - new Date(booking.start_time)) / 60000)} minutes
+              Duration: {Math.round((new Date(booking.end_time).getTime() - new Date(booking.start_time).getTime()) / 60000)} minutes
             </p>
           </div>
         </div>

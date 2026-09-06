@@ -16,6 +16,14 @@ import { Check, X, Loader2, UserCheck, UserX } from 'lucide-react';
 import { acceptInvitation, declineInvitation } from '@/lib/calendarParticipation';
 import { useToast } from '@/components/ui/use-toast';
 
+/**
+ * @param {{
+ *   event: object,
+ *   participationState: string | null,
+ *   onResponse: (event: object, response: string) => void,
+ *   compact?: boolean,
+ * }} props
+ */
 export default function InvitationActions({ event, participationState, onResponse, compact = false }) {
   const [responding, setResponding] = useState(false);
   const { toast } = useToast();

@@ -27,6 +27,7 @@ const CHANNEL_OPTIONS = [
   { value: 'email', label: 'Email' },
 ];
 
+/** @param {{ eventId: string }} props */
 export default function ReminderControls({ eventId }) {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);

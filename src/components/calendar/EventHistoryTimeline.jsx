@@ -22,6 +22,7 @@ const CHANGE_LABELS = {
   participant_removed: 'Participant removed',
 };
 
+/** @param {{ eventId: string, timezone: string, collapsed?: boolean }} props */
 export default function EventHistoryTimeline({ eventId, timezone, collapsed = false }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);

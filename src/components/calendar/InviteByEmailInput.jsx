@@ -6,6 +6,7 @@ import React from 'react';
 // each email to a stable Interactive identity ID (invited_identity_ids) or,
 // if no identity exists, preserves it as invited_guest_emails. Recipients
 // can view the event but never edit it.
+/** @param {{ value: string, onChange: (value: string) => void }} props */
 export default function InviteByEmailInput({ value, onChange }) {
   return (
     <div>

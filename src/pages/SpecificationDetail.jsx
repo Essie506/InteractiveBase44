@@ -39,7 +39,7 @@ export default function SpecificationDetail() {
           setProject(proj);
         }
         const vers = await getSpecVersions(id);
-        setVersions(vers.sort((a, b) => new Date(b.created_date) - new Date(a.created_date)));
+        setVersions(vers.sort((a, b) => new Date(b.created_date).getTime() - new Date(a.created_date).getTime()));
       })
       .finally(() => setLoading(false));
   }, [id]);

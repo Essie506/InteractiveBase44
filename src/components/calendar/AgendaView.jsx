@@ -19,6 +19,18 @@ import EventInvitationBadge from './EventInvitationBadge';
 
 const PAGE_SIZE = 50;
 
+/**
+ * @param {{
+ *   occurrences: object[],
+ *   timezone: string,
+ *   onSelectEvent: (occ: object) => void,
+ *   selectedDate: Date,
+ *   hasMore?: boolean,
+ *   onLoadMore: () => void,
+ *   participationMap: Record<string, object>,
+ *   onParticipationResponse: (event: object, response: string) => void,
+ * }} props
+ */
 export default function AgendaView({ occurrences, timezone, onSelectEvent, selectedDate, hasMore = false, onLoadMore, participationMap, onParticipationResponse }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const sentinelRef = useRef(null);
@@ -47,7 +59,7 @@ export default function AgendaView({ occurrences, timezone, onSelectEvent, selec
       map.get(dateKey).items.push(occ);
     }
     return Array.from(map.entries()).sort((a, b) => {
-      return new Date(a[1].items[0].start) - new Date(b[1].items[0].start);
+      return new Date(a[1].items[0].start).getTime() - new Date(b[1].items[0].start).getTime();
     });
   }, [occurrences, timezone]);
 

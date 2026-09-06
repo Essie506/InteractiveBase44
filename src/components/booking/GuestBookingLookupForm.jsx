@@ -4,6 +4,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, Search, AlertCircle } from 'lucide-react';
 
+/**
+ * @param {{
+ *   initialEmail: string,
+ *   initialBookingId: string,
+ *   onSubmit: (email: string, bookingId: string) => void,
+ *   loading: boolean,
+ *   error: string,
+ * }} props
+ */
 export default function GuestBookingLookupForm({ initialEmail, initialBookingId, onSubmit, loading, error }) {
   const [email, setEmail] = useState(initialEmail || '');
   const [bookingId, setBookingId] = useState(initialBookingId || '');
