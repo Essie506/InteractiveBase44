@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { db } from '@/firebase/firebaseClient';
 import { doc, getDoc } from 'firebase/firestore';
 import { useFirebase } from '@/lib/backendConfig';
-import { Calendar, Clock, MapPin, Users, ShieldCheck, ArrowLeft, Video, Wifi, Globe } from 'lucide-react';
+import { Calendar, MapPin, Users, ShieldCheck, ArrowLeft, Video, Wifi } from 'lucide-react';
 import { formatDistance } from '@/lib/geo';
 import { useAuth } from '@/lib/AuthContext';
 import AddToCalendarButton from '@/components/calendar/AddToCalendarButton';
@@ -34,7 +34,7 @@ function formatFullDate(startIso, endIso, timezone) {
       month: 'long',
       year: 'numeric',
     });
-    const timeFmt = { hour: 'numeric', minute: '2-digit' };
+    const timeFmt = /** @type {Intl.DateTimeFormatOptions} */ ({ hour: 'numeric', minute: '2-digit' });
     const sStr = s.toLocaleTimeString('en-GB', timeFmt);
     if (e) {
       const eStr = e.toLocaleTimeString('en-GB', timeFmt);

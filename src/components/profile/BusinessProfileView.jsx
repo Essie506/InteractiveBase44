@@ -50,6 +50,14 @@ function ProfessionalCard({ p }) {
   );
 }
 
+/**
+ * @param {{
+ *   profile: any, business?: any, editable?: boolean, onEditCover?: any, onEditLogo?: any,
+ *   onEditName?: any, onEditField?: any, onEditServices?: any, onEditFacilities?: any,
+ *   onEditEquipment?: any, onEditContact?: any, onEditProfessionals?: any,
+ *   onOpenPrivateDetails?: any, onSaveMedia?: any, ownerId?: string, actions?: any,
+ * }} props
+ */
 export default function BusinessProfileView({
   profile,
   business,

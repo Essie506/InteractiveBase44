@@ -143,7 +143,7 @@ export default function AvailabilityPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-stone-600 mb-1">End</label>
-            <input type="time" value={newRule.end} onChange={(e) => setNewRule({ end: e.target.value })} className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
+            <input type="time" value={newRule.end} onChange={(e) => setNewRule({ ...newRule, end: e.target.value })} className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
           </div>
           <div className="flex items-end">
             <button onClick={handleAdd} disabled={saving} className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors">

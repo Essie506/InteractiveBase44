@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/use-toast';
 /**
  * @param {{
  *   event: object | null,
- *   meetingUrl: string | null,
+ *   meetingUrl?: string | null,
  *   organiserName?: string | null,
  *   compact?: boolean,
  * }} props

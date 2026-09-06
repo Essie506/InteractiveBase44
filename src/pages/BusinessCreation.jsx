@@ -30,7 +30,7 @@ export default function BusinessCreation() {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [staffEmails, setStaffEmails] = useState(['']);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState(/** @type {Record<string, any>} */ ({}));
 
   const returnTo = new URLSearchParams(window.location.search).get('returnTo') || '/dashboard';
   const stepKeys = ['identity', 'profile', 'verification', 'plan', 'staff', 'complete'];

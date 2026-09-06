@@ -5,7 +5,7 @@ import { getProfessionalProfile, saveProfessionalProfile } from '@/services/prof
 import * as userService from '@/services/userService';
 import { submitVerification } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
-import { Loader2, Plus, X, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
+import { Loader2, Plus, X, Check, ShieldCheck } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 import TaxonomySelectDialog from '@/components/profile/TaxonomySelectDialog';
@@ -32,7 +32,7 @@ export default function ProfessionalActivation() {
   const [visibility, setVisibility] = useState('public');
   const [screenName, setScreenName] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState(/** @type {Record<string, any>} */ ({}));
 
   const returnTo = new URLSearchParams(window.location.search).get('returnTo') || '/dashboard';
 

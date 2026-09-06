@@ -24,6 +24,14 @@ function ContactRow({ icon: Icon, children }) {
   );
 }
 
+/**
+ * @param {{
+ *   profile: any, editable?: boolean, onEditCover?: any, onEditAvatar?: any,
+ *   onEditField?: any, onEditServices?: any, onEditSpecialisms?: any,
+ *   onEditSessionTypes?: any, onEditContact?: any, onOpenPrivateDetails?: any,
+ *   onSaveMedia?: any, ownerId?: string, actions?: any,
+ * }} props
+ */
 export default function ProfessionalProfileView({
   profile,
   editable = false,

@@ -90,6 +90,9 @@ export async function resetPasswordRequest(email) {
   return base44.auth.resetPasswordRequest(email);
 }
 
+/**
+ * @param {{ resetToken?: string, resetCode?: string, newPassword: string }} args
+ */
 export async function resetPassword({ resetToken, resetCode, newPassword }) {
   if (useFirebase) {
     return firebaseAuthService.resetPassword({ resetCode: resetCode || resetToken, newPassword });

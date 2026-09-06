@@ -12,6 +12,13 @@ import TagList from './TagList';
  * for personal profiles); the layout is structured so one can be added
  * by passing editable={false} and an actions prop when that system arrives.
  */
+/**
+ * @param {{
+ *   profile: any, editable?: boolean, onEditCover?: any, onEditAvatar?: any,
+ *   onEditField?: any, onEditInterests?: any, onEditLocation?: any,
+ *   onOpenPrivateDetails?: any, actions?: any,
+ * }} props
+ */
 export default function PersonalProfileView({
   profile,
   editable = false,

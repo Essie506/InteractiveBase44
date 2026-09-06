@@ -121,7 +121,7 @@ export default function CampaignEditorDialog({ growthPackage, onClose, onSaved }
                 type="number"
                 min="0"
                 value={form.budget_pence}
-                onChange={(e) => setForm({ ...form, budget_pence: e.target.value ? Math.round(parseFloat(e.target.value) * 100) : '' })}
+                onChange={(e) => setForm({ ...form, budget_pence: e.target.value ? String(Math.round(parseFloat(e.target.value) * 100)) : '' })}
                 placeholder="50"
               />
             </div>

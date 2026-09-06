@@ -7,7 +7,7 @@ import {
   createPersonalProfile, createUserSetting, createProfessionalProfile,
   createBusiness, createBusinessProfile, createMembership,
 } from '@/services/onboardingService';
-import { Loader2, ArrowLeft, Check } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 
@@ -31,7 +31,7 @@ export default function Onboarding() {
   const [searchVisibility, setSearchVisibility] = useState(true);
   const [allowDMs, setAllowDMs] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState(/** @type {Record<string, any>} */ ({}));
 
   const urlIntent = new URLSearchParams(window.location.search).get('intent');
   const intent = user?.onboarding_intent || urlIntent || 'personal';

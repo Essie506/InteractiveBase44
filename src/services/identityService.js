@@ -55,7 +55,7 @@ export async function resolveIdentity(authUid, _idToken) {
   const functions = getFunctionsInstance();
   const callable = httpsCallable(functions, 'resolveIdentity');
   const result = await callable();
-  return result.data;
+  return /** @type {{ identityId: string, isNew: boolean, isExisting: boolean, isLinked: boolean }} */ (result.data);
 }
 
 /**

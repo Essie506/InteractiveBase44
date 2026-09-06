@@ -2,7 +2,7 @@ import React from "react";
 
 /**
  * @param {{
- *   icon?: any, title?: string, subtitle?: string, footer?: string, children?: any,
+ *   icon?: any, title?: string, subtitle?: any, footer?: any, children?: any,
  * }} props
  */
 export default function AuthLayout({ icon: Icon, title, subtitle, footer, children }) {

@@ -26,7 +26,7 @@ const PAGE_SIZE = 50;
  *   onSelectEvent: (occ: object) => void,
  *   selectedDate: Date,
  *   hasMore?: boolean,
- *   onLoadMore: () => void,
+ *   onLoadMore?: () => void,
  *   participationMap: Record<string, object>,
  *   onParticipationResponse: (event: object, response: string) => void,
  * }} props
