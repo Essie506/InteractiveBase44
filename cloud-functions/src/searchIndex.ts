@@ -13,18 +13,18 @@ import { db, allowedOrigins } from './shared';
 /**
  * Tokenise text for the search index.
  */
-function tokenise(text) {
+function tokenise(text: string): string[] {
   if (!text) return [];
   return text
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((t) => t.length >= 2);
+    .filter((t: string) => t.length >= 2);
 }
 
 /**
  * Build an index document from a content record.
  */
-function buildIndexDocument(params) {
+function buildIndexDocument(params: any): any {
   const { contentId, contentType, system, title, description, tags, ownerId, visibility, extra } = params;
   const textFields = [title, description, ...(tags || [])].filter(Boolean).join(' ');
   const tokens = [...new Set(tokenise(textFields))];
@@ -81,13 +81,13 @@ export const unindexContent = onCall(
 // ── Server-side helper (not exported as callable) ─────────
 // Used by other cloud functions to update the index inline after
 // publishing content, without a round-trip to the client.
-export async function indexContentInline(contentId, system, fields) {
+export async function indexContentInline(contentId: string, system: string, fields: any): Promise<void> {
   const indexDoc = buildIndexDocument({ contentId, system, ...fields });
   const ref = db.collection('searchIndex').doc(`${system}_${contentId}`);
   await ref.set(indexDoc, { merge: true });
 }
 
-export async function unindexContentInline(system, contentId) {
+export async function unindexContentInline(system: string, contentId: string): Promise<void> {
   const ref = db.collection('searchIndex').doc(`${system}_${contentId}`);
   await ref.delete();
 }

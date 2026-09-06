@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/lib/AuthContext';
+import { callSaveCampaign } from '@/services/firebaseFunctions';
 
 const CAMPAIGN_TYPES = [
   { value: 'service_boost', label: 'Service Boost' },
@@ -21,6 +23,7 @@ const CAMPAIGN_TYPES = [
 
 export default function CampaignEditorDialog({ growthPackage, onClose, onSaved }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -43,16 +46,28 @@ export default function CampaignEditorDialog({ growthPackage, onClose, onSaved }
     }
     setSaving(true);
     try {
-      // The actual write requires a server-side campaign writer cloud function.
-      // That function is pending — do not fabricate a client-side write.
+      const ctx = user?.active_context || 'personal';
+      const ownerType = ctx === 'business' ? 'business' : 'identity';
+      const businessId = ctx === 'business' ? user?.active_business_id : null;
+      const result = await callSaveCampaign({
+        name: form.name.trim(),
+        campaign_type: form.campaign_type,
+        headline: form.headline || null,
+        description: form.description || null,
+        budget_pence: form.budget_pence ? Number(form.budget_pence) : 0,
+        start_date: form.start_date ? new Date(form.start_date).toISOString() : null,
+        end_date: null,
+        owner_type: ownerType,
+        business_id: businessId,
+      });
+      toast({ title: 'Campaign created', description: result.status === 'created' ? 'Your campaign has been created.' : 'Campaign updated.' });
+      onSaved();
+    } catch (err) {
       toast({
-        title: 'Campaign writer pending',
-        description: 'Server-side campaign creation is not yet deployed. Your campaign was not saved.',
+        title: 'Could not create campaign',
+        description: err?.message || 'Please check your plan entitlements and try again.',
         variant: 'destructive',
       });
-      onClose();
-    } catch (err) {
-      toast({ title: 'Could not create campaign', variant: 'destructive' });
     } finally {
       setSaving(false);
     }

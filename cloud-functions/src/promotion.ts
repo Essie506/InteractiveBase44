@@ -12,6 +12,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole } from './shared';
+import { indexContentInline, unindexContentInline } from './searchIndex';
 
 const COLLECTION = 'promotions';
 const PACKAGES = 'growthPackages';
@@ -32,7 +33,7 @@ const VALID_STATUSES = [
  * Resolve the caller's Growth Package by looking up their subscription
  * tier + family, then the matching GrowthPackage document.
  */
-async function resolveGrowthPackage(identityId: string, businessId: string | null) {
+async function resolveGrowthPackage(identityId: string, businessId: string | null): Promise<any> {
   const collection = businessId ? SUBSCRIPTIONS_BIZ : SUBSCRIPTIONS_PRO;
   const ownerField = businessId ? 'business_id' : 'identity_id';
   const ownerId = businessId || identityId;
@@ -55,7 +56,8 @@ async function resolveGrowthPackage(identityId: string, businessId: string | nul
     .limit(1)
     .get();
   if (pkgSnap.empty) return null;
-  return pkgSnap.docs[0].data();
+  const pkgDoc = pkgSnap.docs[0];
+  return { ...pkgDoc.data(), id: pkgDoc.id };
 }
 
 /**
@@ -162,6 +164,22 @@ export const saveCampaign = onCall(
       await ref.set(payload);
     }
 
+    // ── Cross-system search indexing (V2 §15.5) ──
+    // Index the campaign so it appears in cross-system search. Promotions
+    // are indexed with contentType 'promotion' and system 'promotion'.
+    try {
+      await indexContentInline(ref.id, 'promotion', {
+        contentType: 'promotion',
+        title: payload.name,
+        description: payload.headline || payload.description || '',
+        tags: [payload.campaign_type],
+        ownerId: payload.owner_id,
+        visibility: 'public',
+      });
+    } catch (err) {
+      console.error('search index failed for promotion', ref.id, err);
+    }
+
     return { id: ref.id, status: id ? 'updated' : 'created' };
   },
 );
@@ -210,6 +228,30 @@ export const updateCampaignStatus = onCall(
       status,
       _updated_date: new Date().toISOString(),
     });
+
+    // ── Search index sync (V2 §15.5) ──
+    // Active campaigns remain indexed; non-active campaigns are unindexed
+    // so they don't appear in search results when paused/completed/expired.
+    if (status !== 'active') {
+      try {
+        await unindexContentInline('promotion', id);
+      } catch (err) {
+        console.error('search unindex failed for promotion', id, err);
+      }
+    } else {
+      try {
+        await indexContentInline(id, 'promotion', {
+          contentType: 'promotion',
+          title: campaign.name,
+          description: campaign.headline || campaign.description || '',
+          tags: [campaign.campaign_type],
+          ownerId: campaign.owner_id,
+          visibility: 'public',
+        });
+      } catch (err) {
+        console.error('search reindex failed for promotion', id, err);
+      }
+    }
 
     return { id, status };
   },

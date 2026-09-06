@@ -2,6 +2,7 @@
 import { Megaphone, Pause, Play, Trash2, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
+import { callUpdateCampaignStatus } from '@/services/firebaseFunctions';
 
 const STATUS_COLORS = {
   draft: 'bg-stone-100 text-stone-600',
@@ -29,10 +30,16 @@ export default function CampaignCard({ campaign, onChanged }) {
   const handleToggleStatus = async () => {
     setUpdating(true);
     try {
-      // Delegate to a cloud function — not yet wired, so show toast.
-      toast({ title: 'Campaign status changes require a server-side writer.', variant: 'destructive' });
+      const newStatus = campaign.status === 'active' ? 'paused' : 'active';
+      await callUpdateCampaignStatus({ id: campaign.id, status: newStatus });
+      toast({ title: `Campaign ${newStatus === 'active' ? 'activated' : 'paused'}` });
+      onChanged?.();
     } catch (err) {
-      toast({ title: 'Could not update campaign', variant: 'destructive' });
+      toast({
+        title: 'Could not update campaign',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setUpdating(false);
     }

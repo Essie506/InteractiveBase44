@@ -388,3 +388,16 @@ export async function callHandleBusinessRelationshipExit(data) {
   const result = await callable('handleBusinessRelationshipExit')(data);
   return result.data;
 }
+
+// ── Promotions / Campaigns (Spec 19) ──
+// Server-side campaign writer. Enforces owner authority and Growth
+// Package entitlements (allowed campaign types, max active campaigns).
+export async function callSaveCampaign(data) {
+  const result = await callable('saveCampaign')(data);
+  return result.data;
+}
+
+export async function callUpdateCampaignStatus(data) {
+  const result = await callable('updateCampaignStatus')(data);
+  return result.data;
+}
