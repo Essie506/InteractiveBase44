@@ -1,0 +1,78 @@
+{
+  "name": "Share",
+  "type": "object",
+  "properties": {
+    "sharer_identity_id": {
+      "type": "string",
+      "title": "Sharing Identity ID",
+      "description": "The identity that created this share (\u00a714.5)."
+    },
+    "share_type": {
+      "type": "string",
+      "enum": [
+        "simple",
+        "commentary"
+      ],
+      "default": "simple",
+      "title": "Share Type",
+      "description": "V2 \u00a714.4. Simple Share = reference to existing content. Commentary Share = new post + reference to existing content."
+    },
+    "target_system": {
+      "type": "string",
+      "title": "Original Content System",
+      "description": "Which system owns the original content being shared (post, workout, event, etc.)."
+    },
+    "target_type": {
+      "type": "string",
+      "title": "Original Content Type"
+    },
+    "target_id": {
+      "type": "string",
+      "title": "Original Content ID",
+      "description": "Stable reference to the original content. The Share Engine stores a reference, never a duplicate (\u00a714.3)."
+    },
+    "commentary_body": {
+      "type": "string",
+      "title": "Commentary Body",
+      "description": "For commentary shares only (\u00a714.4). The author's new post content accompanying the shared reference. Null for simple shares."
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private"
+      ],
+      "default": "public",
+      "title": "Visibility",
+      "description": "A share inherits the visibility of the original content unless more restrictive (\u00a714.7)."
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "edited",
+        "hidden",
+        "archived",
+        "deleted",
+        "restored",
+        "under_review"
+      ],
+      "default": "active",
+      "title": "Lifecycle State",
+      "description": "V2 \u00a714.9 share lifecycle states."
+    }
+  },
+  "required": [
+    "sharer_identity_id",
+    "share_type",
+    "target_system",
+    "target_id"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

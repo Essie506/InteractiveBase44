@@ -192,6 +192,17 @@ export async function callDeleteWorkout(data) {
   return result.data;
 }
 
+// ── Share Engine (Spec 14.1) ──
+export async function callCreateShare(data) {
+  const result = await callable('createShare')(data);
+  return result.data;
+}
+
+export async function callDeleteShare(data) {
+  const result = await callable('deleteShare')(data);
+  return result.data;
+}
+
 // ── Professional Profile (public projection + screen_name uniqueness) ──
 export async function callSaveProfessionalProfile(data) {
   const result = await callable('saveProfessionalProfile')(data);

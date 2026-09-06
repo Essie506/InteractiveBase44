@@ -31,6 +31,9 @@ export { toggleReaction, createComment, deleteComment, toggleSave, getInteractio
 // Workout System (Spec 12): workout identity, composition, publication
 export { saveWorkout, deleteWorkout } from './workout';
 
+// Share Engine (Spec 14.1): content sharing
+export { createShare, deleteShare } from './share';
+
 // Relationship System — Connections + Professional access
 export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses } from './connections';
 

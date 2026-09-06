@@ -6,6 +6,7 @@ import { getWorkout } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
+import ShareButton from '@/components/community/ShareButton';
 
 const TYPE_LABELS = {
   individual: 'Individual', programme: 'Programme', training_plan: 'Training Plan',
@@ -107,9 +108,12 @@ export default function WorkoutDetail() {
         </div>
       )}
 
-      {/* Community Interaction (Spec 20) */}
+      {/* Community Interaction (Spec 20) + Share Engine (Spec 14.1) */}
       <div className="border-t border-stone-100 pt-6">
-        <ReactionBar targetSystem="workout" targetType="workout" targetId={workout.id} />
+        <div className="flex items-center justify-between">
+          <ReactionBar targetSystem="workout" targetType="workout" targetId={workout.id} />
+          <ShareButton targetSystem="workout" targetType="workout" targetId={workout.id} />
+        </div>
         <div className="mt-6">
           <CommentSection targetSystem="workout" targetType="workout" targetId={workout.id} />
         </div>

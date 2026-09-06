@@ -906,5 +906,13 @@ service cloud.firestore {
       allow write: if false; // Server-only — Cloud Functions (Admin SDK)
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // SHARE ENGINE (Spec 14.1)
+    // ═══════════════════════════════════════════════════════════
+    match /shares/{shareId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Server-only — Cloud Functions (Admin SDK)
+    }
+
   }
 }

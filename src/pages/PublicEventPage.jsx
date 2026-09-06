@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/AuthContext';
 import AddToCalendarButton from '@/components/calendar/AddToCalendarButton';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
+import ShareButton from '@/components/community/ShareButton';
 
 // Public Event page — /e/:eventId
 // ───────────────────────────────────────────────────────────
@@ -275,9 +276,12 @@ export default function PublicEventPage() {
           </aside>
         </div>
 
-        {/* Community Interaction (Spec 20) — reactions, comments, saves */}
+        {/* Community Interaction (Spec 20) + Share Engine (Spec 14.1) */}
         <div className="mt-8 max-w-2xl">
-          <ReactionBar targetSystem="event" targetType="event" targetId={event.event_id} />
+          <div className="flex items-center justify-between">
+            <ReactionBar targetSystem="event" targetType="event" targetId={event.event_id} />
+            <ShareButton targetSystem="event" targetType="event" targetId={event.event_id} />
+          </div>
           <div className="mt-6 pt-6 border-t border-stone-100">
             <CommentSection targetSystem="event" targetType="event" targetId={event.event_id} />
           </div>
