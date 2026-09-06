@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/AuthContext';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
+import WorkoutCreatorBadge from '@/components/workout/WorkoutCreatorBadge';
 
 const TYPE_LABELS = {
   individual: 'Individual', programme: 'Programme', training_plan: 'Training Plan',
@@ -76,6 +77,11 @@ export default function WorkoutDetail() {
       <div className="flex items-center gap-4 text-sm text-stone-500 mb-6">
         <span className="inline-flex items-center gap-1"><Clock className="w-4 h-4" /> {workout.duration_minutes} min</span>
         {workout.exercises?.length > 0 && <span className="inline-flex items-center gap-1"><Dumbbell className="w-4 h-4" /> {workout.exercises.length} exercises</span>}
+      </div>
+
+      {/* Cross-system: creator profile link */}
+      <div className="mb-6">
+        <WorkoutCreatorBadge workout={workout} />
       </div>
 
       {workout.description && <p className="text-stone-600 mb-6 whitespace-pre-wrap">{workout.description}</p>}

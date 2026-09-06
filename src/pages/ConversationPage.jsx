@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
   getConversation, getMessages, sendMessage, markConversationAsRead,
@@ -164,11 +164,19 @@ export default function ConversationPage() {
         <button onClick={() => navigate('/messages')} className="p-2 hover:bg-stone-100 rounded-lg transition-colors">
           <ArrowLeft className="w-5 h-5 text-stone-600" />
         </button>
-        <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-sm font-medium overflow-hidden">
-          {otherParticipant?.avatar_url ? <img src={otherParticipant.avatar_url} alt="" className="w-full h-full object-cover" /> : otherParticipant?.display_name?.[0]?.toUpperCase()}
-        </div>
+        <Link to={otherParticipant?.screen_name ? `/p/${otherParticipant.screen_name}` : '#'} className={otherParticipant?.screen_name ? 'hover:opacity-80 transition-opacity' : 'cursor-default'}>
+          <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-sm font-medium overflow-hidden">
+            {otherParticipant?.avatar_url ? <img src={otherParticipant.avatar_url} alt="" className="w-full h-full object-cover" /> : otherParticipant?.display_name?.[0]?.toUpperCase()}
+          </div>
+        </Link>
         <div className="flex-1">
-          <div className="font-semibold text-stone-800">{otherParticipant?.display_name || 'Unknown'}</div>
+          {otherParticipant?.screen_name ? (
+            <Link to={`/p/${otherParticipant.screen_name}`} className="font-semibold text-stone-800 hover:text-indigo-600 transition-colors">
+              {otherParticipant?.display_name || 'Unknown'}
+            </Link>
+          ) : (
+            <div className="font-semibold text-stone-800">{otherParticipant?.display_name || 'Unknown'}</div>
+          )}
           {conversation.business_id && <div className="text-xs text-indigo-600">Business conversation</div>}
         </div>
         {canSend && (
