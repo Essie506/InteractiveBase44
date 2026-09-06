@@ -155,6 +155,32 @@ export async function callCreateCustomerPortal(data) {
   return result.data;
 }
 
+// ── Community Interaction (Spec 20) ──
+export async function callToggleReaction(data) {
+  const result = await callable('toggleReaction')(data);
+  return result.data;
+}
+
+export async function callCreateComment(data) {
+  const result = await callable('createComment')(data);
+  return result.data;
+}
+
+export async function callDeleteComment(data) {
+  const result = await callable('deleteComment')(data);
+  return result.data;
+}
+
+export async function callToggleSave(data) {
+  const result = await callable('toggleSave')(data);
+  return result.data;
+}
+
+export async function callGetInteractionState(data) {
+  const result = await callable('getInteractionState')(data);
+  return result.data;
+}
+
 // ── Professional Profile (public projection + screen_name uniqueness) ──
 export async function callSaveProfessionalProfile(data) {
   const result = await callable('saveProfessionalProfile')(data);

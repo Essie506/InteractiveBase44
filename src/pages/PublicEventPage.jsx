@@ -7,6 +7,8 @@ import { Calendar, Clock, MapPin, Users, ShieldCheck, ArrowLeft, Video, Wifi, Gl
 import { formatDistance } from '@/lib/geo';
 import { useAuth } from '@/lib/AuthContext';
 import AddToCalendarButton from '@/components/calendar/AddToCalendarButton';
+import ReactionBar from '@/components/community/ReactionBar';
+import CommentSection from '@/components/community/CommentSection';
 
 // Public Event page — /e/:eventId
 // ───────────────────────────────────────────────────────────
@@ -271,6 +273,14 @@ export default function PublicEventPage() {
               </div>
             </div>
           </aside>
+        </div>
+
+        {/* Community Interaction (Spec 20) — reactions, comments, saves */}
+        <div className="mt-8 max-w-2xl">
+          <ReactionBar targetSystem="event" targetType="event" targetId={event.event_id} />
+          <div className="mt-6 pt-6 border-t border-stone-100">
+            <CommentSection targetSystem="event" targetType="event" targetId={event.event_id} />
+          </div>
         </div>
       </div>
     </div>

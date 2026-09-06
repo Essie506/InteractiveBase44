@@ -877,5 +877,26 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // COMMUNITY INTERACTION (Spec 20) — reactions, comments, saves
+    // ═══════════════════════════════════════════════════════════
+    // Public reads for reactions and comments (any authenticated
+    // user). All writes via Cloud Functions (Admin SDK) — client
+    // writes denied. Saves are fully server-only (private data).
+    match /reactions/{reactionId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    match /saves/{saveId} {
+      allow read: if false; // Private — server-only via getInteractionState
+      allow write: if false;
+    }
+
   }
 }

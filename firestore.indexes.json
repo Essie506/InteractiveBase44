@@ -253,6 +253,22 @@
         { "fieldPath": "owner_id", "order": "ASCENDING" },
         { "fieldPath": "start_time", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "reactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "target_system", "order": "ASCENDING" },
+        { "fieldPath": "target_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "comments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "target_system", "order": "ASCENDING" },
+        { "fieldPath": "target_id", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

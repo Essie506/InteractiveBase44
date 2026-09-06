@@ -1,0 +1,59 @@
+{
+  "name": "Reaction",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Actor Identity ID",
+      "description": "The identity that made this reaction. Stable Interactive identity reference (\u00a714)."
+    },
+    "target_system": {
+      "type": "string",
+      "title": "Target System",
+      "description": "Which system owns the target (post, workout, event, etc.). Community Interaction stores a reference, never a duplicate (\u00a78)."
+    },
+    "target_type": {
+      "type": "string",
+      "title": "Target Type"
+    },
+    "target_id": {
+      "type": "string",
+      "title": "Target ID",
+      "description": "Stable reference to the target record"
+    },
+    "reaction_type": {
+      "type": "string",
+      "enum": [
+        "support",
+        "celebrate",
+        "strong",
+        "nice_work",
+        "helpful",
+        "inspiring"
+      ],
+      "title": "Reaction Type",
+      "description": "V2 \u00a714 standard reaction types: Support, Celebrate, Strong, Nice Work, Helpful, Inspiring."
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "removed"
+      ],
+      "default": "active",
+      "title": "State"
+    }
+  },
+  "required": [
+    "identity_id",
+    "target_system",
+    "target_id",
+    "reaction_type"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

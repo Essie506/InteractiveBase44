@@ -9,23 +9,21 @@
     "tier": {
       "type": "string",
       "enum": [
-        "essential",
-        "growth",
-        "professional"
+        "basic",
+        "plus",
+        "pro"
       ],
       "title": "Plan Tier",
-      "description": "essential = Tier 1 (free core), growth = Tier 2 (Plus), professional = Tier 3 (Pro). Higher tiers inherit lower-tier capabilities."
+      "description": "V2 \u00a711 tier architecture: basic = Tier 1 (Core Operational Capability), plus = Tier 2 (Expanded Business Capability), pro = Tier 3 (Advanced Operational Capability). Higher tiers inherit lower-tier capabilities (\u00a712)."
     },
     "family": {
       "type": "string",
       "enum": [
         "professional",
-        "business",
-        "both"
+        "business"
       ],
-      "default": "both",
       "title": "Plan Family",
-      "description": "Which account type this plan serves. 'both' applies to professionals and businesses (shared tier structure)."
+      "description": "V2 \u00a710: separate subscription families per operating context. Professional and Business are distinct families with independent pricing (\u00a713\u2013\u00a718). Each plan belongs to exactly one family."
     },
     "description": {
       "type": "string",
@@ -43,7 +41,7 @@
       "minimum": 0,
       "default": 0,
       "title": "Price (pence)",
-      "description": "Recurring subscription price in pence. 0 for the free tier (Tier 1). Numerical values must be populated from authoritative plan configuration before live subscription activation."
+      "description": "Recurring subscription price in pence. Authoritative V2 prices (\u00a713\u2013\u00a718): Professional Basic \u00a30, Professional Plus \u00a330, Professional Pro \u00a360, Business Basic \u00a3100, Business Plus \u00a3150, Business Pro \u00a3200."
     },
     "currency": {
       "type": "string",
@@ -57,12 +55,13 @@
         "annual"
       ],
       "default": "monthly",
-      "title": "Billing Interval"
+      "title": "Billing Interval",
+      "description": "V2 \u00a713\u2013\u00a718 state prices per month. Annual billing is not defined by the spec; monthly is the default cadence."
     },
     "stripe_price_id": {
       "type": "string",
       "title": "Stripe Price ID",
-      "description": "Stripe Price ID for the recurring subscription. Null/empty for the free tier. Must be populated before live subscription activation."
+      "description": "Stripe Price ID for the recurring subscription. Null/empty for the free tier (Professional Basic). Must be populated before live subscription activation."
     },
     "status": {
       "type": "string",
@@ -82,7 +81,7 @@
       "type": "boolean",
       "default": false,
       "title": "Fee Waiver",
-      "description": "Whether this plan waives Interactive booking fees. The authoritative Plans spec determines which plans waive fees."
+      "description": "Whether this plan waives Interactive booking fees. V2 \u00a747\u2013\u00a748: the platform must NOT represent subscription price as including or waiving Booking fees unless the current commercial configuration explicitly defines that rule. No authoritative configuration currently defines any waiver \u2014 leave false."
     },
     "fee_rule": {
       "type": "object",
@@ -112,11 +111,12 @@
         }
       },
       "title": "Fee Rule",
-      "description": "Data-driven fee configuration. Numerical values must be supplied via authoritative plan configuration before production payment activation."
+      "description": "V2 \u00a747\u2013\u00a749: Booking fees are a separate commercial mechanism from subscription price, governed by the Payments system. No authoritative commercial configuration currently defines fee values \u2014 leave this field unset until the owning Payments/commercial rules provide authoritative values. Do not assume 'none'."
     }
   },
   "required": [
     "name",
-    "tier"
+    "tier",
+    "family"
   ]
 }

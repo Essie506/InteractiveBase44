@@ -25,6 +25,9 @@ export { cancelBooking, rescheduleBooking, reportNoShow, completeBooking } from 
 // Phase 6 — Plans & Monetisation (Spec 17): recurring subscriptions via Stripe
 export { createSubscriptionCheckout, getMySubscription, createCustomerPortal } from './subscriptionManage';
 
+// Community Interaction (Spec 20): reactions, comments, saves
+export { toggleReaction, createComment, deleteComment, toggleSave, getInteractionState } from './communityInteraction';
+
 // Relationship System — Connections + Professional access
 export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses } from './connections';
 

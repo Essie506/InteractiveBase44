@@ -1,0 +1,90 @@
+{
+  "name": "Comment",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Author Identity ID",
+      "description": "The identity that authored this comment (\u00a721)."
+    },
+    "target_system": {
+      "type": "string",
+      "title": "Target System"
+    },
+    "target_type": {
+      "type": "string",
+      "title": "Target Type"
+    },
+    "target_id": {
+      "type": "string",
+      "title": "Target ID",
+      "description": "Stable reference to the target record (\u00a78 \u2014 reference, not duplicate)."
+    },
+    "parent_comment_id": {
+      "type": "string",
+      "title": "Parent Comment ID",
+      "description": "For threaded replies (\u00a721). Null for top-level comments."
+    },
+    "body": {
+      "type": "string",
+      "title": "Comment Body",
+      "description": "Text content of the comment"
+    },
+    "edit_state": {
+      "type": "string",
+      "enum": [
+        "original",
+        "edited"
+      ],
+      "default": "original",
+      "title": "Edit State"
+    },
+    "moderation_state": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "removed",
+        "hidden"
+      ],
+      "default": "approved",
+      "title": "Moderation State"
+    },
+    "visibility_state": {
+      "type": "string",
+      "enum": [
+        "visible",
+        "hidden"
+      ],
+      "default": "visible",
+      "title": "Visibility State"
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false,
+      "title": "Pinned"
+    },
+    "reaction_count": {
+      "type": "number",
+      "default": 0,
+      "title": "Reaction Count"
+    },
+    "reply_count": {
+      "type": "number",
+      "default": 0,
+      "title": "Reply Count"
+    }
+  },
+  "required": [
+    "identity_id",
+    "target_system",
+    "target_id",
+    "body"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "Save",
+  "type": "object",
+  "properties": {
+    "identity_id": {
+      "type": "string",
+      "title": "Owner Identity ID",
+      "description": "The identity that saved this content (\u00a736, \u00a738)."
+    },
+    "target_system": {
+      "type": "string",
+      "title": "Target System"
+    },
+    "target_type": {
+      "type": "string",
+      "title": "Target Type"
+    },
+    "target_id": {
+      "type": "string",
+      "title": "Target ID",
+      "description": "Stable reference to the saved target record (\u00a78 \u2014 reference, not duplicate)."
+    },
+    "collection_ref": {
+      "type": "string",
+      "title": "Collection Reference",
+      "description": "For saved-content collections/folders (\u00a738). Null for the default save list."
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "active",
+        "removed"
+      ],
+      "default": "active",
+      "title": "State"
+    }
+  },
+  "required": [
+    "identity_id",
+    "target_system",
+    "target_id"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

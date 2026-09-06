@@ -28,7 +28,7 @@ export async function listPlans(family = null) {
   const plans = await base44.entities.SubscriptionPlan.list('-sort_order', 50);
   const active = plans.filter(p => p.status === 'active');
   if (!family) return active;
-  return active.filter(p => p.family === family || p.family === 'both');
+  return active.filter(p => p.family === family);
 }
 
 // ── Current subscription ─────────────────────────────────────
@@ -74,6 +74,6 @@ export function isFreePlan(plan) {
 }
 
 export function isHigherTier(currentTier, candidateTier) {
-  const order = { essential: 1, growth: 2, professional: 3 };
+  const order = { basic: 1, plus: 2, pro: 3 };
   return (order[candidateTier] || 0) > (order[currentTier] || 0);
 }

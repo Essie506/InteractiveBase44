@@ -18,9 +18,9 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 
 const TIER_META = {
-  essential: { label: 'Tier 1', icon: Sparkles, accent: 'text-stone-600', ring: 'ring-stone-200' },
-  growth: { label: 'Tier 2', icon: TrendingUp, accent: 'text-indigo-600', ring: 'ring-indigo-300' },
-  professional: { label: 'Tier 3', icon: Crown, accent: 'text-violet-600', ring: 'ring-violet-300' },
+  basic: { label: 'Tier 1', icon: Sparkles, accent: 'text-stone-600', ring: 'ring-stone-200' },
+  plus: { label: 'Tier 2', icon: TrendingUp, accent: 'text-indigo-600', ring: 'ring-indigo-300' },
+  pro: { label: 'Tier 3', icon: Crown, accent: 'text-violet-600', ring: 'ring-violet-300' },
 };
 
 export default function Plans() {
@@ -39,8 +39,9 @@ export default function Plans() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const planFamily = isBusinessContext ? 'business' : 'professional';
       const [planList, sub] = await Promise.all([
-        listPlans(),
+        listPlans(planFamily),
         getMySubscription(isBusinessContext ? activeBusinessId : null).catch(() => null),
       ]);
       setPlans(planList);
@@ -92,7 +93,7 @@ export default function Plans() {
     }
   };
 
-  const currentTier = subscription?.plan_tier || 'essential';
+  const currentTier = subscription?.plan_tier || 'basic';
   const contextLabel = isBusinessContext ? 'Business' : activeContext === 'professional' ? 'Professional' : 'Account';
 
   if (loading) {
@@ -109,7 +110,9 @@ export default function Plans() {
       <div className="mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 font-heading">Plans &amp; Subscription</h1>
         <p className="mt-1 text-sm text-stone-500">
-          {contextLabel} plan — Tier 1 (Free) is always available. Upgrade for growth tools, advanced analytics, and more.
+          {isBusinessContext
+            ? 'Choose the plan that fits your organisation. Upgrade as your business grows.'
+            : 'Professional Basic is free forever. Upgrade for growth tools, advanced analytics, and more.'}
         </p>
       </div>
 
@@ -154,10 +157,10 @@ export default function Plans() {
             <div
               key={plan.id}
               className={`relative rounded-2xl border bg-white p-6 flex flex-col ${
-                plan.tier === 'growth' ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-stone-200'
+                plan.tier === 'plus' ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-stone-200'
               }`}
             >
-              {plan.tier === 'growth' && (
+              {plan.tier === 'plus' && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-semibold px-3 py-1 rounded-full bg-indigo-600 text-white">
                   Most popular
                 </span>
@@ -219,7 +222,7 @@ export default function Plans() {
 
       {/* Downgrade note */}
       <p className="mt-8 text-xs text-stone-400 text-center max-w-2xl mx-auto">
-        Cancel anytime. When a paid subscription ends, your account returns to Tier 1 (Free) — your profile, bookings, and data are preserved.
+        {`Cancel anytime. ${isBusinessContext ? 'When a paid subscription ends, your business returns to Business Basic.' : 'When a paid subscription ends, your account returns to Professional Basic (Free) — your profile, bookings, and data are preserved.'}`}
       </p>
     </div>
   );
