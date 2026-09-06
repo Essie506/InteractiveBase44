@@ -28,11 +28,19 @@ import { evaluateAvailabilityRule, hasOverlappingHold, hasOverlappingBooking, ha
 export const cancelBooking = onCall(
   { region: 'europe-west2', cors: allowedOrigins, secrets: ['STRIPE_SECRET_KEY'] },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Authentication required');
+    // Guests can cancel their own bookings without authentication (Spec 00 §1.5 /
+    // Booking §3.10–§3.11). They provide guest_email in the request data, which
+    // is matched against booking.guest_email for authorisation — same access
+    // model as confirmFreeBooking.
+    let callerIdentityId: string | null = null;
+    if (request.auth) {
+      try {
+        callerIdentityId = await getIdentityId(request.auth.uid);
+      } catch {
+        // No identity mapping — treat as guest
+      }
     }
-    const callerIdentityId = await getIdentityId(request.auth.uid);
-    const { booking_id, reason } = request.data || {};
+    const { booking_id, reason, guest_email } = request.data || {};
 
     if (!booking_id) {
       throw new HttpsError('invalid-argument', 'booking_id is required');
@@ -45,14 +53,25 @@ export const cancelBooking = onCall(
     const booking = bookingDoc.data()!;
 
     // Authorization: customer, provider, or business admin
-    const isCustomer = booking.customer_identity_id === callerIdentityId;
-    const isProvider = booking.provider_identity_id === callerIdentityId;
+    let isCustomer: boolean;
+    let isProvider: boolean;
     let isBizAdmin = false;
-    if (booking.business_id) {
-      isBizAdmin = await hasBusinessRole(booking.business_id, callerIdentityId, ['owner', 'admin']);
+    let isPlatformAdmin = false;
+
+    if (callerIdentityId) {
+      isCustomer = booking.customer_identity_id === callerIdentityId;
+      isProvider = booking.provider_identity_id === callerIdentityId;
+      if (booking.business_id) {
+        isBizAdmin = await hasBusinessRole(booking.business_id, callerIdentityId, ['owner', 'admin']);
+      }
+      isPlatformAdmin = await isAdmin(callerIdentityId);
+    } else {
+      // Guest — verify via request-data guest_email matching booking.guest_email
+      const matchEmail = guest_email;
+      isCustomer = !!(matchEmail && booking.guest_email &&
+        matchEmail.toLowerCase() === booking.guest_email.toLowerCase());
+      isProvider = false;
     }
-    // Platform admin can cancel any booking (checked before rejection)
-    const isPlatformAdmin = await isAdmin(callerIdentityId);
 
     if (!isCustomer && !isProvider && !isBizAdmin && !isPlatformAdmin) {
       throw new HttpsError('permission-denied', 'Not authorized to cancel this booking');
@@ -240,11 +259,18 @@ export const cancelBooking = onCall(
 export const rescheduleBooking = onCall(
   { region: 'europe-west2', cors: allowedOrigins, secrets: ['STRIPE_SECRET_KEY'] },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Authentication required');
+    // Guests can reschedule their own one-to-one bookings without
+    // authentication (Spec 00 §1.5 / Booking §3.10–§3.11). Same guest_email
+    // matching access model as confirmFreeBooking / cancelBooking.
+    let callerIdentityId: string | null = null;
+    if (request.auth) {
+      try {
+        callerIdentityId = await getIdentityId(request.auth.uid);
+      } catch {
+        // No identity mapping — treat as guest
+      }
     }
-    const callerIdentityId = await getIdentityId(request.auth.uid);
-    const { booking_id, new_start_time, new_end_time, reason } = request.data || {};
+    const { booking_id, new_start_time, new_end_time, reason, guest_email } = request.data || {};
 
     if (!booking_id || !new_start_time || !new_end_time) {
       throw new HttpsError('invalid-argument', 'booking_id, new_start_time, new_end_time required');
@@ -257,11 +283,22 @@ export const rescheduleBooking = onCall(
     const booking = bookingDoc.data()!;
 
     // Authorization
-    const isCustomer = booking.customer_identity_id === callerIdentityId;
-    const isProvider = booking.provider_identity_id === callerIdentityId;
+    let isCustomer: boolean;
+    let isProvider: boolean;
     let isBizAdmin = false;
-    if (booking.business_id) {
-      isBizAdmin = await hasBusinessRole(booking.business_id, callerIdentityId, ['owner', 'admin']);
+
+    if (callerIdentityId) {
+      isCustomer = booking.customer_identity_id === callerIdentityId;
+      isProvider = booking.provider_identity_id === callerIdentityId;
+      if (booking.business_id) {
+        isBizAdmin = await hasBusinessRole(booking.business_id, callerIdentityId, ['owner', 'admin']);
+      }
+    } else {
+      // Guest — verify via request-data guest_email matching booking.guest_email
+      const matchEmail = guest_email;
+      isCustomer = !!(matchEmail && booking.guest_email &&
+        matchEmail.toLowerCase() === booking.guest_email.toLowerCase());
+      isProvider = false;
     }
     if (!isCustomer && !isProvider && !isBizAdmin) {
       throw new HttpsError('permission-denied', 'Not authorized to reschedule this booking');

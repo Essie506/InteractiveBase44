@@ -45,6 +45,7 @@ import PublicPersonalProfile from '@/pages/PublicPersonalProfile';
 import PublicBusinessProfile from '@/pages/PublicBusinessProfile';
 import PublicEventPage from '@/pages/PublicEventPage';
 import BookingPage from '@/pages/BookingPage';
+import GuestBookingManage from '@/pages/GuestBookingManage';
 import ProfessionalWorkspace from '@/pages/professional/ProfessionalWorkspace';
 import ProfessionalOverview from '@/pages/professional/ProfessionalOverview';
 import ProfessionalBookings from '@/pages/professional/ProfessionalBookings';
@@ -100,6 +101,8 @@ const AuthenticatedApp = () => {
       <Route path="/e/:eventId" element={<PublicEventPage />} />
       {/* Public booking entry point — guest checkout (Spec 00 §1.5) */}
       <Route path="/book/:screenName" element={<BookingPage />} />
+      {/* Guest booking management — email + booking reference (Booking §3.10–§3.11) */}
+      <Route path="/booking/manage" element={<GuestBookingManage />} />
       {/* Persistent authenticated shell — one sidebar survives navigation
           between /directory and AppLayout routes. Signed-out visitors get
           a plain Outlet (Directory renders its own public drawer). */}

@@ -118,6 +118,12 @@ export async function callConfirmFreeBooking(data) {
   return result.data;
 }
 
+// Guest booking lookup (Spec 00 §1.5 / Booking §3.10–§3.11)
+export async function callGuestLookupBooking(data) {
+  const result = await callable('guestLookupBooking')(data);
+  return result.data;
+}
+
 // ── Phase 5: Booking Lifecycle ──
 export async function callCancelBooking(data) {
   const result = await callable('cancelBooking')(data);

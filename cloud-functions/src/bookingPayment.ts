@@ -799,3 +799,65 @@ export const confirmFreeBooking = onCall(
     return { booking_id, status: 'confirmed' };
   },
 );
+
+// ── guestLookupBooking ───────────────────────────────────────
+// Allows unauthenticated guests to look up their booking by email +
+// booking reference (Spec 00 §1.5 / Booking §3.10–§3.11). Returns a
+// guest-safe projection of the booking — no provider internal data,
+// no other customers' data, no payment record IDs. The guest_email
+// in request data is matched against booking.guest_email for auth.
+//
+// Request: { booking_id, guest_email }
+// Returns: { booking } — guest-safe booking projection, or not-found
+export const guestLookupBooking = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    const { booking_id, guest_email } = request.data || {};
+    if (!booking_id || !guest_email) {
+      throw new HttpsError('invalid-argument', 'booking_id and guest_email are required');
+    }
+
+    const bookingDoc = await db.collection('bookings').doc(booking_id).get();
+    if (!bookingDoc.exists) {
+      throw new HttpsError('not-found', 'Booking not found');
+    }
+    const booking = bookingDoc.data()!;
+
+    // Guest authorisation — email must match booking.guest_email
+    if (!booking.guest_email ||
+        booking.guest_email.toLowerCase() !== String(guest_email).toLowerCase()) {
+      throw new HttpsError('permission-denied', 'Email does not match booking');
+    }
+
+    // Guest-safe projection — exclude internal/sensitive fields
+    const guestSafeBooking = {
+      id: booking_id,
+      booking_status: booking.booking_status,
+      payment_status_mirror: booking.payment_status_mirror,
+      payment_route: booking.payment_route,
+      service_id: booking.service_id,
+      service_label: booking.service_label || null,
+      booking_type: booking.booking_type,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+      timezone: booking.timezone || 'UTC',
+      location_context: booking.location_context || null,
+      meeting_url: booking.meeting_url || null,
+      total_snapshot: booking.total_snapshot || null,
+      cancellation_policy_snapshot: booking.cancellation_policy_snapshot || null,
+      guest_email: booking.guest_email,
+      guest_display_name: booking.guest_display_name || null,
+      guest_phone: booking.guest_phone || null,
+      event_id: booking.event_id || null,
+      provider_display_name: booking.provider_display_name || null,
+      provider_screen_name: booking.provider_screen_name || null,
+      business_name: booking.business_name || null,
+      reschedule_history: booking.reschedule_history || [],
+      cancelled_at: booking.cancelled_at || null,
+      confirmed_at: booking.confirmed_at || null,
+      _created_date: booking._created_date,
+    };
+
+    return { booking: guestSafeBooking };
+  },
+);

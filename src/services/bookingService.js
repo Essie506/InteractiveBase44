@@ -20,6 +20,7 @@ import {
   callRescheduleBooking,
   callReportNoShow,
   callCompleteBooking,
+  callGuestLookupBooking,
 } from '@/services/firebaseFunctions';
 
 // ── Booking Draft Creation ──────────────────────────────────
@@ -50,20 +51,27 @@ export async function confirmFreeBooking(bookingId, guestEmail) {
 // ── Cancellation ─────────────────────────────────────────────
 // Cancels a booking with server-side policy evaluation and Stripe
 // refund if applicable. The client never calculates the refund amount.
-export async function cancelBooking(bookingId, reason) {
-  return callCancelBooking({ booking_id: bookingId, reason });
+// For guest checkout, pass guestEmail so the server can match it
+// against booking.guest_email for authorisation.
+export async function cancelBooking(bookingId, reason, guestEmail) {
+  const payload = { booking_id: bookingId, reason };
+  if (guestEmail) payload.guest_email = guestEmail;
+  return callCancelBooking(payload);
 }
 
 // ── Rescheduling ────────────────────────────────────────────
 // Same-price reschedule. Price-difference rescheduling is not
 // supported in this initial implementation (specification gap).
-export async function rescheduleBooking(bookingId, newStartTime, newEndTime, reason) {
-  return callRescheduleBooking({
+// For guest checkout, pass guestEmail for authorisation.
+export async function rescheduleBooking(bookingId, newStartTime, newEndTime, reason, guestEmail) {
+  const payload = {
     booking_id: bookingId,
     new_start_time: newStartTime,
     new_end_time: newEndTime,
     reason,
-  });
+  };
+  if (guestEmail) payload.guest_email = guestEmail;
+  return callRescheduleBooking(payload);
 }
 
 // ── No-Show ──────────────────────────────────────────────────
@@ -113,4 +121,26 @@ export async function listRefunds(bookingId) {
 // guests' bookings. Uses the authenticated user's email to match.
 export async function getGuestBooking(email, bookingId) {
   return bookingRepository.getBookingByGuestEmail(email, bookingId);
+}
+
+// ── Guest Booking Management (Spec 00 §1.5 / Booking §3.10–§3.11) ──
+// Unauthenticated guests manage their booking via email + booking
+// reference. All operations go through trusted Cloud Functions that
+// match guest_email against booking.guest_email for authorisation.
+export async function guestLookupBooking(email, bookingId) {
+  return callGuestLookupBooking({ booking_id: bookingId, guest_email: email });
+}
+
+export async function guestCancelBooking(email, bookingId, reason) {
+  return callCancelBooking({ booking_id: bookingId, guest_email: email, reason });
+}
+
+export async function guestRescheduleBooking(email, bookingId, newStartTime, newEndTime, reason) {
+  return callRescheduleBooking({
+    booking_id: bookingId,
+    guest_email: email,
+    new_start_time: newStartTime,
+    new_end_time: newEndTime,
+    reason,
+  });
 }

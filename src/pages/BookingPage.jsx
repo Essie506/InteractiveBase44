@@ -38,6 +38,7 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmedBookingId, setConfirmedBookingId] = useState(null);
   const [error, setError] = useState('');
   // Guest checkout fields (Spec 00 §1.5 / Booking §3.9)
   const [guestEmail, setGuestEmail] = useState('');
@@ -105,6 +106,7 @@ export default function BookingPage() {
 
       // Confirm — for guests, pass the email for server-side authorisation
       await confirmFreeBooking(draft.booking_id, isGuest ? guestEmail.trim() : undefined);
+      setConfirmedBookingId(draft.booking_id);
       setConfirmed(true);
     } catch (err) {
       setError(err.message || 'Could not create booking');
@@ -156,9 +158,17 @@ export default function BookingPage() {
               Arrange the details directly with {profile.display_name}.
             </p>
             {isGuest ? (
-              <Link to="/directory" className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-                Back to Directory
-              </Link>
+              <div className="flex flex-col items-center gap-2">
+                <Link
+                  to={`/booking/manage?email=${encodeURIComponent(guestEmail)}&booking=${confirmedBookingId}`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+                >
+                  Manage my booking
+                </Link>
+                <Link to="/directory" className="text-sm text-stone-500 hover:text-stone-700">
+                  Back to Directory
+                </Link>
+              </div>
             ) : (
               <Link to="/messages" className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
                 Go to Messages
