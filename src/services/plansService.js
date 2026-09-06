@@ -3,7 +3,7 @@
  * ───────────────────────────────────────────────────────────
  * Client-side plan listing + subscription management.
  *
- * Plans are read from the SubscriptionPlan entity (display data).
+ * Plans are read from the Firestore `subscriptionPlans` collection.
  * Subscriptions live in Firestore (professionalSubscriptions /
  * businessSubscriptions collections) and are managed via trusted
  * Cloud Functions (Stripe Subscriptions — recurring billing).
@@ -16,7 +16,8 @@
  * subscription activation/cancellation.
  */
 
-import { base44 } from '@/api/base44Client';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/firebase/firebaseClient';
 import {
   callCreateSubscriptionCheckout,
   callGetMySubscription,
@@ -24,11 +25,17 @@ import {
 } from '@/services/firebaseFunctions';
 
 // ── Plan listing (display data) ──────────────────────────────
+// Reads from the Firestore `subscriptionPlans` collection (readable by
+// any authenticated user per firestore.rules). The authoritative six-plan
+// model lives here — NOT in the Base44 entity store. Client-side filter
+// + sort avoids composite-index requirements (the catalogue is small).
 export async function listPlans(family = null) {
-  const plans = await base44.entities.SubscriptionPlan.list('-sort_order', 50);
-  const active = plans.filter(p => p.status === 'active');
-  if (!family) return active;
-  return active.filter(p => p.family === family);
+  const q = query(collection(db, 'subscriptionPlans'), where('status', '==', 'active'));
+  const snap = await getDocs(q);
+  const plans = snap.docs.map(d => ({ id: d.id, .../** @type {any} */ (d.data()) }));
+  plans.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  if (!family) return plans;
+  return plans.filter(p => p.family === family);
 }
 
 // ── Current subscription ─────────────────────────────────────
