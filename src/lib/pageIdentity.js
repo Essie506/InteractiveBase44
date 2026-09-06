@@ -1,7 +1,7 @@
 import {
   Compass, LayoutDashboard, User, Settings, Mail, Bell, Calendar,
   Clock, MessageSquare, ShieldCheck, Building2, Briefcase, Users,
-  FileText, Upload, Search
+  FileText, Upload, Search, Bookmark, Newspaper, Dumbbell, Crown
 } from 'lucide-react';
 
 // Maps the current route to the page identity (icon + label) shown on
@@ -29,6 +29,10 @@ export function getPageIdentity(pathname) {
     '/specifications': { icon: FileText, label: 'Specifications' },
     '/upload': { icon: Upload, label: 'Upload' },
     '/search': { icon: Search, label: 'Search' },
+    '/saved': { icon: Bookmark, label: 'Saved' },
+    '/feed': { icon: Newspaper, label: 'Feed' },
+    '/workouts': { icon: Dumbbell, label: 'Workouts' },
+    '/plans': { icon: Crown, label: 'Plans' },
   };
   if (exact[pathname]) return exact[pathname];
 

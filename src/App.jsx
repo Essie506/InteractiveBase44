@@ -60,6 +60,7 @@ import WorkoutDetail from '@/pages/WorkoutDetail';
 import WorkoutEditor from '@/pages/WorkoutEditor';
 import Feed from '@/pages/Feed';
 import PostEditor from '@/pages/PostEditor';
+import Saved from '@/pages/Saved';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -102,6 +103,13 @@ const AuthenticatedApp = () => {
           a plain Outlet (Directory renders its own public drawer). */}
       <Route element={<AuthenticatedShell />}>
         <Route path="/directory" element={<Directory />} />
+        {/* §3.2/§7.14 Public browse routes — viewable without authentication */}
+        <Route element={<AppLayout />}>
+          <Route path="/feed" element={<Feed />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/workouts" element={<Workouts />} />
+          <Route path="/workouts/:id" element={<WorkoutDetail />} />
+        </Route>
         <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
@@ -142,15 +150,12 @@ const AuthenticatedApp = () => {
             <Route path="/specifications" element={<Specifications />} />
             <Route path="/specifications/:id" element={<SpecificationDetail />} />
             <Route path="/upload" element={<UploadPage />} />
-            <Route path="/search" element={<SearchPage />} />
             <Route path="/book/:screenName" element={<BookingPage />} />
             <Route path="/plans" element={<Plans />} />
-            <Route path="/workouts" element={<Workouts />} />
             <Route path="/workouts/new" element={<WorkoutEditor />} />
-            <Route path="/workouts/:id" element={<WorkoutDetail />} />
             <Route path="/workouts/:id/edit" element={<WorkoutEditor />} />
-            <Route path="/feed" element={<Feed />} />
             <Route path="/posts/new" element={<PostEditor />} />
+            <Route path="/saved" element={<Saved />} />
           </Route>
         </Route>
       </Route>

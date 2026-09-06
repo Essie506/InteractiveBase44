@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { getContextNavItems } from '@/lib/navItems';
+import { getContextNavItems, getBottomNavItems } from '@/lib/navItems';
 
 // Thin main-content wrapper used inside AuthenticatedShell for the
 // authenticated app routes. The persistent sidebar AND the mobile
@@ -24,6 +24,7 @@ export default function AppLayout() {
   }, [user]);
 
   const navItems = getContextNavItems(user);
+  const bottomItems = getBottomNavItems();
 
   return (
     <>
@@ -31,9 +32,9 @@ export default function AppLayout() {
         <Outlet />
       </div>
 
-      {/* Mobile bottom nav */}
+      {/* §16 Mobile bottom nav — spec-standard 5 destinations */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 flex items-center justify-around px-2 py-2 z-50">
-        {navItems.slice(0, 4).map(item => {
+        {bottomItems.map(item => {
           const Icon = item.icon;
           const active = location.pathname === item.path;
           return (

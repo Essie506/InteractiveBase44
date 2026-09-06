@@ -35,6 +35,9 @@ export default function Landing() {
           <span className="text-xl font-semibold tracking-tight text-stone-800">Interactive</span>
         </div>
         <div className="flex items-center gap-3">
+          <Link to="/directory" className="hidden sm:inline text-sm font-medium text-stone-600 hover:text-stone-900">Directory</Link>
+          <Link to="/feed" className="hidden sm:inline text-sm font-medium text-stone-600 hover:text-stone-900">Feed</Link>
+          <Link to="/search" className="hidden sm:inline text-sm font-medium text-stone-600 hover:text-stone-900">Search</Link>
           <Link to="/login" className="text-sm font-medium text-stone-600 hover:text-stone-900">Log in</Link>
           <Link to="/register" className="text-sm font-medium px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">Get started</Link>
         </div>
@@ -55,6 +58,9 @@ export default function Landing() {
             Log in
           </Link>
         </div>
+        <p className="mt-4 text-sm text-stone-400">
+          Or <Link to="/directory" className="text-indigo-600 hover:text-indigo-700 font-medium">browse the directory</Link>, <Link to="/feed" className="text-indigo-600 hover:text-indigo-700 font-medium">explore the feed</Link>, or <Link to="/search" className="text-indigo-600 hover:text-indigo-700 font-medium">search</Link> without an account.
+        </p>
       </div>
 
       <div className="max-w-5xl mx-auto px-6 md:px-10 pb-24">

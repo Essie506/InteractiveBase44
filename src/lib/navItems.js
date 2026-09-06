@@ -8,7 +8,7 @@
 import {
   LayoutDashboard, User as UserIcon, Settings, FileText, Search,
   Briefcase, Building2, Users, Calendar, MessageSquare,
-  Clock, ShieldCheck, Compass, Crown, Dumbbell, Newspaper,
+  Clock, ShieldCheck, Compass, Crown, Dumbbell, Newspaper, Bookmark,
 } from 'lucide-react';
 
 export function getContextNavItems(user) {
@@ -23,6 +23,7 @@ export function getContextNavItems(user) {
     { path: '/workouts', label: 'Workouts', icon: Dumbbell },
     { path: '/messages', label: 'Messages', icon: MessageSquare },
     { path: '/profile', label: 'Profile', icon: UserIcon },
+    { path: '/saved', label: 'Saved', icon: Bookmark },
     { path: '/settings', label: 'Settings', icon: Settings },
     { path: '/plans', label: 'Plans', icon: Crown },
     { path: '/specifications', label: 'Specs', icon: FileText },
@@ -41,7 +42,8 @@ export function getContextNavItems(user) {
       { path: '/availability', label: 'Availability', icon: Clock },
       { path: '/professional-profile', label: 'Pro Profile', icon: Briefcase },
       { path: '/verify-professional', label: 'Verification', icon: ShieldCheck },
-      { path: '/settings', label: 'Settings', icon: Settings },
+      { path: '/saved', label: 'Saved', icon: Bookmark },
+    { path: '/settings', label: 'Settings', icon: Settings },
     { path: '/plans', label: 'Plans', icon: Crown },
       { path: '/specifications', label: 'Specs', icon: FileText },
       { path: '/search', label: 'AI Search', icon: Search },
@@ -60,7 +62,8 @@ export function getContextNavItems(user) {
       { path: `/business/${activeBusinessId}/staff`, label: 'Staff', icon: Users },
       { path: `/business/${activeBusinessId}/profile`, label: 'Biz Profile', icon: FileText },
       { path: `/business/${activeBusinessId}/verify`, label: 'Verification', icon: ShieldCheck },
-      { path: '/settings', label: 'Settings', icon: Settings },
+      { path: '/saved', label: 'Saved', icon: Bookmark },
+    { path: '/settings', label: 'Settings', icon: Settings },
     { path: '/plans', label: 'Plans', icon: Crown },
       { path: '/specifications', label: 'Specs', icon: FileText },
       { path: '/search', label: 'AI Search', icon: Search },
@@ -69,4 +72,17 @@ export function getContextNavItems(user) {
   }
 
   return navItems;
+}
+
+// §16 Mobile bottom navigation — spec-standard 5 destinations, consistent
+// across all operating contexts. Permission-aware: all five are available to
+// every authenticated identity regardless of active context.
+export function getBottomNavItems() {
+  return [
+    { path: '/feed', label: 'Feed', icon: Newspaper },
+    { path: '/directory', label: 'Directory', icon: Compass },
+    { path: '/calendar', label: 'Calendar', icon: Calendar },
+    { path: '/messages', label: 'Messages', icon: MessageSquare },
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  ];
 }
