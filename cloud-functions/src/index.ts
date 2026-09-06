@@ -89,3 +89,6 @@ export { retryDeliveries } from './notifications/deliverySweep';
 
 // Search Index — V2 §15.5 cross-system search indexing
 export { indexContent, unindexContent } from './searchIndex';
+
+// Promotions — V2 §19 campaign management
+export { saveCampaign, updateCampaignStatus } from './promotion';

@@ -30,10 +30,15 @@ export default function QuickActionsModule() {
           </Link>
         ))}
       </div>
-      {ctx === 'professional' && (
-        <Link to="/growth-hub" className="mt-3 block text-sm font-medium text-indigo-600 hover:underline">
-          Growth Hub →
-        </Link>
+      {(ctx === 'professional' || ctx === 'business') && (
+        <div className="mt-3 flex gap-4">
+          <Link to="/growth-hub" className="text-sm font-medium text-indigo-600 hover:underline">
+            Growth Hub →
+          </Link>
+          <Link to="/promotions" className="text-sm font-medium text-indigo-600 hover:underline">
+            Promotions →
+          </Link>
+        </div>
       )}
     </div>
   );

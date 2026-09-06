@@ -71,7 +71,8 @@ export async function listPublicEventsByOwner(ownerId, maxResults = 20) {
 // and system for the Directory to render as result cards.
 export async function searchIndexedContent(searchText, opts = {}) {
   if (!searchText?.trim()) return [];
-  const types = opts.types || ['post', 'workout', 'promotion'];
+  // V2 §15.5: all authoritative searchable content types are indexed.
+  const types = opts.types || ['post', 'workout', 'promotion', 'calendar_event', 'professional', 'business'];
   return searchIndex(searchText, { types, maxResults: opts.maxResults || 30 });
 }
 
@@ -365,6 +366,13 @@ export function filterResults(data, opts = {}) {
     results.sort((a, b) => compareEventsByPrice(a, b, direction));
   } else {
     results.sort((a, b) => {
+      // V2 §19.7: sponsored placements are boosted to the top of
+      // recommended results. This does NOT weaken organic results —
+      // sponsored items are simply ordered first, then organic results
+      // follow in their normal match-score order.
+      const as = a._sponsored ? 1 : 0;
+      const bs = b._sponsored ? 1 : 0;
+      if (as !== bs) return bs - as;
       const ms = matchScoreValue(b) - matchScoreValue(a);
       if (ms !== 0) return ms;
       if (hasOrigin) {

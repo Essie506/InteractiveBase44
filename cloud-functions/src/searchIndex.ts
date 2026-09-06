@@ -82,7 +82,7 @@ export const unindexContent = onCall(
 // Used by other cloud functions to update the index inline after
 // publishing content, without a round-trip to the client.
 export async function indexContentInline(contentId, system, fields) {
-  const indexDoc = buildIndexDocument({ contentId, ...fields });
+  const indexDoc = buildIndexDocument({ contentId, system, ...fields });
   const ref = db.collection('searchIndex').doc(`${system}_${contentId}`);
   await ref.set(indexDoc, { merge: true });
 }

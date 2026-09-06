@@ -34,16 +34,17 @@ export default function GrowthHub() {
     const ctx = user.active_context || 'personal';
     const ownerType = ctx === 'business' ? 'business' : 'identity';
     const ownerId = ctx === 'business' ? user.active_business_id : user.id;
+    const businessId = ctx === 'business' ? user.active_business_id : null;
 
     (async () => {
       try {
         const [profile, sub] = await Promise.all([
           getProfessionalProfile(user.id),
-          getMySubscription().catch(() => null),
+          getMySubscription(businessId).catch(() => null),
         ]);
         const determinedStage = determineStage(profile, {});
         setStage(determinedStage);
-        const tier = sub?.tier || (profile?.subscription_tier) || 'basic';
+        const tier = sub?.plan_tier || 'basic';
         const ops = await generateOpportunities(ownerId, ownerType, {
           stage: determinedStage,
           profile,

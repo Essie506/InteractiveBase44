@@ -14,6 +14,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, hasBusinessRole, resolveProfessionalReferences } from './shared';
 import { buildBusinessPublicProjection } from './businessProfileProjection';
 import { fetchBusinessPublicGeo } from './geo';
+import { indexContentInline, unindexContentInline } from './searchIndex';
 
 const PROFILES = 'businessProfiles';
 const PUBLIC = 'businessProfilesPublic';
@@ -88,9 +89,25 @@ export const saveBusinessProfile = onCall(
         businessId, profileId, merged, businessData, resolvedProfessionals, locationGeo,
       );
       await projRef.set(projection);
+
+      // ── Cross-system search indexing (V2 §15.5) ──
+      try {
+        await indexContentInline(businessId, 'business', {
+          contentType: 'business',
+          title: merged.name || businessData?.name || '',
+          description: merged.description || '',
+          tags: Array.isArray(merged.services) ? merged.services.map((s: any) => s.label).filter(Boolean) : [],
+          ownerId: businessId,
+          visibility: 'public',
+        });
+      } catch (err) {
+        console.error('search index failed for business', businessId, err);
+      }
     } else {
       // Not eligible for public listing — remove any existing projection
       await projRef.delete().catch(() => {});
+      // Remove from search index
+      try { await unindexContentInline('business', businessId); } catch (e) { console.error('unindex business', businessId, e); }
     }
 
     return { id: profileId, ...merged };

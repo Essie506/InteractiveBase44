@@ -43,6 +43,7 @@ import { appendScheduleHistory } from './calendarEventHistory';
 import { syncParticipationRecords, revokeParticipationRecords } from './calendarParticipation';
 import { hasOverlappingEvent, touchScheduleLock, shouldEnforceConflictCheck } from './calendarAvailability';
 import { emitCalendarSignalForEvent } from './calendarSignal';
+import { indexContentInline, unindexContentInline } from './searchIndex';
 
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
@@ -653,6 +654,8 @@ export async function maintainProjection(eventId: string, data: any): Promise<vo
 
   if (!listable) {
     await db.collection(PUBLIC).doc(eventId).delete().catch(() => {});
+    // Remove from search index when no longer listable (V2 §15.5)
+    try { await unindexContentInline('calendar_event', eventId); } catch (e) { console.error('unindex event', eventId, e); }
     return;
   }
 
@@ -669,6 +672,21 @@ export async function maintainProjection(eventId: string, data: any): Promise<vo
     eventId, data, host, locationGeo, locationLabel, reservedCount,
   );
   await db.collection(PUBLIC).doc(eventId).set(projection);
+
+  // ── Cross-system search indexing (V2 §15.5) ──
+  // Public listable events are indexed for discovery.
+  try {
+    await indexContentInline(eventId, 'calendar_event', {
+      contentType: 'calendar_event',
+      title: data.title || '',
+      description: data.description || '',
+      tags: Array.isArray(data.services) ? data.services.map((s: any) => s.label).filter(Boolean) : [],
+      ownerId: data.owner_id,
+      visibility: 'public',
+    });
+  } catch (err) {
+    console.error('search index failed for event', eventId, err);
+  }
 }
 
 // ── deleteCalendarEvent (§52) ───────────────────────────────
@@ -740,6 +758,8 @@ export const deleteCalendarEvent = onCall(
 
     // Remove the public projection + idempotency record (best effort).
     await db.collection(PUBLIC).doc(eventId).delete().catch(() => {});
+    // Remove from search index (V2 §15.5)
+    try { await unindexContentInline('calendar_event', eventId); } catch (e) { console.error('unindex deleted event', eventId, e); }
     const idempKey = idempotencyDocId(
       existing.owner_type,
       existing.owner_id,

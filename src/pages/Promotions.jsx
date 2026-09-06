@@ -23,15 +23,20 @@ export default function Promotions() {
     const ctx = user.active_context || 'personal';
     const ownerType = ctx === 'business' ? 'business' : 'identity';
     const ownerId = ctx === 'business' ? user.active_business_id : user.id;
+    const businessId = ctx === 'business' ? user.active_business_id : null;
+    // Family is derived from the operating context, not the subscription
+    // return shape — getMySubscription does not return family.
+    const family = ctx === 'business' ? 'business' : 'professional';
     try {
       const [subs, camps] = await Promise.all([
-        getMySubscription().catch(() => null),
+        getMySubscription(businessId).catch(() => null),
         listCampaigns(ownerId, ownerType),
       ]);
       setSubscription(subs);
       setCampaigns(camps);
-      if (subs?.tier && subs?.family) {
-        const pkg = await getGrowthPackageForTier(subs.tier, subs.family);
+      const tier = subs?.plan_tier || 'basic';
+      if (tier && tier !== 'basic') {
+        const pkg = await getGrowthPackageForTier(tier, family);
         setGrowthPackage(pkg);
       }
     } catch (err) {
