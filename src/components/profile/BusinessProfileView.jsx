@@ -3,6 +3,7 @@ import ProfileHeader from './ProfileHeader';
 import ProfileSection from './ProfileSection';
 import TagList from './TagList';
 import MediaGallerySection from './MediaGallerySection';
+import ProfileContentSection from './ProfileContentSection';
 import { mediaStyle } from './mediaStyle';
 
 /**
@@ -213,6 +214,9 @@ export default function BusinessProfileView({
             onSave={onSaveMedia}
           />
         )}
+
+        {/* Cross-system: published workouts + upcoming public events */}
+        <ProfileContentSection ownerId={profile.business_id} />
 
         <div className="h-12" />
       </div>

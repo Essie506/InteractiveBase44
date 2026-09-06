@@ -3,6 +3,7 @@ import ProfileHeader from '@/components/profile/ProfileHeader';
 import ProfileSection from '@/components/profile/ProfileSection';
 import TagList from '@/components/profile/TagList';
 import MediaGallerySection from '@/components/profile/MediaGallerySection';
+import ProfileContentSection from '@/components/profile/ProfileContentSection';
 
 /**
  * Shared Professional profile layout — used by both the public profile
@@ -163,6 +164,9 @@ export default function ProfessionalProfileView({
             onSave={onSaveMedia}
           />
         )}
+
+        {/* Cross-system: published workouts + upcoming public events */}
+        <ProfileContentSection ownerId={profile.identity_id} />
 
         <div className="h-12" />
       </div>

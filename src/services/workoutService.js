@@ -34,6 +34,20 @@ export async function listMyWorkouts(identityId) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+export async function listPublishedWorkoutsByOwner(ownerId, maxResults = 20) {
+  // Public published workouts owned by a specific identity or business.
+  // 3-field equality query — supported by single-field indexes.
+  const q = query(
+    collection(db, 'workouts'),
+    where('owner_id', '==', ownerId),
+    where('lifecycle_state', '==', 'published'),
+    where('visibility', '==', 'public'),
+    limit(maxResults),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 export async function getWorkout(workoutId) {
   const snap = await getDoc(doc(db, 'workouts', workoutId));
   if (!snap.exists()) return null;

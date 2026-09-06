@@ -27,7 +27,7 @@
  */
 
 import { db } from '@/firebase/firebaseClient';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { useFirebase } from '@/lib/backendConfig';
 import { fromFirestoreDoc } from '@/data/firebase/mappers';
 import { haversineMiles, getGeoCoords } from '@/lib/geo';
@@ -65,6 +65,30 @@ export async function loadDirectory() {
   if (evtRes.status === 'rejected') sourceErrors.events = evtRes.reason?.message || 'Unavailable';
 
   return { professionals, businesses, events, sourceErrors };
+}
+
+// ── Public events by owner (profile content surface) ─────
+// Fetches upcoming public events for a specific identity or business
+// from the calendarEventsPublic projection. Single-field query on
+// owner_id (no composite index needed); client-side filters handle
+// visibility, lifecycle, and upcoming date filtering + sorting.
+export async function listPublicEventsByOwner(ownerId, maxResults = 20) {
+  if (!useFirebase) return [];
+  const q = query(
+    collection(db, EVENTS_PUBLIC),
+    where('owner_id', '==', ownerId),
+    limit(100),
+  );
+  const snap = await getDocs(q);
+  const events = snap.docs.map(fromFirestoreDoc);
+  const now = Date.now();
+  return events
+    .filter(e => e.visibility === 'public'
+      && e.lifecycle_state !== 'cancelled'
+      && e.lifecycle_state !== 'removed')
+    .filter(e => e.start_time && new Date(e.start_time).getTime() >= now)
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+    .slice(0, maxResults);
 }
 
 // ── Text match (case-insensitive across public fields) ────
