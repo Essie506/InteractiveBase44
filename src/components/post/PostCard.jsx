@@ -74,7 +74,7 @@ export default function PostCard({ post, onDeleted }) {
             </Link>
             <div className="text-xs text-stone-400 flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              {timeAgo(post.created_date)}
+              {timeAgo(post._created_date)}
               {post.edited_at && ' · edited'}
             </div>
           </div>

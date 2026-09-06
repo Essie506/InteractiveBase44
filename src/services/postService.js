@@ -20,7 +20,7 @@ export async function fetchPublicPosts(maxResults = 20) {
     collection(db, 'posts'),
     where('visibility', '==', 'public'),
     where('lifecycle_state', '==', 'published'),
-    orderBy('created_date', 'desc'),
+    orderBy('_created_date', 'desc'),
     limit(maxResults)
   );
   const snap = await getDocs(q);
@@ -38,7 +38,7 @@ export async function fetchPostsByAuthor(identityId, maxResults = 20) {
     collection(db, 'posts'),
     where('author_identity_id', '==', identityId),
     where('lifecycle_state', '==', 'published'),
-    orderBy('created_date', 'desc'),
+    orderBy('_created_date', 'desc'),
     limit(maxResults)
   );
   const snap = await getDocs(q);
