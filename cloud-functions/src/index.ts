@@ -86,3 +86,6 @@ export { backfillCalendarOwnership } from './backfillCalendarOwnership';
 // these exports are the delivery-side triggers that Firebase discovers.
 export { processDelivery } from './notifications/deliveryWorker';
 export { retryDeliveries } from './notifications/deliverySweep';
+
+// Search Index — V2 §15.5 cross-system search indexing
+export { indexContent, unindexContent } from './searchIndex';

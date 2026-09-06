@@ -9,6 +9,7 @@ import {
   LayoutDashboard, User as UserIcon, Settings, FileText, Search,
   Briefcase, Building2, Users, Calendar, MessageSquare,
   Clock, ShieldCheck, Compass, Crown, Dumbbell, Newspaper, Bookmark,
+  TrendingUp, Megaphone,
 } from 'lucide-react';
 
 export function getContextNavItems(user) {
@@ -40,6 +41,8 @@ export function getContextNavItems(user) {
       { path: '/calendar', label: 'Calendar', icon: Calendar },
       { path: '/workouts', label: 'Workouts', icon: Dumbbell },
       { path: '/availability', label: 'Availability', icon: Clock },
+      { path: '/growth-hub', label: 'Growth Hub', icon: TrendingUp },
+      { path: '/promotions', label: 'Promotions', icon: Megaphone },
       { path: '/professional-profile', label: 'Pro Profile', icon: Briefcase },
       { path: '/verify-professional', label: 'Verification', icon: ShieldCheck },
       { path: '/saved', label: 'Saved', icon: Bookmark },
@@ -60,6 +63,8 @@ export function getContextNavItems(user) {
       { path: '/calendar', label: 'Calendar', icon: Calendar },
       { path: '/workouts', label: 'Workouts', icon: Dumbbell },
       { path: `/business/${activeBusinessId}/staff`, label: 'Staff', icon: Users },
+      { path: '/growth-hub', label: 'Growth Hub', icon: TrendingUp },
+      { path: '/promotions', label: 'Promotions', icon: Megaphone },
       { path: `/business/${activeBusinessId}/profile`, label: 'Biz Profile', icon: FileText },
       { path: `/business/${activeBusinessId}/verify`, label: 'Verification', icon: ShieldCheck },
       { path: '/saved', label: 'Saved', icon: Bookmark },

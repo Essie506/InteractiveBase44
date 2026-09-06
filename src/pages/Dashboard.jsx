@@ -6,8 +6,8 @@ import { getUserSettings } from '@/services/settingsService';
 import { getInvitationsForEmail, getUserBusinesses } from '@/services/businessService';
 import * as userService from '@/services/userService';
 import VerificationBadge from '@/components/VerificationBadge';
-import CalendarWidget from '@/components/dashboard/CalendarWidget';
-import { User as UserIcon, Settings, FileText, Briefcase, Building2, Plus, ArrowRight, Mail } from 'lucide-react';
+import { getModulesForContext } from '@/components/dashboard/moduleRegistry';
+import { User as UserIcon, Briefcase, Building2, Plus, ArrowRight, Mail } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, refreshUser } = useAuth();
@@ -361,32 +361,14 @@ export default function Dashboard() {
       {/* Secondary context cards */}
       {secondaryCards}
 
-      {/* Upcoming calendar events (§82) */}
-      <CalendarWidget />
-
-      {/* Quick actions */}
+      {/* ── Dashboard Module Architecture (V2 Dashboard §4) ──
+            Module-based composition: the registry returns the modules
+            registered for the active operating context. Each module is a
+            small focused component that renders one dashboard panel. */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        
-
-
-
-
-
-        
-        <Link to="/settings" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
-          <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center mb-3 transition-colors">
-            <Settings className="w-5 h-5 text-indigo-600" />
-          </div>
-          <h3 className="font-semibold text-stone-800 mb-1">Privacy & Settings</h3>
-          <p className="text-sm text-stone-500">Manage your privacy and preferences</p>
-        </Link>
-        <Link to="/specifications" className="group bg-white rounded-xl border border-stone-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all">
-          <div className="w-10 h-10 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center mb-3 transition-colors">
-            <FileText className="w-5 h-5 text-indigo-600" />
-          </div>
-          <h3 className="font-semibold text-stone-800 mb-1">Specifications</h3>
-          <p className="text-sm text-stone-500">Browse the Interactive spec repository</p>
-        </Link>
+        {getModulesForContext(activeContext).map(({ key, component: Module }) => (
+          <Module key={key} />
+        ))}
       </div>
 
       {/* Identity architecture */}

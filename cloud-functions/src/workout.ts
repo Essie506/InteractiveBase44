@@ -7,6 +7,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId } from './shared';
+import { indexContentInline, unindexContentInline } from './searchIndex';
 
 const VALID_TYPES = [
   'individual', 'programme', 'training_plan', 'challenge', 'rehab',
@@ -70,23 +71,41 @@ export const saveWorkout = onCall(
       _updated_date: now,
     };
 
+    let workoutRef;
     if (workout_id) {
       const doc = await db.collection('workouts').doc(workout_id).get();
       if (!doc.exists) throw new HttpsError('not-found', 'Workout not found');
       if (doc.data()?.creator_identity_id !== identityId) {
         throw new HttpsError('permission-denied', 'Only the creator can edit this workout');
       }
-      await doc.ref.update(payload);
-      return { id: workout_id };
+      workoutRef = doc.ref;
+      await workoutRef.update(payload);
+    } else {
+      workoutRef = db.collection('workouts').doc();
+      await workoutRef.set({
+        ...payload,
+        creator_identity_id: identityId,
+        _created_date: now,
+      });
     }
 
-    const ref = db.collection('workouts').doc();
-    await ref.set({
-      ...payload,
-      creator_identity_id: identityId,
-      _created_date: now,
-    });
-    return { id: ref.id };
+    // ── Cross-system search indexing (V2 §15.5) ──
+    if (payload.lifecycle_state === 'published' && payload.visibility === 'public') {
+      try {
+        await indexContentInline(workoutRef.id, 'workout', {
+          contentType: 'workout',
+          title: payload.title,
+          description: payload.description,
+          tags: [payload.workout_type, payload.difficulty].filter(Boolean),
+          ownerId: payload.owner_id,
+          visibility: payload.visibility,
+        });
+      } catch (err) {
+        console.error('search index failed for workout', workoutRef.id, err);
+      }
+    }
+
+    return { id: workoutRef.id };
   },
 );
 
@@ -108,6 +127,14 @@ export const deleteWorkout = onCall(
       lifecycle_state: 'archived',
       _updated_date: new Date().toISOString(),
     });
+
+    // Remove from search index (V2 §15.5)
+    try {
+      await unindexContentInline('workout', workout_id);
+    } catch (err) {
+      console.error('search unindex failed for workout', workout_id, err);
+    }
+
     return { state: 'archived' };
   },
 );

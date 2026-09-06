@@ -9,6 +9,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, allowedOrigins, getIdentityId, getBusinessMembership } from './shared';
+import { indexContentInline, unindexContentInline } from './searchIndex';
 
 // ── savePost ──────────────────────────────────────────────
 // Creates or updates a Post. Enforces author authority:
@@ -94,9 +95,10 @@ export const savePost = onCall(
       _updated_date: now,
     };
 
+    let postRef;
     if (id) {
       // Update existing post — verify ownership
-      const postRef = db.collection('posts').doc(id);
+      postRef = db.collection('posts').doc(id);
       const postDoc = await postRef.get();
       if (!postDoc.exists) {
         throw new HttpsError('not-found', 'Post not found.');
@@ -113,19 +115,37 @@ export const savePost = onCall(
       }
       postData.edited_at = now;
       await postRef.update(postData);
-      return { id, status: 'updated' };
+    } else {
+      // Create new post
+      postData._created_date = now;
+      postData.reaction_count = 0;
+      postData.comment_count = 0;
+      postData.share_count = 0;
+      postData.save_count = 0;
+      postData.view_count = 0;
+      postRef = db.collection('posts').doc();
+      await postRef.set(postData);
     }
 
-    // Create new post
-    postData._created_date = now;
-    postData.reaction_count = 0;
-    postData.comment_count = 0;
-    postData.share_count = 0;
-    postData.save_count = 0;
-    postData.view_count = 0;
-    const postRef = db.collection('posts').doc();
-    await postRef.set(postData);
-    return { id: postRef.id, status: 'created' };
+    // ── Cross-system search indexing (V2 §15.5) ──
+    // Index the post for discovery if it is published, public, and eligible.
+    if (postData.lifecycle_state === 'published' && postData.visibility === 'public' && postData.discovery_eligibility !== false) {
+      try {
+        await indexContentInline(postRef.id, 'post', {
+          contentType: 'post',
+          title: postData.title || postData.body?.slice(0, 80) || '',
+          description: postData.summary || postData.body || '',
+          tags: [...(postData.tags || []), ...(postData.hashtags || [])],
+          ownerId: postData.author_identity_id,
+          visibility: postData.visibility,
+        });
+      } catch (err) {
+        // Index failure must not block the post write.
+        console.error('search index failed for post', postRef.id, err);
+      }
+    }
+
+    return { id: postRef.id, status: id ? 'updated' : 'created' };
   },
 );
 
@@ -166,6 +186,14 @@ export const deletePost = onCall(
       lifecycle_state: 'deleted',
       _updated_date: new Date().toISOString(),
     });
+
+    // Remove from search index (V2 §15.5)
+    try {
+      await unindexContentInline('post', id);
+    } catch (err) {
+      console.error('search unindex failed for post', id, err);
+    }
+
     return { id, status: 'deleted' };
   },
 );

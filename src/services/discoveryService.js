@@ -17,6 +17,7 @@ import { resolveDateRange, isEventInRange } from '@/lib/eventDateRanges';
 import { compareEventsByPrice } from '@/lib/eventPriceSort';
 import { isPriceSort } from '@/lib/directorySortOptions';
 import { searchIndex, getSuggestions } from '@/lib/searchIndexAdapter';
+import { listActiveCampaigns } from '@/services/promotionsService';
 
 const PROFESSIONAL_DIRECTORY = 'professionalDirectoryEntries';
 const BUSINESS_PUBLIC = 'businessProfilesPublic';
@@ -72,6 +73,54 @@ export async function searchIndexedContent(searchText, opts = {}) {
   if (!searchText?.trim()) return [];
   const types = opts.types || ['post', 'workout', 'promotion'];
   return searchIndex(searchText, { types, maxResults: opts.maxResults || 30 });
+}
+
+// ── Sponsored placement (V2 §19.7) ────────────────────────────
+// Loads active promotional campaigns and maps their target content
+// references into a lookup keyed by `${system}_${id}`. The Directory
+// uses this to tag promoted results with a "Sponsored" badge and
+// boost their sort position. Does NOT fabricate results — only
+// annotates content that already exists in the result set.
+export async function loadSponsoredTargets() {
+  try {
+    const campaigns = await listActiveCampaigns();
+    const map = {};
+    for (const c of campaigns) {
+      if (!Array.isArray(c.target_content_references)) continue;
+      for (const ref of c.target_content_references) {
+        const key = `${ref.system}_${ref.id}`;
+        if (!map[key]) map[key] = { campaign: c, system: ref.system, id: ref.id };
+      }
+    }
+    return map;
+  } catch (err) {
+    return {};
+  }
+}
+
+/**
+ * Annotate results with sponsored placement metadata.
+ * Mutates results in place: sets `_sponsored` on items that match
+ * a sponsored target. Does NOT reorder — the caller decides whether
+ * to boost sponsored items in the sort.
+ * @param {Array} results - filterResults output
+ * @param {Object} sponsoredMap - from loadSponsoredTargets
+ * @returns {Array} annotated results
+ */
+export function annotateSponsored(results, sponsoredMap) {
+  if (!sponsoredMap || Object.keys(sponsoredMap).length === 0) return results;
+  return results.map((r) => {
+    const system = r._type === 'professional' ? 'professional'
+      : r._type === 'business' ? 'business'
+      : r._type === 'event' ? 'calendar_event'
+      : r.system || r._type;
+    const id = r.id || r.content_id;
+    if (!system || !id) return r;
+    const key = `${system}_${id}`;
+    const sponsored = sponsoredMap[key];
+    if (sponsored) return { ...r, _sponsored: true, _campaign: sponsored.campaign };
+    return r;
+  });
 }
 
 // ── Search suggestions (autocomplete) ─────

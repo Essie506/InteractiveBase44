@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { loadDirectory, filterResults } from '@/services/discoveryService';
+import { loadDirectory, filterResults, loadSponsoredTargets, annotateSponsored } from '@/services/discoveryService';
 import { resolveConnectionStatuses } from '@/services/connectionService';
 import { geocodeOrigin } from '@/lib/geo';
 import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal } from 'lucide-react';
@@ -36,6 +36,7 @@ export default function Directory() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [publicNavOpen, setPublicNavOpen] = useState(false);
   const [connectionStatuses, setConnectionStatuses] = useState({});
+  const [sponsoredMap, setSponsoredMap] = useState({});
 
   // Parse URL search params once on mount — initializes both draft
   // and applied filter state so the Directory restores the exact
@@ -96,8 +97,12 @@ export default function Directory() {
     }
     setReloading(true);
     try {
-      const result = await loadDirectory();
+      const [result, sponsored] = await Promise.all([
+        loadDirectory(),
+        loadSponsoredTargets(),
+      ]);
       setData(result);
+      setSponsoredMap(sponsored);
     } finally {
       setLoading(false);
       setReloading(false);
@@ -152,7 +157,7 @@ export default function Directory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const results = useMemo(
+  const filteredResults = useMemo(
     () => filterResults(data, {
       query: appliedFilters.query,
       types: appliedFilters.typeFilter === 'all' ? null : [appliedFilters.typeFilter],
@@ -177,6 +182,13 @@ export default function Directory() {
       availableOnly: appliedFilters.availableOnly,
     }),
     [data, appliedFilters]
+  );
+
+  // Annotate results with sponsored placement metadata (V2 §19.7).
+  // Does NOT fabricate results — only tags items already in the result set.
+  const results = useMemo(
+    () => annotateSponsored(filteredResults, sponsoredMap),
+    [filteredResults, sponsoredMap]
   );
 
   // ── Batch relationship-status fetch ──
