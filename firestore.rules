@@ -920,7 +920,11 @@ service cloud.firestore {
     // SHARE ENGINE (Spec 14.1)
     // ═══════════════════════════════════════════════════════════
     match /shares/{shareId} {
-      allow read: if isAuthenticated();
+      // §14.7: public active shares are readable by anyone (including
+      // unauthenticated guests) so the Feed supports browse-first access
+      // for commentary shares. Non-public or non-active shares remain
+      // auth-gated via the isAuthenticated() branch.
+      allow read: if isAuthenticated() || (resource.data.visibility == 'public' && resource.data.lifecycle_state == 'active');
       allow write: if false; // Server-only — Cloud Functions (Admin SDK)
     }
 
