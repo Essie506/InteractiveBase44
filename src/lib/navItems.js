@@ -75,9 +75,19 @@ export function getContextNavItems(user) {
 }
 
 // §16 Mobile bottom navigation — spec-standard 5 destinations, consistent
-// across all operating contexts. Permission-aware: all five are available to
-// every authenticated identity regardless of active context.
-export function getBottomNavItems() {
+// across all operating contexts. Permission-aware (§16 "permission-aware"):
+// authenticated identities get the full 5-destination set; unauthenticated
+// visitors get only public destinations plus a Sign In entry, so no bottom
+// nav item redirects to login unexpectedly.
+export function getBottomNavItems(user) {
+  if (!user) {
+    return [
+      { path: '/feed', label: 'Feed', icon: Newspaper },
+      { path: '/directory', label: 'Directory', icon: Compass },
+      { path: '/workouts', label: 'Workouts', icon: Dumbbell },
+      { path: '/login', label: 'Sign In', icon: UserIcon },
+    ];
+  }
   return [
     { path: '/feed', label: 'Feed', icon: Newspaper },
     { path: '/directory', label: 'Directory', icon: Compass },

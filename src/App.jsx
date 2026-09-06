@@ -106,7 +106,6 @@ const AuthenticatedApp = () => {
         {/* §3.2/§7.14 Public browse routes — viewable without authentication */}
         <Route element={<AppLayout />}>
           <Route path="/feed" element={<Feed />} />
-          <Route path="/search" element={<SearchPage />} />
           <Route path="/workouts" element={<Workouts />} />
           <Route path="/workouts/:id" element={<WorkoutDetail />} />
         </Route>
@@ -122,6 +121,7 @@ const AuthenticatedApp = () => {
             <Route path="/availability" element={<AvailabilityPage />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/messages/:conversationId" element={<ConversationPage />} />
+            <Route path="/search" element={<SearchPage />} />
             <Route path="/professional-profile" element={<ProfessionalProfilePage />} />
             <Route path="/verify-professional" element={<VerificationPage />} />
             <Route path="/business/:id" element={<BusinessWorkspace />} />

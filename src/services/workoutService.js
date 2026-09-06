@@ -10,9 +10,13 @@ import { db } from '@/firebase/firebaseClient';
 import { callSaveWorkout, callDeleteWorkout } from '@/services/firebaseFunctions';
 
 export async function listPublishedWorkouts(maxResults = 50) {
+  // §7.14: public browse — filters by visibility == 'public' AND
+  // lifecycle_state == 'published' so the query validates against the
+  // Firestore rule for unauthenticated visitors.
   const q = query(
     collection(db, 'workouts'),
     where('lifecycle_state', '==', 'published'),
+    where('visibility', '==', 'public'),
     orderBy('_updated_date', 'desc'),
     limit(maxResults),
   );

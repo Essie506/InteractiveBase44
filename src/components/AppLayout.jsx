@@ -24,7 +24,7 @@ export default function AppLayout() {
   }, [user]);
 
   const navItems = getContextNavItems(user);
-  const bottomItems = getBottomNavItems();
+  const bottomItems = getBottomNavItems(user);
 
   return (
     <>

@@ -1,7 +1,7 @@
 // Workouts — browse published workouts + manage your own (Spec 12).
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, LogIn } from 'lucide-react';
 import { listPublishedWorkouts, listMyWorkouts } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
 import WorkoutCard from '@/components/workout/WorkoutCard';
@@ -41,14 +41,22 @@ export default function Workouts() {
           <h1 className="text-xl font-bold text-stone-800">Workouts</h1>
           <p className="text-stone-500 text-sm">Discover and manage workout content</p>
         </div>
-        <Link to="/workouts/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-          <Plus className="w-4 h-4" /> New Workout
-        </Link>
+        {user ? (
+          <Link to="/workouts/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+            <Plus className="w-4 h-4" /> New Workout
+          </Link>
+        ) : (
+          <Link to="/login" className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+            <LogIn className="w-4 h-4" /> Sign in to create
+          </Link>
+        )}
       </div>
 
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab('discover')} className={`px-4 py-1.5 rounded-lg text-sm font-medium ${tab === 'discover' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>Discover</button>
-        <button onClick={() => setTab('mine')} className={`px-4 py-1.5 rounded-lg text-sm font-medium ${tab === 'mine' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>My Workouts</button>
+        {user && (
+          <button onClick={() => setTab('mine')} className={`px-4 py-1.5 rounded-lg text-sm font-medium ${tab === 'mine' ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>My Workouts</button>
+        )}
       </div>
 
       <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
