@@ -150,6 +150,10 @@ export function groupOccurrencesByDate(occurrences, timezone) {
  * operating context (Personal/Professional/Business), and a scheduled/
  * historical period selector.
  */
+/**
+ * @param {any[]} occurrences
+ * @param {{ search?: string, visibility?: string, sourceSystem?: string, lifecycleState?: string, category?: string, context?: string, period?: string }} [filters]
+ */
 export function filterOccurrences(occurrences, {
   search, visibility, sourceSystem, lifecycleState, category, context, period,
 } = {}) {

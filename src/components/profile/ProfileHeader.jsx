@@ -21,6 +21,14 @@ import { EditPencil } from './EditPencil';
  *  - subtitle: secondary text (business category) — shown when no screenName
  *  - verificationState: 'verified' shows the shield badge
  */
+/**
+ * @param {{
+ *   coverUrl?: any, coverPos?: any, avatarUrl?: any, avatarPos?: any,
+ *   avatarShape?: string, displayName?: any, screenName?: any, subtitle?: any,
+ *   headline?: any, location?: any, verificationState?: any, editable?: boolean,
+ *   onEditCover?: any, onEditAvatar?: any, onEditDisplayName?: any, onEditHeadline?: any, actions?: any,
+ * }} props
+ */
 export default function ProfileHeader({
   coverUrl,
   coverPos,

@@ -43,9 +43,9 @@ const PERSONAL_STATE_LABELS = {
  *   onDelete?: (occ: object) => void,
  *   onCancel?: (occ: object) => void,
  *   onEdit?: (occ: object) => void,
- *   cancellingId: string | null,
- *   deletingId: string | null,
- *   personalStateLoadingId: string | null,
+ *   cancellingId?: string | null,
+ *   deletingId?: string | null,
+ *   personalStateLoadingId?: string | null,
  * }} props
  */
 export default function EventLifecycleActions({

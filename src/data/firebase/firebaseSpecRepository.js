@@ -49,7 +49,7 @@ export async function deleteProject(id) {
 // ── Specifications ──────────────────────────────────────────
 
 export async function listSpecifications(sortField, limitCount) {
-  let q = collection(db, 'specifications');
+  let q = /** @type {any} */ (collection(db, 'specifications'));
   if (sortField === '-updated_date') {
     q = query(q, orderBy('_updated_date', 'desc'));
   }

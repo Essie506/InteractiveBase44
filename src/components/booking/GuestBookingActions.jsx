@@ -10,7 +10,7 @@ const RESCHEDULABLE_STATES = ['scheduled', 'confirmed'];
 /**
  * @param {{
  *   booking: object,
- *   onCancel: () => void,
+ *   onCancel: (reason?: string) => void,
  *   onReschedule: () => void,
  *   actionLoading: boolean,
  *   actionType: string | null,

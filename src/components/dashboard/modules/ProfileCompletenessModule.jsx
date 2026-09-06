@@ -63,6 +63,7 @@ export default function ProfileCompletenessModule() {
   );
 }
 
+/** @param {{ title: string, icon?: any, children: any }} props */
 function ModuleShell({ title, icon: Icon, children }) {
   return (
     <div className="bg-white rounded-xl border border-stone-200 p-5">

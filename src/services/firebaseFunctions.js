@@ -18,63 +18,63 @@ function callable(name) {
 // ── Identity ──
 export async function callResolveIdentity() {
   const result = await callable('resolveIdentity')();
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Conversations ──
 export async function callCreateConversation(data) {
   const result = await callable('createConversation')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callRespondMessageRequest(data) {
   const result = await callable('respondMessageRequest')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Notifications ──
 export async function callCreateNotification(data) {
   const result = await callable('createNotification')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Trust ──
 export async function callCreateTrustSignal(data) {
   const result = await callable('createTrustSignal')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callDecideVerification(data) {
   const result = await callable('decideVerification')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Business ──
 export async function callAcceptInvitation(data) {
   const result = await callable('acceptInvitation')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Users ──
 export async function callFindUserByEmail(data) {
   const result = await callable('findUserByEmail')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callResolveParticipants(data) {
   const result = await callable('resolveParticipants')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callSetUserRole(data) {
   const result = await callable('setUserRole')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Media migration (admin only) ──
 export async function callMigrateMedia(data) {
   const result = await callable('migrateMedia')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Media access (protected media signed URL) ──
@@ -83,169 +83,169 @@ export async function callMigrateMedia(data) {
 // verification evidence — prevents long-lived download URL sharing.
 export async function callGetProtectedMediaUrl(data) {
   const result = await callable('getProtectedMediaUrl')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Phase 5: Stripe Connect ──
 export async function callCreateConnectAccount(data) {
   const result = await callable('createConnectAccount')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callGetConnectAccountStatus(data) {
   const result = await callable('getConnectAccountStatus')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callGetStripeConfig(data) {
   const result = await callable('getStripeConfig')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Phase 5: Booking Payment ──
 export async function callCreateBookingDraft(data) {
   const result = await callable('createBookingDraft')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callCreatePaymentIntent(data) {
   const result = await callable('createPaymentIntent')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callConfirmFreeBooking(data) {
   const result = await callable('confirmFreeBooking')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // Guest booking lookup (Spec 00 §1.5 / Booking §3.10–§3.11)
 export async function callGuestLookupBooking(data) {
   const result = await callable('guestLookupBooking')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Phase 5: Booking Lifecycle ──
 export async function callCancelBooking(data) {
   const result = await callable('cancelBooking')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callRescheduleBooking(data) {
   const result = await callable('rescheduleBooking')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callReportNoShow(data) {
   const result = await callable('reportNoShow')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callCompleteBooking(data) {
   const result = await callable('completeBooking')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Plans & Subscriptions (Spec 17) ──
 export async function callCreateSubscriptionCheckout(data) {
   const result = await callable('createSubscriptionCheckout')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callGetMySubscription(data) {
   const result = await callable('getMySubscription')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callCreateCustomerPortal(data) {
   const result = await callable('createCustomerPortal')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Community Interaction (Spec 20) ──
 export async function callToggleReaction(data) {
   const result = await callable('toggleReaction')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callCreateComment(data) {
   const result = await callable('createComment')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callDeleteComment(data) {
   const result = await callable('deleteComment')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callToggleSave(data) {
   const result = await callable('toggleSave')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callGetInteractionState(data) {
   const result = await callable('getInteractionState')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Workout System (Spec 12) ──
 export async function callSaveWorkout(data) {
   const result = await callable('saveWorkout')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callDeleteWorkout(data) {
   const result = await callable('deleteWorkout')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Share Engine (Spec 14.1) ──
 export async function callCreateShare(data) {
   const result = await callable('createShare')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callDeleteShare(data) {
   const result = await callable('deleteShare')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Post System ──
 export async function callSavePost(data) {
   const result = await callable('savePost')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callDeletePost(data) {
   const result = await callable('deletePost')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Professional Profile (public projection + screen_name uniqueness) ──
 export async function callSaveProfessionalProfile(data) {
   const result = await callable('saveProfessionalProfile')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callValidateScreenName(data) {
   const result = await callable('validateScreenName')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Personal Profile (public projection + screen_name uniqueness) ──
 export async function callSavePersonalProfile(data) {
   const result = await callable('savePersonalProfile')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callValidatePersonalScreenName(data) {
   const result = await callable('validatePersonalScreenName')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Business Profile (public projection) ──
 export async function callSaveBusinessProfile(data) {
   const result = await callable('saveBusinessProfile')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Relationship System — Connections ──
@@ -253,17 +253,17 @@ export async function callSaveBusinessProfile(data) {
 // separate from Messaging. All transitions are server-only.
 export async function callCreateConnectionRequest(data) {
   const result = await callable('createConnectionRequest')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callRespondConnectionRequest(data) {
   const result = await callable('respondConnectionRequest')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callDisconnectConnection(data) {
   const result = await callable('disconnectConnection')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // Server-side Professional Profile access resolver. Enforces the
@@ -271,7 +271,7 @@ export async function callDisconnectConnection(data) {
 // authoritative Connection relationship.
 export async function callResolveProfessionalAccess(data) {
   const result = await callable('resolveProfessionalAccess')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Calendar Event (canonical authoritative writer) ──
@@ -280,7 +280,7 @@ export async function callResolveProfessionalAccess(data) {
 // enforces price/free invariants + public discovery eligibility.
 export async function callSaveCalendarEvent(data) {
   const result = await callable('saveCalendarEvent')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Calendar Event destructive delete (§52) ──
@@ -288,7 +288,7 @@ export async function callSaveCalendarEvent(data) {
 // authority + the personal-manual restriction and preserves history (§108).
 export async function callDeleteCalendarEvent(data) {
   const result = await callable('deleteCalendarEvent')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Calendar View (authoritative read aggregator) ──
@@ -298,7 +298,7 @@ export async function callDeleteCalendarEvent(data) {
 // read path — the Admin SDK enforces the same authorization the rules express.
 export async function callGetCalendarView(data) {
   const result = await callable('getCalendarView')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Relationship status read ──
@@ -307,12 +307,12 @@ export async function callGetCalendarView(data) {
 // conversations or raw collection queries.
 export async function callResolveConnectionStatus(data) {
   const result = await callable('resolveConnectionStatus')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callResolveConnectionStatuses(data) {
   const result = await callable('resolveConnectionStatuses')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Reminder Rules (§59–§63) ──
@@ -320,31 +320,31 @@ export async function callResolveConnectionStatuses(data) {
 // These callables validate caller participation before creating/updating.
 export async function callSaveReminderRule(data) {
   const result = await callable('saveReminderRule')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callDeleteReminderRule(data) {
   const result = await callable('deleteReminderRule')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callListReminderRules(data) {
   const result = await callable('listReminderRules')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Occurrence Exception (§55–§57) ──
 // Cancel or reschedule a single occurrence of a recurring series.
 export async function callSaveOccurrenceException(data) {
   const result = await callable('saveOccurrenceException')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Recurrence Series Split (§57) ──
 // "This and future" — splits a recurring series at a given occurrence.
 export async function callSplitRecurrenceSeries(data) {
   const result = await callable('splitRecurrenceSeries')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Source Unavailable (§106–§111) ──
@@ -354,7 +354,7 @@ export async function callSplitRecurrenceSeries(data) {
 // privacy-safe state and redacts source detail. History is preserved.
 export async function callHandleSourceUnavailable(data) {
   const result = await callable('handleSourceUnavailable')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Calendar Participation (V2 Phase 3) ──
@@ -362,14 +362,14 @@ export async function callHandleSourceUnavailable(data) {
 // Updates the participation record only — does NOT modify the event.
 export async function callRespondCalendarInvitation(data) {
   const result = await callable('respondCalendarInvitation')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // Revoke a calendar invitation. Called by the organiser. Removes the
 // identity from invited_identity_ids and sets participation to 'revoked'.
 export async function callRevokeCalendarInvitation(data) {
   const result = await callable('revokeCalendarInvitation')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Personal Timeline State (participant, non-owner) ──
@@ -378,7 +378,7 @@ export async function callRevokeCalendarInvitation(data) {
 // NOT modify the canonical event. Called by a participant (invited/assigned).
 export async function callSetPersonalTimelineState(data) {
   const result = await callable('setPersonalTimelineState')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Business Relationship Exit (§109) ──
@@ -386,7 +386,7 @@ export async function callSetPersonalTimelineState(data) {
 // the identity from assigned/invited lists on all affected Business events.
 export async function callHandleBusinessRelationshipExit(data) {
   const result = await callable('handleBusinessRelationshipExit')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 // ── Promotions / Campaigns (Spec 19) ──
@@ -394,10 +394,10 @@ export async function callHandleBusinessRelationshipExit(data) {
 // Package entitlements (allowed campaign types, max active campaigns).
 export async function callSaveCampaign(data) {
   const result = await callable('saveCampaign')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }
 
 export async function callUpdateCampaignStatus(data) {
   const result = await callable('updateCampaignStatus')(data);
-  return result.data;
+  return /** @type {any} */ (result.data);
 }

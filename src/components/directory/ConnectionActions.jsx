@@ -16,6 +16,12 @@ import { UserPlus, Check, Clock, MessageSquare, Loader2 } from 'lucide-react';
 //
 // connecting: boolean — true while a connect request is in-flight
 // (locally overrides status to show a spinner).
+/**
+ * @param {{
+ *   status: any, onConnect: any, connecting?: boolean,
+ *   onAskAbout?: any, className?: string,
+ * }} props
+ */
 export default function ConnectionActions({
   status,
   onConnect,

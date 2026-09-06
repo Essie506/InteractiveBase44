@@ -30,7 +30,7 @@ function escapeIcs(text) {
 /**
  * Build a .ics string for a CalendarEvent.
  * @param {object} event — CalendarEvent record
- * @param {object} [opts] — { meetingUrl?: string, organiserName?: string }
+ * @param {{ meetingUrl?: string, organiserName?: string }} [opts]
  * @returns {string} .ics file contents
  */
 export function buildIcs(event, opts = {}) {

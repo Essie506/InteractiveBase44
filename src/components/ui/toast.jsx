@@ -9,10 +9,10 @@ const ToastProvider = ToastPrimitives.Provider;
 const ToastViewport = React.forwardRef(
   /**
    * @param {React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>} props
-   * @param {React.Ref<HTMLDivElement>} ref
+   * @param {React.Ref<HTMLOListElement>} ref
    */
-  ({ className, ...props }, ref) => (
-  <ToastPrimitives.Viewport
+   ({ className, ...props }, ref) => (
+    <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
       "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
@@ -42,12 +42,12 @@ const toastVariants = cva(
 const Toast = React.forwardRef(
   /**
    * @param {React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> & { variant?: 'default' | 'destructive' }} props
-   * @param {React.Ref<HTMLDivElement>} ref
+   * @param {React.Ref<HTMLLIElement>} ref
    */
-  ({ className, variant, ...props }, ref) => {
-  return (
-    <ToastPrimitives.Root
-      ref={ref}
+   ({ className, variant, ...props }, ref) => {
+   return (
+     <ToastPrimitives.Root
+     ref={ref}
       className={cn(toastVariants({ variant }), className)}
       {...props}
     />
@@ -60,9 +60,9 @@ const ToastAction = React.forwardRef(
    * @param {React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>} props
    * @param {React.Ref<HTMLButtonElement>} ref
    */
-  ({ className, ...props }, ref) => (
-  <ToastPrimitives.Action
-    ref={ref}
+    ({ className, ...props }, ref) => (
+     <ToastPrimitives.Action
+     ref={ref}
     className={cn(
       "inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-muted/40 group-[.destructive]:hover:border-destructive/30 group-[.destructive]:hover:bg-destructive group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus:ring-destructive",
       className

@@ -3,6 +3,10 @@
  * Used by ProfileHeader and ImagePositioner to apply presentation
  * metadata (focal point x/y + zoom) without modifying the source MediaAsset.
  */
+/**
+ * @param {{ x?: number, y?: number, zoom?: number }} [pos]
+ * @returns {React.CSSProperties}
+ */
 export function mediaStyle(pos) {
   const p = { x: 0.5, y: 0.5, zoom: 1, ...pos };
   return {

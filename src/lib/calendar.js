@@ -15,9 +15,14 @@ export function getLocalTimezone() {
   }
 }
 
+/**
+ * @param {string} isoString
+ * @param {string} timezone
+ * @param {Intl.DateTimeFormatOptions} [options]
+ */
 export function formatInTimezone(isoString, timezone, options = {}) {
   if (!isoString) return '';
-  const defaults = { hour: '2-digit', minute: '2-digit', timeZone: timezone };
+  const defaults = /** @type {Intl.DateTimeFormatOptions} */ ({ hour: '2-digit', minute: '2-digit', timeZone: timezone });
   return new Date(isoString).toLocaleString('en-GB', { ...defaults, ...options });
 }
 

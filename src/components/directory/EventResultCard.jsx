@@ -31,7 +31,7 @@ function formatEventTime(startIso, endIso) {
   try {
     const s = new Date(startIso);
     const e = endIso ? new Date(endIso) : null;
-    const fmt = { hour: 'numeric', minute: '2-digit' };
+    const fmt = /** @type {Intl.DateTimeFormatOptions} */ ({ hour: 'numeric', minute: '2-digit' });
     const sStr = s.toLocaleTimeString('en-GB', fmt);
     if (e) {
       const eStr = e.toLocaleTimeString('en-GB', fmt);

@@ -39,7 +39,7 @@ function isDraggable(occ, user) {
  *   participationMap: Record<string, object>,
  *   onParticipationResponse: (event: object, response: string) => void,
  *   user: object | null,
- *   onReschedule: (occ: object, newStart: Date) => void,
+ *   onReschedule: (occ: object, newStart: Date | string) => void,
  *   reschedulingId: string | null,
  * }} props
  */

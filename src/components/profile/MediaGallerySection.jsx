@@ -19,6 +19,12 @@ import { getMedia, getMediaUrl } from '@/lib/media';
  *  - ownerId, sourceDomain — for media upload attribution
  *  - onEdit, onSave(newMediaIds)
  */
+/**
+ * @param {{
+ *   mediaIds?: any[], editable?: boolean, ownerId: any, sourceDomain: any,
+ *   onEdit?: any, onSave: any,
+ * }} props
+ */
 export default function MediaGallerySection({
   mediaIds = [],
   editable = false,

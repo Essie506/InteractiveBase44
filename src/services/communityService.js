@@ -29,7 +29,7 @@ export async function listReactions(targetSystem, targetId) {
     where('target_id', '==', targetId),
   );
   const snap = await getDocs(q);
-  const counts = {};
+  const counts = /** @type {Record<string, number>} */ ({});
   snap.forEach((doc) => {
     const data = doc.data();
     if (data.state !== 'active') return;
@@ -59,7 +59,7 @@ export async function listComments(targetSystem, targetId) {
   );
   const snap = await getDocs(q);
   return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
+    .map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }))
     .filter((c) => c.visibility_state === 'visible' && c.moderation_state === 'approved')
     .sort((a, b) => (a._created_date || '').localeCompare(b._created_date || ''));
 }

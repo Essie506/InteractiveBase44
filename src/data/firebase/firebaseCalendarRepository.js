@@ -42,7 +42,7 @@ export async function listEventsForOwner(ownerId, ownerType, startDate, endDate)
     constraints.push(where('start_time', '>=', startDate.toISOString()));
     constraints.push(where('start_time', '<=', endDate.toISOString()));
   }
-  constraints.push(orderBy('start_time', 'asc'));
+  constraints.push(/** @type {any} */ (orderBy('start_time', 'asc')));
   const q = query(collection(db, 'calendarEvents'), ...constraints);
   const snap = await getDocs(q);
   return snap.docs.map(fromFirestoreDoc);

@@ -5,6 +5,12 @@ import { Loader2 } from 'lucide-react';
 // Reusable media upload trigger.
 // Wraps a visual trigger (children) with a hidden file input.
 // Creates a MediaAsset through the authoritative Media pipeline.
+/**
+ * @param {{
+ *   ownerId: any, sourceDomain: any, visibility?: string, accept?: string,
+ *   multiple?: boolean, onUploaded: any, onError?: any, children: any, className?: string,
+ * }} props
+ */
 export default function MediaUploadButton({
   ownerId,
   sourceDomain,

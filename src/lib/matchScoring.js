@@ -66,6 +66,10 @@ export function computeDimensionScore(profileItems, selectedIds) {
  *   selectedTotal— aggregate selected count across active dimensions (for UI)
  *   activeCount  — number of dimensions with active selections
  */
+/**
+ * @param {any} profile
+ * @param {{ serviceIds?: string[], facilityIds?: string[], equipmentIds?: string[], specialismIds?: string[], sessionTypeIds?: string[] }} [selections]
+ */
 export function computeMatchScore(profile, { serviceIds, facilityIds, equipmentIds, specialismIds, sessionTypeIds } = {}) {
   const dimensions = {};
   const activeRatios = [];

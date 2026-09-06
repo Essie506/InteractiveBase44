@@ -28,7 +28,7 @@ import { updateEvent, saveOccurrenceException, getLocalTimezone } from '@/lib/ca
 
 /**
  * Classify a save error as a §39 conflict rejection (mirrors EventModal).
- * @param {Error} err
+ * @param {Error & { code?: string }} err
  * @returns {boolean}
  */
 export function isConflictError(err) {

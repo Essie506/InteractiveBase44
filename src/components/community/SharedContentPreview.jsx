@@ -34,7 +34,7 @@ export default function SharedContentPreview({ targetSystem, targetType, targetI
         } else if (targetSystem === 'event' || targetType === 'event') {
           const snap = await getDoc(doc(db, 'calendarEventsPublic', targetId));
           if (!cancelled) {
-            const eventData = snap.data();
+            const eventData = /** @type {any} */ (snap.data());
             /** @type {import('@/types/domain').CalendarEvent | null} */
             const event = snap.exists() && eventData ? { id: snap.id, ...eventData } : null;
             setContent(event ? { title: event.title, subtitle: event.location, system: 'event', image: event.cover_url } : null);

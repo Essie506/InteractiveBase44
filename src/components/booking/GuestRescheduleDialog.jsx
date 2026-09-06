@@ -29,7 +29,7 @@ function generateTimeSlots() {
 /**
  * @param {{
  *   booking: object,
- *   onConfirm: (date: string, time: string) => void,
+ *   onConfirm: (startIso: string, endIso: string, note?: string) => void,
  *   onClose: () => void,
  *   loading: boolean,
  * }} props

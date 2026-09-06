@@ -72,11 +72,11 @@ export default function LinkedContentPicker({ system, value, onChange }) {
       const q = query(collection(db, colName), limit(20));
       const snap = await getDocs(q);
       const qLower = search.toLowerCase().trim();
-      const matched = snap.docs
+      const matched = /** @type {any[]} */ (snap.docs
         .map((d) => {
           const data = /** @type {Record<string, any>} */ (d.data() || {});
           return { id: d.id, ...data };
-        })
+        }))
         .filter((d) => {
           const label = (d.title || d.name || d.display_name || '').toLowerCase();
           return label.includes(qLower);

@@ -25,7 +25,7 @@ export async function listPublishedWorkouts(maxResults = 50) {
     limit(maxResults),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs.map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }));
 }
 
 /**
@@ -39,7 +39,7 @@ export async function listMyWorkouts(identityId) {
     orderBy('_updated_date', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs.map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }));
 }
 
 /**
@@ -58,7 +58,7 @@ export async function listPublishedWorkoutsByOwner(ownerId, maxResults = 20) {
     limit(maxResults),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snap.docs.map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }));
 }
 
 /**
@@ -68,7 +68,7 @@ export async function listPublishedWorkoutsByOwner(ownerId, maxResults = 20) {
 export async function getWorkout(workoutId) {
   const snap = await getDoc(doc(db, 'workouts', workoutId));
   if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() };
+  return { id: snap.id, .../** @type {any} */ (snap.data()) };
 }
 
 /**

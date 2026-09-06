@@ -8,7 +8,7 @@ import { setCurrentIdentityId, getCurrentIdentityId } from '@/lib/currentIdentit
 import { firebaseAuthService as fbAuth } from '@/services/firebaseAuthService';
 import { resolveIdentity, storeIdentityId, getStoredIdentityId, clearStoredIdentityId } from '@/services/identityService';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

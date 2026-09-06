@@ -81,9 +81,9 @@ export async function getUserBusinesses(identityId) {
     const memberships = await businessRepository.getMembershipsForIdentity(identityId);
     const activeMemberships = memberships.filter(m => m.lifecycle_state === 'active');
     if (activeMemberships.length === 0) return [];
-    const results = await Promise.allSettled(
+    const results = /** @type {{ status: string, value?: any }[]} */ (await Promise.allSettled(
       activeMemberships.map(m => businessRepository.getBusiness(m.business_id))
-    );
+    ));
     return results
       .filter(r => r.status === 'fulfilled' && r.value)
       .map(r => ({
@@ -96,9 +96,9 @@ export async function getUserBusinesses(identityId) {
     lifecycle_state: 'active',
   });
   if (memberships.length === 0) return [];
-  const results = await Promise.allSettled(
+  const results = /** @type {{ status: string, value?: any }[]} */ (await Promise.allSettled(
     memberships.map(m => base44.entities.Business.get(m.business_id))
-  );
+  ));
   return results
     .filter(r => r.status === 'fulfilled' && r.value)
     .map(r => ({
