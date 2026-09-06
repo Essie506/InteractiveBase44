@@ -98,6 +98,8 @@ const AuthenticatedApp = () => {
       <Route path="/u/:screenName" element={<PublicPersonalProfile />} />
       <Route path="/b/:businessId" element={<PublicBusinessProfile />} />
       <Route path="/e/:eventId" element={<PublicEventPage />} />
+      {/* Public booking entry point — guest checkout (Spec 00 §1.5) */}
+      <Route path="/book/:screenName" element={<BookingPage />} />
       {/* Persistent authenticated shell — one sidebar survives navigation
           between /directory and AppLayout routes. Signed-out visitors get
           a plain Outlet (Directory renders its own public drawer). */}
@@ -150,7 +152,6 @@ const AuthenticatedApp = () => {
             <Route path="/specifications" element={<Specifications />} />
             <Route path="/specifications/:id" element={<SpecificationDetail />} />
             <Route path="/upload" element={<UploadPage />} />
-            <Route path="/book/:screenName" element={<BookingPage />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/workouts/new" element={<WorkoutEditor />} />
             <Route path="/workouts/:id/edit" element={<WorkoutEditor />} />

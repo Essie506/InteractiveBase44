@@ -1,6 +1,6 @@
 // Workouts — browse published workouts + manage your own (Spec 12).
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Plus, Loader2, LogIn } from 'lucide-react';
 import { listPublishedWorkouts, listMyWorkouts } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
@@ -10,6 +10,8 @@ const TYPE_FILTERS = ['all', 'individual', 'programme', 'strength', 'cardio', 'y
 
 export default function Workouts() {
   const { user } = useAuth();
+  const location = useLocation();
+  const returnTo = encodeURIComponent(location.pathname + location.search);
   const [workouts, setWorkouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('discover');
@@ -46,7 +48,7 @@ export default function Workouts() {
             <Plus className="w-4 h-4" /> New Workout
           </Link>
         ) : (
-          <Link to="/login" className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+          <Link to={`/login?returnTo=${returnTo}`} className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
             <LogIn className="w-4 h-4" /> Sign in to create
           </Link>
         )}

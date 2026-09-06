@@ -1,15 +1,18 @@
+// BookingPage — session booking with guest checkout support
+// (Spec 00 §1.5 / Booking §3.9–§3.12)
+//
+// Authenticated users book via their Interactive identity.
+// Unauthenticated visitors can complete a guest checkout by providing
+// their email (and optionally name/phone) — no Interactive account is
+// created. The guest_email is matched server-side against the booking
+// record for authorisation (Booking §3.10–§3.11).
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { getPublicProfessionalProfile } from '@/services/profileService';
 import { getAvailabilityForDate, getLocalTimezone } from '@/lib/calendar';
 import { createBookingDraft, confirmFreeBooking } from '@/services/bookingService';
-import { ArrowLeft, Calendar, Clock, Loader2, Check, AlertCircle } from 'lucide-react';
-
-const DAYS = [
-  { num: 1, label: 'Monday' }, { num: 2, label: 'Tuesday' }, { num: 3, label: 'Wednesday' },
-  { num: 4, label: 'Thursday' }, { num: 5, label: 'Friday' }, { num: 6, label: 'Saturday' }, { num: 0, label: 'Sunday' },
-];
+import { ArrowLeft, Calendar, Clock, Loader2, Check, AlertCircle, User } from 'lucide-react';
 
 function nextDays(count) {
   const out = [];
@@ -36,6 +39,12 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
+  // Guest checkout fields (Spec 00 §1.5 / Booking §3.9)
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestName, setGuestName] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
+
+  const isGuest = !user;
 
   useEffect(() => {
     getPublicProfessionalProfile(screenName)
@@ -55,7 +64,11 @@ export default function BookingPage() {
   }, [profile, selectedDate]);
 
   const handleConfirm = async () => {
-    if (!selectedSlot || !user) return;
+    if (!selectedSlot) return;
+    if (isGuest && !guestEmail.trim()) {
+      setError('Please enter your email to complete the booking.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -66,9 +79,9 @@ export default function BookingPage() {
       const [eh, em] = selectedSlot.end_time.split(':').map(Number);
       end.setHours(eh, em, 0, 0);
 
-      const draft = await createBookingDraft({
+      const draftData = {
         provider_identity_id: profile.identity_id,
-        service_id: profile.services?.[0] || 'general',
+        service_id: profile.services?.[0]?.id || profile.services?.[0] || 'general',
         booking_type: 'session',
         start_time: start.toISOString(),
         end_time: end.toISOString(),
@@ -77,9 +90,21 @@ export default function BookingPage() {
         currency: 'gbp',
         payment_route: 'arrange_directly',
         cancellation_policy: { deadline_hours: 24, refund_percentage: 100 },
-      });
+      };
 
-      await confirmFreeBooking(draft.booking_id);
+      // Guest checkout: pass guest contact info (Booking §3.9)
+      if (isGuest) {
+        draftData.guest = {
+          email: guestEmail.trim(),
+          display_name: guestName.trim() || undefined,
+          phone: guestPhone.trim() || undefined,
+        };
+      }
+
+      const draft = await createBookingDraft(draftData);
+
+      // Confirm — for guests, pass the email for server-side authorisation
+      await confirmFreeBooking(draft.booking_id, isGuest ? guestEmail.trim() : undefined);
       setConfirmed(true);
     } catch (err) {
       setError(err.message || 'Could not create booking');
@@ -101,7 +126,7 @@ export default function BookingPage() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-stone-50 p-6">
         <AlertCircle className="w-10 h-10 text-stone-400 mb-3" />
         <h1 className="text-xl font-semibold text-stone-800 mb-1">Profile not found</h1>
-        <Link to="/search" className="text-indigo-600 font-medium">Browse professionals</Link>
+        <Link to="/directory" className="text-indigo-600 font-medium">Browse professionals</Link>
       </div>
     );
   }
@@ -124,10 +149,21 @@ export default function BookingPage() {
               <Check className="w-6 h-6 text-emerald-600" />
             </div>
             <h2 className="text-xl font-semibold text-stone-800 mb-1">Booking requested</h2>
-            <p className="text-stone-500 mb-4">Your request has been sent. Arrange the details directly with {profile.display_name} via messages.</p>
-            <Link to="/messages" className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
-              Go to Messages
-            </Link>
+            <p className="text-stone-500 mb-4">
+              Your request has been sent. {isGuest
+                ? `A confirmation will be sent to ${guestEmail}. `
+                : ''}
+              Arrange the details directly with {profile.display_name}.
+            </p>
+            {isGuest ? (
+              <Link to="/directory" className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                Back to Directory
+              </Link>
+            ) : (
+              <Link to="/messages" className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
+                Go to Messages
+              </Link>
+            )}
           </div>
         ) : (
           <>
@@ -176,11 +212,51 @@ export default function BookingPage() {
               )}
             </div>
 
+            {/* Guest checkout form (Spec 00 §1.5 / Booking §3.9) */}
+            {isGuest && (
+              <div className="bg-white rounded-xl border border-stone-200 p-5 mb-4">
+                <h2 className="font-semibold text-stone-800 mb-3 flex items-center gap-2"><User className="w-4 h-4 text-indigo-600" /> Your details</h2>
+                <p className="text-sm text-stone-500 mb-3">No account needed — just provide your contact info so {profile.display_name} can reach you.</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Email <span className="text-red-500">*</span></label>
+                    <input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="Your name"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Phone</label>
+                    <input
+                      type="tel"
+                      value={guestPhone}
+                      onChange={(e) => setGuestPhone(e.target.value)}
+                      placeholder="Optional"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
 
             <button
               onClick={handleConfirm}
-              disabled={!selectedSlot || submitting}
+              disabled={!selectedSlot || submitting || (isGuest && !guestEmail.trim())}
               className="w-full py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}

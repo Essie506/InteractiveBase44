@@ -470,19 +470,20 @@ export const createBookingDraft = onCall(
 export const createPaymentIntent = onCall(
   { region: 'europe-west2', cors: allowedOrigins, secrets: ['STRIPE_SECRET_KEY'] },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Authentication required');
-    }
-
-    // Resolve caller identity (signed-in) — guests use a separate path
+    // Resolve caller identity (signed-in) — guests use a separate path.
+    // Unauthenticated guests are allowed for guest checkout (Spec 00 §1.5 /
+    // Booking §3.10–§3.11): they provide guest_email in the request data,
+    // which is matched against booking.guest_email for authorisation.
     let callerIdentityId: string | null = null;
-    try {
-      callerIdentityId = await getIdentityId(request.auth.uid);
-    } catch {
-      // Guest — will be validated against booking guest_email
+    if (request.auth) {
+      try {
+        callerIdentityId = await getIdentityId(request.auth.uid);
+      } catch {
+        // No identity mapping — treat as guest
+      }
     }
 
-    const { booking_id } = request.data || {};
+    const { booking_id, guest_email } = request.data || {};
     if (!booking_id) {
       throw new HttpsError('invalid-argument', 'booking_id is required');
     }
@@ -500,9 +501,12 @@ export const createPaymentIntent = onCall(
         throw new HttpsError('permission-denied', 'Not your booking');
       }
     } else {
-      // Guest — verify via auth token email matching booking guest_email
-      const authEmail = request.auth.token?.email;
-      if (!authEmail || !booking.guest_email || authEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
+      // Guest — verify via auth token email OR request-data guest_email
+      // matching booking.guest_email (Spec 00 §1.5 / Booking §3.10).
+      const authEmail = request.auth?.token?.email;
+      const requestEmail = guest_email;
+      const matchEmail = authEmail || requestEmail;
+      if (!matchEmail || !booking.guest_email || matchEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
         throw new HttpsError('permission-denied', 'Guest email does not match booking');
       }
     }
@@ -623,18 +627,19 @@ export const createPaymentIntent = onCall(
 export const confirmFreeBooking = onCall(
   { region: 'europe-west2', cors: allowedOrigins },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Authentication required');
-    }
-
+    // Guests can confirm free bookings without authentication (Spec 00 §1.5 /
+    // Booking §3.10–§3.11). They provide guest_email in the request data,
+    // which is matched against booking.guest_email for authorisation.
     let callerIdentityId: string | null = null;
-    try {
-      callerIdentityId = await getIdentityId(request.auth.uid);
-    } catch {
-      // Guest
+    if (request.auth) {
+      try {
+        callerIdentityId = await getIdentityId(request.auth.uid);
+      } catch {
+        // No identity mapping — treat as guest
+      }
     }
 
-    const { booking_id } = request.data || {};
+    const { booking_id, guest_email } = request.data || {};
     if (!booking_id) {
       throw new HttpsError('invalid-argument', 'booking_id is required');
     }
@@ -651,8 +656,12 @@ export const confirmFreeBooking = onCall(
         throw new HttpsError('permission-denied', 'Not your booking');
       }
     } else {
-      const authEmail = request.auth.token?.email;
-      if (!authEmail || !booking.guest_email || authEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
+      // Guest — verify via auth token email OR request-data guest_email
+      // matching booking.guest_email (Spec 00 §1.5 / Booking §3.10).
+      const authEmail = request.auth?.token?.email;
+      const requestEmail = guest_email;
+      const matchEmail = authEmail || requestEmail;
+      if (!matchEmail || !booking.guest_email || matchEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
         throw new HttpsError('permission-denied', 'Guest email does not match booking');
       }
     }

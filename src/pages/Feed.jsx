@@ -3,10 +3,12 @@ import { useAuth } from '@/lib/AuthContext';
 import { fetchPublicPosts } from '@/services/postService';
 import PostCard from '@/components/post/PostCard';
 import { Plus, Loader2, PenSquare, LogIn } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function Feed() {
   const { user } = useAuth();
+  const location = useLocation();
+  const returnTo = encodeURIComponent(location.pathname + location.search);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -48,7 +50,7 @@ export default function Feed() {
           </Link>
         ) : (
           <Link
-            to="/login"
+            to={`/login?returnTo=${returnTo}`}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap"
           >
             <LogIn className="w-4 h-4" /> Sign in to post
@@ -85,7 +87,7 @@ export default function Feed() {
             </Link>
           ) : (
             <Link
-              to="/login"
+              to={`/login?returnTo=${returnTo}`}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
             >
               <LogIn className="w-4 h-4" /> Sign in to post

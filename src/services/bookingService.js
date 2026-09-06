@@ -39,9 +39,12 @@ export async function createPaymentIntent(bookingId) {
 
 // ── Free / No-Payment Booking Confirmation ──────────────────
 // Confirms a booking with no payment requirement (free, pay_later,
-// arrange_directly, external_payment).
-export async function confirmFreeBooking(bookingId) {
-  return callConfirmFreeBooking({ booking_id: bookingId });
+// arrange_directly, external_payment). For guest checkout, pass
+// guestEmail so the server can match it against booking.guest_email.
+export async function confirmFreeBooking(bookingId, guestEmail) {
+  const payload = { booking_id: bookingId };
+  if (guestEmail) payload.guest_email = guestEmail;
+  return callConfirmFreeBooking(payload);
 }
 
 // ── Cancellation ─────────────────────────────────────────────
