@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { callSavePost } from '@/services/postService';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Send, Globe, Users, Lock } from 'lucide-react';
+import MediaUploadButton from '@/components/MediaUploadButton';
+import { Loader2, Send, Globe, Users, Lock, ImagePlus } from 'lucide-react';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public', desc: 'Anyone can see this post', icon: Globe },
@@ -67,7 +68,25 @@ export default function PostEditor() {
           autoFocus
         />
 
-        {/* Media URLs (simple input for now) */}
+        {/* Media upload */}
+        <div className="mt-3">
+          <MediaUploadButton
+            ownerId={user.id}
+            sourceDomain={user.active_context || 'personal'}
+            visibility={visibility}
+            multiple
+            onUploaded={(assets) => {
+              const arr = Array.isArray(assets) ? assets : [assets];
+              setMediaUrls(prev => [...prev, ...arr.map(a => a.file_url)].slice(0, 4));
+            }}
+            onError={() => toast({ title: 'Upload failed', variant: 'destructive' })}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50"
+          >
+            <ImagePlus className="w-4 h-4" /> Add photos
+          </MediaUploadButton>
+        </div>
+
+        {/* Media previews */}
         {mediaUrls.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-2">
             {mediaUrls.map((url, i) => (

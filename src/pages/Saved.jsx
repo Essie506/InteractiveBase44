@@ -1,18 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { db } from '@/firebase/firebaseClient';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { Bookmark, Loader2, Dumbbell, Calendar, FileText } from 'lucide-react';
-
-const TARGET_LABELS = {
-  post: { label: 'Post', icon: FileText, path: '/feed' },
-  workout: { label: 'Workout', icon: Dumbbell, path: '/workouts' },
-  event: { label: 'Event', icon: Calendar, path: '/calendar' },
-};
+import { toggleSave } from '@/services/communityService';
+import { Bookmark, Loader2 } from 'lucide-react';
+import SavedItemCard from '@/components/community/SavedItemCard';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function Saved() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [saves, setSaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -39,6 +36,16 @@ export default function Saved() {
   }, [user?.id]);
 
   useEffect(() => { loadSaves(); }, [loadSaves]);
+
+  const handleRemove = async (save) => {
+    try {
+      await toggleSave(save.target_system, save.target_type, save.target_id);
+      setSaves(prev => prev.filter(s => s.id !== save.id));
+      toast({ title: 'Removed from saved' });
+    } catch (err) {
+      toast({ title: 'Could not remove', variant: 'destructive' });
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
@@ -71,27 +78,9 @@ export default function Saved() {
 
       {!loading && !error && saves.length > 0 && (
         <div className="space-y-3">
-          {saves.map(save => {
-            const meta = TARGET_LABELS[save.target_system] || TARGET_LABELS[save.target_type] || { label: save.target_system, icon: FileText, path: '/feed' };
-            const Icon = meta.icon;
-            return (
-              <Link
-                key={save.id}
-                to={`${meta.path}`}
-                className="flex items-center gap-3 bg-white rounded-xl border border-stone-200 p-4 hover:border-stone-300 transition-colors"
-              >
-                <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5 text-indigo-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-stone-800">{meta.label}</div>
-                  <div className="text-xs text-stone-500 truncate">
-                    Saved from {save.target_system} · {save.target_id.slice(0, 8)}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+          {saves.map(save => (
+            <SavedItemCard key={save.id} save={save} onRemove={handleRemove} />
+          ))}
         </div>
       )}
     </div>

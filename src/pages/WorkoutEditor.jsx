@@ -1,10 +1,11 @@
 // WorkoutEditor — create or edit a workout (Spec 12 §9/§15).
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Loader2, Save, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, ArrowLeft, ImagePlus, Film } from 'lucide-react';
 import { getWorkout, saveWorkout, deleteWorkout } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
+import MediaUploadButton from '@/components/MediaUploadButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -117,13 +118,52 @@ export default function WorkoutEditor() {
         </div>
 
         <div>
-          <Label>Cover Image URL</Label>
-          <Input value={form.cover_url} onChange={(e) => update('cover_url', e.target.value)} placeholder="https://..." />
+          <Label>Cover Image</Label>
+          {form.cover_url ? (
+            <div className="relative w-full h-40 rounded-lg overflow-hidden border border-stone-200">
+              <img src={form.cover_url} alt="Cover" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => update('cover_url', '')}
+                className="absolute top-2 right-2 w-7 h-7 bg-black/60 text-white rounded-full text-sm flex items-center justify-center hover:bg-black/80"
+              >×</button>
+            </div>
+          ) : (
+            <MediaUploadButton
+              ownerId={user.id}
+              sourceDomain={user.active_context || 'professional'}
+              accept="image/*"
+              onUploaded={(asset) => update('cover_url', asset.file_url)}
+              onError={() => toast({ title: 'Upload failed', variant: 'destructive' })}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50"
+            >
+              <ImagePlus className="w-4 h-4" /> Upload cover image
+            </MediaUploadButton>
+          )}
         </div>
 
         <div>
-          <Label>Media URL (video/audio)</Label>
-          <Input value={form.media_url} onChange={(e) => update('media_url', e.target.value)} placeholder="https://..." />
+          <Label>Media (video/audio)</Label>
+          {form.media_url ? (
+            <div className="flex items-center gap-2">
+              <Input value={form.media_url} onChange={(e) => update('media_url', e.target.value)} placeholder="https://..." />
+              <Button type="button" variant="ghost" size="sm" onClick={() => update('media_url', '')}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <MediaUploadButton
+                ownerId={user.id}
+                sourceDomain={user.active_context || 'professional'}
+                accept="video/*,audio/*"
+                onUploaded={(asset) => update('media_url', asset.file_url)}
+                onError={() => toast({ title: 'Upload failed', variant: 'destructive' })}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50"
+              >
+                <Film className="w-4 h-4" /> Upload media
+              </MediaUploadButton>
+              <Input value={form.media_url} onChange={(e) => update('media_url', e.target.value)} placeholder="or paste URL" className="flex-1" />
+            </div>
+          )}
         </div>
 
         <div>
