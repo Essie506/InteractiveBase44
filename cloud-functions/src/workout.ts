@@ -27,7 +27,7 @@ export const saveWorkout = onCall(
     const {
       workout_id, title, description, workout_type, difficulty,
       duration_minutes, exercises, media_url, cover_url,
-      lifecycle_state, visibility, business_id,
+      lifecycle_state, visibility, business_id, is_free, price_pence,
     } = request.data || {};
 
     if (!title || !title.trim()) throw new HttpsError('invalid-argument', 'Title required');
@@ -65,6 +65,8 @@ export const saveWorkout = onCall(
       cover_url: cover_url || null,
       lifecycle_state: VALID_LIFECYCLE.includes(lifecycle_state) ? lifecycle_state : 'draft',
       visibility: visibility || 'public',
+      is_free: is_free !== false,
+      price_pence: is_free !== false ? 0 : Math.max(0, Math.round(Number(price_pence) || 0)),
       _updated_date: now,
     };
 

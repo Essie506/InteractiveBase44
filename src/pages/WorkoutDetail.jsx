@@ -77,6 +77,11 @@ export default function WorkoutDetail() {
       <div className="flex items-center gap-4 text-sm text-stone-500 mb-6">
         <span className="inline-flex items-center gap-1"><Clock className="w-4 h-4" /> {workout.duration_minutes} min</span>
         {workout.exercises?.length > 0 && <span className="inline-flex items-center gap-1"><Dumbbell className="w-4 h-4" /> {workout.exercises.length} exercises</span>}
+        {workout.is_free === false && workout.price_pence > 0 ? (
+          <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 font-medium text-xs">£{(workout.price_pence / 100).toFixed(2)}</span>
+        ) : (
+          <span className="px-2.5 py-1 rounded-full bg-stone-100 text-stone-500 font-medium text-xs">Free</span>
+        )}
       </div>
 
       {/* Cross-system: creator profile link */}

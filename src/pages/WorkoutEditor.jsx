@@ -1,7 +1,7 @@
 // WorkoutEditor — create or edit a workout (Spec 12 §9/§15).
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Loader2, Save, ArrowLeft, ImagePlus, Film } from 'lucide-react';
+import { Plus, Trash2, Loader2, Save, ArrowLeft, ImagePlus, Film, Globe, Users, Lock } from 'lucide-react';
 import { getWorkout, saveWorkout, deleteWorkout } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -13,6 +13,11 @@ import { Label } from '@/components/ui/label';
 
 const WORKOUT_TYPES = ['individual', 'programme', 'training_plan', 'challenge', 'rehab', 'mobility', 'stretching', 'yoga', 'pilates', 'cardio', 'strength', 'sports_specific', 'educational', 'assessment', 'recovery'];
 const DIFFICULTIES = ['beginner', 'intermediate', 'advanced', 'all_levels'];
+const VISIBILITY_OPTIONS = [
+  { value: 'public', label: 'Public', icon: Globe },
+  { value: 'connections', label: 'Connections', icon: Users },
+  { value: 'private', label: 'Private', icon: Lock },
+];
 
 const label = (s) => s.charAt(0).toUpperCase() + s.slice(1).replace('_', ' ');
 
@@ -26,7 +31,7 @@ export default function WorkoutEditor() {
   const [form, setForm] = useState({
     title: '', description: '', workout_type: 'individual', difficulty: 'all_levels',
     duration_minutes: 30, exercises: [], media_url: '', cover_url: '',
-    lifecycle_state: 'draft',
+    lifecycle_state: 'draft', visibility: 'public', is_free: true, price_pence: 0,
   });
 
   useEffect(() => {
@@ -40,6 +45,9 @@ export default function WorkoutEditor() {
           difficulty: w.difficulty || 'all_levels', duration_minutes: w.duration_minutes || 30,
           exercises: w.exercises || [], media_url: w.media_url || '', cover_url: w.cover_url || '',
           lifecycle_state: w.lifecycle_state || 'draft',
+          visibility: w.visibility || 'public',
+          is_free: w.is_free !== false,
+          price_pence: w.price_pence || 0,
         });
       } finally { setLoading(false); }
     };
@@ -115,6 +123,59 @@ export default function WorkoutEditor() {
         <div>
           <Label>Description</Label>
           <Textarea value={form.description} onChange={(e) => update('description', e.target.value)} placeholder="Describe the workout..." rows={3} />
+        </div>
+
+        <div>
+          <Label>Visibility</Label>
+          <div className="grid grid-cols-3 gap-2">
+            {VISIBILITY_OPTIONS.map(opt => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => update('visibility', opt.value)}
+                  className={`flex items-center justify-center gap-1.5 p-2.5 border rounded-lg text-sm transition-colors ${
+                    form.visibility === opt.value
+                      ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                      : 'border-stone-200 text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="font-medium">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <Label>Pricing</Label>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-stone-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_free}
+                onChange={(e) => update('is_free', e.target.checked)}
+                className="w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-400"
+              />
+              Free workout
+            </label>
+            {!form.is_free && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-stone-500">£</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.is_free ? 0 : (form.price_pence / 100)}
+                  onChange={(e) => update('price_pence', Math.round((parseFloat(e.target.value) || 0) * 100))}
+                  className="w-28"
+                  placeholder="0.00"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         <div>

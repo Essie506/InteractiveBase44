@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { callSavePost } from '@/services/postService';
 import { useToast } from '@/components/ui/use-toast';
 import MediaUploadButton from '@/components/MediaUploadButton';
-import { Loader2, Send, Globe, Users, Lock, ImagePlus } from 'lucide-react';
+import { Loader2, Send, Globe, Users, Lock, ImagePlus, Link2, X } from 'lucide-react';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public', desc: 'Anyone can see this post', icon: Globe },
@@ -18,8 +18,25 @@ export default function PostEditor() {
   const { toast } = useToast();
   const [body, setBody] = useState('');
   const [mediaUrls, setMediaUrls] = useState([]);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkUrlInput, setLinkUrlInput] = useState('');
+  const [showLinkInput, setShowLinkInput] = useState(false);
   const [visibility, setVisibility] = useState('public');
   const [saving, setSaving] = useState(false);
+
+  const normalizeUrl = (url) => {
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  };
+
+  const attachLink = () => {
+    const normalized = normalizeUrl(linkUrlInput);
+    if (!normalized) return;
+    setLinkUrl(normalized);
+    setLinkUrlInput('');
+    setShowLinkInput(false);
+  };
 
   const handleSave = async () => {
     if (!body.trim()) {
@@ -33,6 +50,7 @@ export default function PostEditor() {
         author_type: 'identity',
         body: body.trim(),
         media_urls: mediaUrls,
+        link_url: linkUrl || null,
         visibility,
         operating_context: user.active_context || 'personal',
         lifecycle_state: 'published',
@@ -102,6 +120,42 @@ export default function PostEditor() {
             ))}
           </div>
         )}
+
+        {/* Link attachment */}
+        <div className="mt-4">
+          {linkUrl ? (
+            <div className="flex items-center gap-2 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg">
+              <Link2 className="w-4 h-4 text-stone-400 shrink-0" />
+              <span className="text-sm text-stone-600 truncate flex-1">{linkUrl}</span>
+              <button onClick={() => setLinkUrl('')} className="text-stone-400 hover:text-stone-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : showLinkInput ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={linkUrlInput}
+                onChange={e => setLinkUrlInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); attachLink(); } }}
+                placeholder="https://example.com"
+                className="flex-1 px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                autoFocus
+              />
+              <button onClick={attachLink} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Attach</button>
+              <button onClick={() => { setShowLinkInput(false); setLinkUrlInput(''); }} className="px-2 py-2 text-stone-400 hover:text-stone-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowLinkInput(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50"
+            >
+              <Link2 className="w-4 h-4" /> Add link
+            </button>
+          )}
+        </div>
 
         {/* Visibility */}
         <div className="mt-4">

@@ -35,9 +35,16 @@ export default function WorkoutCard({ workout }) {
         </div>
         <h3 className="font-semibold text-stone-800 mb-1 line-clamp-1">{workout.title}</h3>
         <p className="text-sm text-stone-500 line-clamp-2 mb-3">{workout.description || 'No description'}</p>
-        <div className="flex items-center gap-3 text-xs text-stone-400">
-          <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {workout.duration_minutes}m</span>
-          {workout.exercises?.length > 0 && <span className="inline-flex items-center gap-1"><Dumbbell className="w-3 h-3" /> {workout.exercises.length}</span>}
+        <div className="flex items-center justify-between gap-3 text-xs text-stone-400">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {workout.duration_minutes}m</span>
+            {workout.exercises?.length > 0 && <span className="inline-flex items-center gap-1"><Dumbbell className="w-3 h-3" /> {workout.exercises.length}</span>}
+          </div>
+          {workout.is_free === false && workout.price_pence > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium">
+              £{(workout.price_pence / 100).toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
     </Link>

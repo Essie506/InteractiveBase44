@@ -6,7 +6,7 @@ import { callDeletePost } from '@/services/postService';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
-import { MoreHorizontal, Trash2, Clock, MessageCircle } from 'lucide-react';
+import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2 } from 'lucide-react';
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -121,8 +121,8 @@ export default function PostCard({ post, onDeleted }) {
         </div>
       )}
 
-      {/* Link preview */}
-      {post.link_preview?.title && (
+      {/* Link preview / link attachment */}
+      {post.link_url && post.link_preview?.title ? (
         <a href={post.link_url} target="_blank" rel="noopener noreferrer" className="mx-4 mb-3 block border border-stone-200 rounded-lg overflow-hidden hover:border-stone-300 transition-colors">
           {post.link_preview.image_url && (
             <img src={post.link_preview.image_url} alt="" className="w-full max-h-48 object-cover" />
@@ -134,7 +134,12 @@ export default function PostCard({ post, onDeleted }) {
             )}
           </div>
         </a>
-      )}
+      ) : post.link_url ? (
+        <a href={post.link_url} target="_blank" rel="noopener noreferrer" className="mx-4 mb-3 flex items-center gap-2 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-indigo-600 hover:bg-stone-100 transition-colors">
+          <Link2 className="w-4 h-4 shrink-0" />
+          <span className="truncate">{post.link_url}</span>
+        </a>
+      ) : null}
 
       {/* Interaction bar */}
       <div className="px-4 py-3 border-t border-stone-100">
