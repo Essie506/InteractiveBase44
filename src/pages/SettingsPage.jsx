@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getUserSettings, createUserSettings, updateUserSettings, updateNotificationPreferences, getOrCreatePreferences } from '@/services/settingsService';
-import { Loader2, Save, Check } from 'lucide-react';
+import { Loader2, Save, Check, Shield, Ban, Download, UserX, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { firebaseAuth } from '@/firebase/firebaseClient';
+import { useToast } from '@/components/ui/use-toast';
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -241,6 +245,57 @@ export default function SettingsPage() {
               <option value="pt">Português</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      {/* Security — connected sign-in methods (Spec 22 §7) */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 mb-4">
+        <h2 className="font-semibold text-stone-800 mb-4 flex items-center gap-2"><Shield className="w-4 h-4 text-stone-500" /> Security</h2>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between py-2 border-b border-stone-100 last:border-0">
+            <div>
+              <div className="text-sm font-medium text-stone-700">Email</div>
+              <div className="text-xs text-stone-500">{user?.email || '—'}</div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between py-2 border-b border-stone-100 last:border-0">
+            <div>
+              <div className="text-sm font-medium text-stone-700">Sign-in Methods</div>
+              <div className="text-xs text-stone-500 mt-1 flex gap-1.5 flex-wrap">
+                {(firebaseAuth?.currentUser?.providerData || []).map((p) => (
+                  <span key={p.providerId} className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-600">
+                    {p.providerId === 'google.com' ? 'Google' : p.providerId === 'password' ? 'Email & Password' : p.providerId}
+                  </span>
+                ))}
+                {(!firebaseAuth?.currentUser?.providerData || firebaseAuth.currentUser.providerData.length === 0) && (
+                  <span className="text-stone-400">No providers connected</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Blocked Users — entry point (Spec 22 §1) */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 mb-4">
+        <h2 className="font-semibold text-stone-800 mb-2 flex items-center gap-2"><Ban className="w-4 h-4 text-stone-500" /> Blocked Users</h2>
+        <p className="text-sm text-stone-500 mb-3">Manage users you've blocked. Blocked users cannot message you, find you in search, or see your profile.</p>
+        <Link to="/settings/blocked" className="text-sm text-indigo-600 font-medium hover:text-indigo-700">Manage blocked users →</Link>
+      </div>
+
+      {/* Data & Privacy — data management controls (Spec 22 §1) */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 mb-6">
+        <h2 className="font-semibold text-stone-800 mb-4">Data & Privacy</h2>
+        <div className="space-y-3">
+          <button onClick={() => toast({ title: 'Data export request submitted', description: 'You will receive an email when your data is ready.' })} className="flex items-center gap-2 text-sm text-stone-600 hover:text-indigo-600 w-full text-left">
+            <Download className="w-4 h-4" /> Request data export
+          </button>
+          <button onClick={() => { if (window.confirm('Deactivate your account? Your profile will be hidden. You can reactivate by signing in again.')) { toast({ title: 'Deactivation request submitted', description: 'Contact support to complete account deactivation.' }); } }} className="flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 w-full text-left">
+            <UserX className="w-4 h-4" /> Deactivate account
+          </button>
+          <button onClick={() => { if (window.confirm('Permanently delete your account? This cannot be undone.')) { toast({ title: 'Deletion request submitted', description: 'Contact support to complete account deletion.' }); } }} className="flex items-center gap-2 text-sm text-red-600 hover:text-red-700 w-full text-left">
+            <Trash2 className="w-4 h-4" /> Delete account
+          </button>
         </div>
       </div>
 

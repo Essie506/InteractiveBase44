@@ -20,6 +20,7 @@ import Onboarding from '@/pages/Onboarding';
 import Dashboard from '@/pages/Dashboard';
 import ProfilePage from '@/pages/ProfilePage';
 import SettingsPage from '@/pages/SettingsPage';
+import BlockedUsersPage from '@/pages/BlockedUsersPage';
 import ProfessionalActivation from '@/pages/ProfessionalActivation';
 import BusinessCreation from '@/pages/BusinessCreation';
 import BusinessWorkspace from '@/pages/BusinessWorkspace';
@@ -104,6 +105,7 @@ const AuthenticatedApp = () => {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings/blocked" element={<BlockedUsersPage />} />
             <Route path="/invitations" element={<InvitationsPage />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/calendar" element={<CalendarPage />} />
