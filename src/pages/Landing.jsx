@@ -61,6 +61,9 @@ export default function Landing() {
         <p className="mt-4 text-sm text-stone-400">
           Or <Link to="/directory" className="text-indigo-600 hover:text-indigo-700 font-medium">browse the directory</Link>, <Link to="/feed" className="text-indigo-600 hover:text-indigo-700 font-medium">explore the feed</Link>, or <Link to="/workouts" className="text-indigo-600 hover:text-indigo-700 font-medium">discover workouts</Link> without an account.
         </p>
+        <p className="mt-3 text-sm text-stone-400">
+          Already booked as a guest? <Link to="/booking/manage" className="text-indigo-600 hover:text-indigo-700 font-medium">Manage your booking</Link>.
+        </p>
       </div>
 
       <div className="max-w-5xl mx-auto px-6 md:px-10 pb-24">
