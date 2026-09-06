@@ -1,0 +1,181 @@
+{
+  "name": "Workout",
+  "type": "object",
+  "properties": {
+    "creator_identity_id": {
+      "type": "string",
+      "title": "Creator Identity ID",
+      "description": "The stable Interactive identity that created this workout. Immutable after creation (\u00a79 Workout Identity Engine)."
+    },
+    "owner_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Owner Type"
+    },
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "The identity or business that owns this workout. For owner_type 'identity' this is the stable Interactive identity ID; for 'business' this is the businessId."
+    },
+    "operating_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "professional",
+      "title": "Operating Context"
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Business context if owner_type is business. Null for identity-owned workouts."
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "workout_type": {
+      "type": "string",
+      "enum": [
+        "individual",
+        "programme",
+        "training_plan",
+        "challenge",
+        "rehab",
+        "mobility",
+        "stretching",
+        "yoga",
+        "pilates",
+        "cardio",
+        "strength",
+        "sports_specific",
+        "educational",
+        "assessment",
+        "recovery"
+      ],
+      "title": "Workout Type",
+      "description": "V2 \u00a710 Workout Type Engine. Structural classification governing creation, delivery, progression and experience."
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": [
+        "beginner",
+        "intermediate",
+        "advanced",
+        "all_levels"
+      ],
+      "default": "all_levels",
+      "title": "Difficulty"
+    },
+    "duration_minutes": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 480,
+      "default": 30,
+      "title": "Duration (minutes)"
+    },
+    "exercises": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Exercise Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Exercise Description"
+          },
+          "sets": {
+            "type": "number",
+            "title": "Sets"
+          },
+          "reps": {
+            "type": "number",
+            "title": "Reps"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "title": "Duration (seconds)"
+          },
+          "rest_seconds": {
+            "type": "number",
+            "title": "Rest (seconds)"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "title": "Exercises",
+      "description": "Workout composition (\u00a712). Ordered list of exercise configurations."
+    },
+    "media_url": {
+      "type": "string",
+      "title": "Media URL",
+      "description": "Video/audio/guided workout media (delivered by the Media System)."
+    },
+    "cover_url": {
+      "type": "string",
+      "title": "Cover URL",
+      "description": "Cover image for the workout card and detail page."
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "archived",
+        "retired"
+      ],
+      "default": "draft",
+      "title": "Lifecycle State",
+      "description": "V2 \u00a79/\u00a715. Drafts can change freely. Published versions are stable. Archived/Retired remove from discovery."
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private"
+      ],
+      "default": "public",
+      "title": "Visibility"
+    },
+    "is_free": {
+      "type": "boolean",
+      "default": true,
+      "title": "Is Free"
+    },
+    "price_pence": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0,
+      "title": "Price (pence)"
+    }
+  },
+  "required": [
+    "creator_identity_id",
+    "owner_type",
+    "owner_id",
+    "title",
+    "workout_type"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}
