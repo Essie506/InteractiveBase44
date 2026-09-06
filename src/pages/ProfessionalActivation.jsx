@@ -5,7 +5,7 @@ import { getProfessionalProfile, saveProfessionalProfile } from '@/services/prof
 import * as userService from '@/services/userService';
 import { submitVerification } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
-import { Loader2, Plus, X, Check, ShieldCheck } from 'lucide-react';
+import { Loader2, Plus, X, ArrowLeft, Check, ShieldCheck } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 import TaxonomySelectDialog from '@/components/profile/TaxonomySelectDialog';

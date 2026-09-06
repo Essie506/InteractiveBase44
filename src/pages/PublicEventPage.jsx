@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { db } from '@/firebase/firebaseClient';
 import { doc, getDoc } from 'firebase/firestore';
 import { useFirebase } from '@/lib/backendConfig';
-import { Calendar, MapPin, Users, ShieldCheck, ArrowLeft, Video, Wifi } from 'lucide-react';
+import { Calendar, Clock, MapPin, Users, ShieldCheck, ArrowLeft, Video, Wifi, Globe } from 'lucide-react';
 import { formatDistance } from '@/lib/geo';
 import { useAuth } from '@/lib/AuthContext';
 import AddToCalendarButton from '@/components/calendar/AddToCalendarButton';

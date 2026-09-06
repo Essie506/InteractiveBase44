@@ -7,7 +7,7 @@ import {
   createPersonalProfile, createUserSetting, createProfessionalProfile,
   createBusiness, createBusinessProfile, createMembership,
 } from '@/services/onboardingService';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Check } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 
