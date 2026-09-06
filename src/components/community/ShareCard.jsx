@@ -6,8 +6,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { callResolveParticipants } from '@/services/firebaseFunctions';
-import { callDeleteShare } from '@/services/shareService';
+import { callResolveParticipants, callDeleteShare } from '@/services/firebaseFunctions';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
