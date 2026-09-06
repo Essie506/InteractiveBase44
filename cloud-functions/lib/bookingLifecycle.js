@@ -27,11 +27,20 @@ const calendarAvailability_1 = require("./calendarAvailability");
 // Request: { booking_id: string, reason?: string }
 // Returns: { booking_id, status, refund_amount_pence?, refund_record_id? }
 exports.cancelBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins, secrets: ['STRIPE_SECRET_KEY'] }, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    // Guests can cancel their own bookings without authentication (Spec 00 §1.5 /
+    // Booking §3.10–§3.11). They provide guest_email in the request data, which
+    // is matched against booking.guest_email for authorisation — same access
+    // model as confirmFreeBooking.
+    let callerIdentityId = null;
+    if (request.auth) {
+        try {
+            callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+        }
+        catch {
+            // No identity mapping — treat as guest
+        }
     }
-    const callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
-    const { booking_id, reason } = request.data || {};
+    const { booking_id, reason, guest_email } = request.data || {};
     if (!booking_id) {
         throw new https_1.HttpsError('invalid-argument', 'booking_id is required');
     }
@@ -41,14 +50,25 @@ exports.cancelBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shar
     }
     const booking = bookingDoc.data();
     // Authorization: customer, provider, or business admin
-    const isCustomer = booking.customer_identity_id === callerIdentityId;
-    const isProvider = booking.provider_identity_id === callerIdentityId;
+    let isCustomer;
+    let isProvider;
     let isBizAdmin = false;
-    if (booking.business_id) {
-        isBizAdmin = await (0, shared_1.hasBusinessRole)(booking.business_id, callerIdentityId, ['owner', 'admin']);
+    let isPlatformAdmin = false;
+    if (callerIdentityId) {
+        isCustomer = booking.customer_identity_id === callerIdentityId;
+        isProvider = booking.provider_identity_id === callerIdentityId;
+        if (booking.business_id) {
+            isBizAdmin = await (0, shared_1.hasBusinessRole)(booking.business_id, callerIdentityId, ['owner', 'admin']);
+        }
+        isPlatformAdmin = await (0, shared_1.isAdmin)(callerIdentityId);
     }
-    // Platform admin can cancel any booking (checked before rejection)
-    const isPlatformAdmin = await (0, shared_1.isAdmin)(callerIdentityId);
+    else {
+        // Guest — verify via request-data guest_email matching booking.guest_email
+        const matchEmail = guest_email;
+        isCustomer = !!(matchEmail && booking.guest_email &&
+            matchEmail.toLowerCase() === booking.guest_email.toLowerCase());
+        isProvider = false;
+    }
     if (!isCustomer && !isProvider && !isBizAdmin && !isPlatformAdmin) {
         throw new https_1.HttpsError('permission-denied', 'Not authorized to cancel this booking');
     }
@@ -218,11 +238,19 @@ exports.cancelBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shar
 // Request: { booking_id, new_start_time, new_end_time, reason? }
 // Returns: { booking_id, status, new_hold_id }
 exports.rescheduleBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins, secrets: ['STRIPE_SECRET_KEY'] }, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    // Guests can reschedule their own one-to-one bookings without
+    // authentication (Spec 00 §1.5 / Booking §3.10–§3.11). Same guest_email
+    // matching access model as confirmFreeBooking / cancelBooking.
+    let callerIdentityId = null;
+    if (request.auth) {
+        try {
+            callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+        }
+        catch {
+            // No identity mapping — treat as guest
+        }
     }
-    const callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
-    const { booking_id, new_start_time, new_end_time, reason } = request.data || {};
+    const { booking_id, new_start_time, new_end_time, reason, guest_email } = request.data || {};
     if (!booking_id || !new_start_time || !new_end_time) {
         throw new https_1.HttpsError('invalid-argument', 'booking_id, new_start_time, new_end_time required');
     }
@@ -232,11 +260,22 @@ exports.rescheduleBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: 
     }
     const booking = bookingDoc.data();
     // Authorization
-    const isCustomer = booking.customer_identity_id === callerIdentityId;
-    const isProvider = booking.provider_identity_id === callerIdentityId;
+    let isCustomer;
+    let isProvider;
     let isBizAdmin = false;
-    if (booking.business_id) {
-        isBizAdmin = await (0, shared_1.hasBusinessRole)(booking.business_id, callerIdentityId, ['owner', 'admin']);
+    if (callerIdentityId) {
+        isCustomer = booking.customer_identity_id === callerIdentityId;
+        isProvider = booking.provider_identity_id === callerIdentityId;
+        if (booking.business_id) {
+            isBizAdmin = await (0, shared_1.hasBusinessRole)(booking.business_id, callerIdentityId, ['owner', 'admin']);
+        }
+    }
+    else {
+        // Guest — verify via request-data guest_email matching booking.guest_email
+        const matchEmail = guest_email;
+        isCustomer = !!(matchEmail && booking.guest_email &&
+            matchEmail.toLowerCase() === booking.guest_email.toLowerCase());
+        isProvider = false;
     }
     if (!isCustomer && !isProvider && !isBizAdmin) {
         throw new https_1.HttpsError('permission-denied', 'Not authorized to reschedule this booking');
@@ -440,6 +479,37 @@ exports.reportNoShow = (0, https_1.onCall)({ region: 'europe-west2', cors: share
         operation_id: booking_id,
         _created_date: nowIso,
     });
+    // Notification — notify the affected party that a no-show was recorded
+    // (Booking V2 no-show communication). If the provider reported a customer
+    // no-show, the customer is notified; if the customer reported a provider
+    // no-show, the provider is notified. Routed through the Notifications
+    // dispatcher (§81). Guest email is the primary guest channel.
+    const noShowAffectedIsCustomer = noShowState === 'no_show_customer';
+    const noShowRecipientId = noShowAffectedIsCustomer
+        ? (booking.customer_identity_id || null)
+        : (booking.provider_identity_id || null);
+    const noShowRecipientEmail = (noShowAffectedIsCustomer && !booking.customer_identity_id)
+        ? (booking.guest_email || null)
+        : null;
+    if (noShowRecipientId || noShowRecipientEmail) {
+        const noShowEmailCtx = await (0, bookingNotifications_1.buildBookingEmailContext)(booking_id, booking, 'booking_no_show');
+        await (0, dispatcher_1.emitNotification)({
+            source_system: 'calendar',
+            event_type: 'booking_no_show',
+            source_id: `booking:${booking_id}`,
+            version: '1',
+            category: 'calendar',
+            title: 'No-show recorded',
+            body: `A no-show has been recorded for booking ${booking_id}.`,
+            action_url: `/bookings/${booking_id}`,
+            action_label: 'View Booking',
+            priority: 'normal',
+            recipient_id: noShowRecipientId,
+            recipient_email: noShowRecipientEmail,
+            emailContext: noShowEmailCtx,
+            emailPayloadBuilder: booking_1.buildBookingEmailPayload,
+        });
+    }
     return { booking_id, no_show: true };
 });
 // ── completeBooking ──────────────────────────────────────────
@@ -487,6 +557,30 @@ exports.completeBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: sh
         await shared_1.db.collection('calendarEvents').doc(booking.calendar_event_id).update({
             lifecycle_state: 'historical',
             _updated_date: now,
+        });
+    }
+    // Notification — notify the customer their booking is completed (Booking V2
+    // completion communication). Routed through the Notifications dispatcher (§81).
+    // Guest email is the primary guest channel (Booking §1.7.1, §3.12).
+    const completeRecipientId = booking.customer_identity_id || null;
+    const completeRecipientEmail = (!booking.customer_identity_id) ? (booking.guest_email || null) : null;
+    if (completeRecipientId || completeRecipientEmail) {
+        const completeEmailCtx = await (0, bookingNotifications_1.buildBookingEmailContext)(booking_id, booking, 'booking_completed');
+        await (0, dispatcher_1.emitNotification)({
+            source_system: 'calendar',
+            event_type: 'booking_completed',
+            source_id: `booking:${booking_id}`,
+            version: '1',
+            category: 'calendar',
+            title: 'Booking Completed',
+            body: `Booking ${booking_id} has been marked as completed.`,
+            action_url: `/bookings/${booking_id}`,
+            action_label: 'View Booking',
+            priority: 'normal',
+            recipient_id: completeRecipientId,
+            recipient_email: completeRecipientEmail,
+            emailContext: completeEmailCtx,
+            emailPayloadBuilder: booking_1.buildBookingEmailPayload,
         });
     }
     return { booking_id, status: 'completed' };

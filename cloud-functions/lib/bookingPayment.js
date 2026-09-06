@@ -10,7 +10,7 @@
 // The browser is NEVER authoritative for payment success.
 // Authoritative confirmation comes from the Stripe webhook handler.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = void 0;
+exports.guestLookupBooking = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const stripe_1 = require("./stripe");
@@ -426,18 +426,20 @@ exports.createBookingDraft = (0, https_1.onCall)({ region: 'europe-west2', cors:
 // Request: { booking_id: string }
 // Returns: { client_secret: string, payment_intent_id: string }
 exports.createPaymentIntent = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins, secrets: ['STRIPE_SECRET_KEY'] }, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
-    }
-    // Resolve caller identity (signed-in) — guests use a separate path
+    // Resolve caller identity (signed-in) — guests use a separate path.
+    // Unauthenticated guests are allowed for guest checkout (Spec 00 §1.5 /
+    // Booking §3.10–§3.11): they provide guest_email in the request data,
+    // which is matched against booking.guest_email for authorisation.
     let callerIdentityId = null;
-    try {
-        callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    if (request.auth) {
+        try {
+            callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+        }
+        catch {
+            // No identity mapping — treat as guest
+        }
     }
-    catch {
-        // Guest — will be validated against booking guest_email
-    }
-    const { booking_id } = request.data || {};
+    const { booking_id, guest_email } = request.data || {};
     if (!booking_id) {
         throw new https_1.HttpsError('invalid-argument', 'booking_id is required');
     }
@@ -454,9 +456,12 @@ exports.createPaymentIntent = (0, https_1.onCall)({ region: 'europe-west2', cors
         }
     }
     else {
-        // Guest — verify via auth token email matching booking guest_email
-        const authEmail = request.auth.token?.email;
-        if (!authEmail || !booking.guest_email || authEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
+        // Guest — verify via auth token email OR request-data guest_email
+        // matching booking.guest_email (Spec 00 §1.5 / Booking §3.10).
+        const authEmail = request.auth?.token?.email;
+        const requestEmail = guest_email;
+        const matchEmail = authEmail || requestEmail;
+        if (!matchEmail || !booking.guest_email || matchEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
             throw new https_1.HttpsError('permission-denied', 'Guest email does not match booking');
         }
     }
@@ -560,17 +565,19 @@ exports.createPaymentIntent = (0, https_1.onCall)({ region: 'europe-west2', cors
 // Request: { booking_id: string }
 // Returns: { booking_id, status: 'confirmed' }
 exports.confirmFreeBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
-    }
+    // Guests can confirm free bookings without authentication (Spec 00 §1.5 /
+    // Booking §3.10–§3.11). They provide guest_email in the request data,
+    // which is matched against booking.guest_email for authorisation.
     let callerIdentityId = null;
-    try {
-        callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    if (request.auth) {
+        try {
+            callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+        }
+        catch {
+            // No identity mapping — treat as guest
+        }
     }
-    catch {
-        // Guest
-    }
-    const { booking_id } = request.data || {};
+    const { booking_id, guest_email } = request.data || {};
     if (!booking_id) {
         throw new https_1.HttpsError('invalid-argument', 'booking_id is required');
     }
@@ -586,8 +593,12 @@ exports.confirmFreeBooking = (0, https_1.onCall)({ region: 'europe-west2', cors:
         }
     }
     else {
-        const authEmail = request.auth.token?.email;
-        if (!authEmail || !booking.guest_email || authEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
+        // Guest — verify via auth token email OR request-data guest_email
+        // matching booking.guest_email (Spec 00 §1.5 / Booking §3.10).
+        const authEmail = request.auth?.token?.email;
+        const requestEmail = guest_email;
+        const matchEmail = authEmail || requestEmail;
+        if (!matchEmail || !booking.guest_email || matchEmail.toLowerCase() !== booking.guest_email.toLowerCase()) {
             throw new https_1.HttpsError('permission-denied', 'Guest email does not match booking');
         }
     }
@@ -711,5 +722,59 @@ exports.confirmFreeBooking = (0, https_1.onCall)({ region: 'europe-west2', cors:
         });
     }
     return { booking_id, status: 'confirmed' };
+});
+// ── guestLookupBooking ───────────────────────────────────────
+// Allows unauthenticated guests to look up their booking by email +
+// booking reference (Spec 00 §1.5 / Booking §3.10–§3.11). Returns a
+// guest-safe projection of the booking — no provider internal data,
+// no other customers' data, no payment record IDs. The guest_email
+// in request data is matched against booking.guest_email for auth.
+//
+// Request: { booking_id, guest_email }
+// Returns: { booking } — guest-safe booking projection, or not-found
+exports.guestLookupBooking = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    const { booking_id, guest_email } = request.data || {};
+    if (!booking_id || !guest_email) {
+        throw new https_1.HttpsError('invalid-argument', 'booking_id and guest_email are required');
+    }
+    const bookingDoc = await shared_1.db.collection('bookings').doc(booking_id).get();
+    if (!bookingDoc.exists) {
+        throw new https_1.HttpsError('not-found', 'Booking not found');
+    }
+    const booking = bookingDoc.data();
+    // Guest authorisation — email must match booking.guest_email
+    if (!booking.guest_email ||
+        booking.guest_email.toLowerCase() !== String(guest_email).toLowerCase()) {
+        throw new https_1.HttpsError('permission-denied', 'Email does not match booking');
+    }
+    // Guest-safe projection — exclude internal/sensitive fields
+    const guestSafeBooking = {
+        id: booking_id,
+        booking_status: booking.booking_status,
+        payment_status_mirror: booking.payment_status_mirror,
+        payment_route: booking.payment_route,
+        service_id: booking.service_id,
+        service_label: booking.service_label || null,
+        booking_type: booking.booking_type,
+        start_time: booking.start_time,
+        end_time: booking.end_time,
+        timezone: booking.timezone || 'UTC',
+        location_context: booking.location_context || null,
+        meeting_url: booking.meeting_url || null,
+        total_snapshot: booking.total_snapshot || null,
+        cancellation_policy_snapshot: booking.cancellation_policy_snapshot || null,
+        guest_email: booking.guest_email,
+        guest_display_name: booking.guest_display_name || null,
+        guest_phone: booking.guest_phone || null,
+        event_id: booking.event_id || null,
+        provider_display_name: booking.provider_display_name || null,
+        provider_screen_name: booking.provider_screen_name || null,
+        business_name: booking.business_name || null,
+        reschedule_history: booking.reschedule_history || [],
+        cancelled_at: booking.cancelled_at || null,
+        confirmed_at: booking.confirmed_at || null,
+        _created_date: booking._created_date,
+    };
+    return { booking: guestSafeBooking };
 });
 //# sourceMappingURL=bookingPayment.js.map

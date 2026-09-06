@@ -121,6 +121,11 @@ exports.stripeWebhook = (0, https_1.onRequest)({
             case 'account.updated':
                 await handleAccountUpdated(event.data.object);
                 break;
+            case 'customer.subscription.created':
+            case 'customer.subscription.updated':
+            case 'customer.subscription.deleted':
+                await handleSubscription(event.data.object, event.type);
+                break;
             default:
                 console.log(`Unhandled event type: ${event.type}`);
         }
@@ -428,5 +433,68 @@ async function handleAccountUpdated(account) {
         details_submitted: account.details_submitted,
         _updated_date: now,
     });
+}
+// ── Subscription lifecycle handler (Plans & Monetisation §17) ──
+// Updates the Firestore subscription record (professionalSubscriptions
+// or businessSubscriptions) from the Stripe Subscription state. The
+// webhook is the source of truth — checkout creates a 'selected' record;
+// this handler activates/cancels it based on the Stripe lifecycle.
+async function handleSubscription(subscription, eventType) {
+    const now = new Date().toISOString();
+    const metadata = subscription.metadata || {};
+    const businessId = metadata.business_id || '';
+    const identityId = metadata.identity_id || '';
+    const planId = metadata.plan_id || '';
+    const collection = businessId ? 'businessSubscriptions' : 'professionalSubscriptions';
+    const ownerField = businessId ? 'business_id' : 'identity_id';
+    const ownerId = businessId || identityId;
+    if (!ownerId) {
+        console.error('Subscription webhook: no owner metadata on subscription', subscription.id);
+        return;
+    }
+    // Find the existing record by owner + plan, or by stripe_subscription_id
+    let snap = await db.collection(collection)
+        .where(ownerField, '==', ownerId)
+        .where('plan_id', '==', planId)
+        .limit(1)
+        .get();
+    if (snap.empty && subscription.id) {
+        snap = await db.collection(collection)
+            .where('stripe_subscription_id', '==', subscription.id)
+            .limit(1)
+            .get();
+    }
+    if (snap.empty) {
+        console.error(`Subscription webhook: no record for ${ownerField}=${ownerId} plan=${planId}`);
+        return;
+    }
+    const ref = snap.docs[0].ref;
+    const existingData = snap.docs[0].data();
+    const isDeleted = eventType === 'customer.subscription.deleted' || subscription.status === 'canceled';
+    const updateData = {
+        stripe_subscription_id: subscription.id,
+        stripe_customer_id: typeof subscription.customer === 'string'
+            ? subscription.customer
+            : (subscription.customer?.id || existingData.stripe_customer_id || null),
+        current_period_end: subscription.current_period_end
+            ? new Date(subscription.current_period_end * 1000).toISOString()
+            : null,
+        _updated_date: now,
+    };
+    if (isDeleted) {
+        updateData.status = 'cancelled';
+        updateData.cancelled_at = now;
+    }
+    else if (subscription.status === 'active' || subscription.status === 'trialing') {
+        updateData.status = 'active';
+        updateData.activated_at = existingData.activated_at || now;
+    }
+    else if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
+        updateData.status = 'past_due';
+    }
+    else if (subscription.status === 'incomplete' || subscription.status === 'incomplete_expired') {
+        updateData.status = 'suspended';
+    }
+    await ref.update(updateData);
 }
 //# sourceMappingURL=stripeWebhook.js.map

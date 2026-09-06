@@ -16,6 +16,7 @@ const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const businessProfileProjection_1 = require("./businessProfileProjection");
 const geo_1 = require("./geo");
+const searchIndex_1 = require("./searchIndex");
 const PROFILES = 'businessProfiles';
 const PUBLIC = 'businessProfilesPublic';
 const BUSINESSES = 'businesses';
@@ -73,10 +74,31 @@ exports.saveBusinessProfile = (0, https_1.onCall)({ region: 'europe-west2', cors
         const locationGeo = await (0, geo_1.fetchBusinessPublicGeo)(shared_1.db, merged.location_id);
         const projection = (0, businessProfileProjection_1.buildBusinessPublicProjection)(businessId, profileId, merged, businessData, resolvedProfessionals, locationGeo);
         await projRef.set(projection);
+        // ── Cross-system search indexing (V2 §15.5) ──
+        try {
+            await (0, searchIndex_1.indexContentInline)(businessId, 'business', {
+                contentType: 'business',
+                title: merged.name || businessData?.name || '',
+                description: merged.description || '',
+                tags: Array.isArray(merged.services) ? merged.services.map((s) => s.label).filter(Boolean) : [],
+                ownerId: businessId,
+                visibility: 'public',
+            });
+        }
+        catch (err) {
+            console.error('search index failed for business', businessId, err);
+        }
     }
     else {
         // Not eligible for public listing — remove any existing projection
         await projRef.delete().catch(() => { });
+        // Remove from search index
+        try {
+            await (0, searchIndex_1.unindexContentInline)('business', businessId);
+        }
+        catch (e) {
+            console.error('unindex business', businessId, e);
+        }
     }
     return { id: profileId, ...merged };
 });

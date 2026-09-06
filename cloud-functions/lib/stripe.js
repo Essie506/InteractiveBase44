@@ -54,8 +54,15 @@ exports.STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || '';
 // The caller (createBookingDraft) checks feeConfigStatus and rejects
 // unresolved configurations for paid Stripe routes.
 async function resolveFeeRule(db, providerIdentityId, businessId) {
-    const subscriptionSnap = await db.collection('businessSubscriptions')
-        .where('business_id', '==', businessId || providerIdentityId)
+    // Business subscriptions are keyed by business_id; professional
+    // subscriptions are keyed by identity_id (professionalSubscriptions).
+    // Tier 1 (free) has no subscription record — a missing record returns
+    // unresolved, which the caller treats as the free-tier default.
+    const collection = businessId ? 'businessSubscriptions' : 'professionalSubscriptions';
+    const ownerField = businessId ? 'business_id' : 'identity_id';
+    const ownerId = businessId || providerIdentityId;
+    const subscriptionSnap = await db.collection(collection)
+        .where(ownerField, '==', ownerId)
         .where('status', 'in', ['selected', 'active'])
         .limit(1)
         .get();

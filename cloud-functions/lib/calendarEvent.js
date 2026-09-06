@@ -48,6 +48,7 @@ const calendarEventHistory_1 = require("./calendarEventHistory");
 const calendarParticipation_1 = require("./calendarParticipation");
 const calendarAvailability_1 = require("./calendarAvailability");
 const calendarSignal_1 = require("./calendarSignal");
+const searchIndex_1 = require("./searchIndex");
 const EVENTS = 'calendarEvents';
 const PUBLIC = 'calendarEventsPublic';
 const IDEMPOTENCY = 'calendarEventIdempotency';
@@ -549,6 +550,13 @@ async function maintainProjection(eventId, data) {
     const listable = (0, eventProjectionEligibility_1.isEventListable)(data, host || null);
     if (!listable) {
         await shared_1.db.collection(PUBLIC).doc(eventId).delete().catch(() => { });
+        // Remove from search index when no longer listable (V2 §15.5)
+        try {
+            await (0, searchIndex_1.unindexContentInline)('calendar_event', eventId);
+        }
+        catch (e) {
+            console.error('unindex event', eventId, e);
+        }
         return;
     }
     let locationGeo = null;
@@ -562,6 +570,21 @@ async function maintainProjection(eventId, data) {
     const reservedCount = await countReservedAttendees(eventId);
     const projection = (0, calendarEventProjection_1.buildEventPublicProjection)(eventId, data, host, locationGeo, locationLabel, reservedCount);
     await shared_1.db.collection(PUBLIC).doc(eventId).set(projection);
+    // ── Cross-system search indexing (V2 §15.5) ──
+    // Public listable events are indexed for discovery.
+    try {
+        await (0, searchIndex_1.indexContentInline)(eventId, 'calendar_event', {
+            contentType: 'calendar_event',
+            title: data.title || '',
+            description: data.description || '',
+            tags: Array.isArray(data.services) ? data.services.map((s) => s.label).filter(Boolean) : [],
+            ownerId: data.owner_id,
+            visibility: 'public',
+        });
+    }
+    catch (err) {
+        console.error('search index failed for event', eventId, err);
+    }
 }
 // ── deleteCalendarEvent (§52) ───────────────────────────────
 // Destructive removal of a Calendar-owned object, distinct from Cancel
@@ -619,6 +642,13 @@ exports.deleteCalendarEvent = (0, https_1.onCall)({ region: 'europe-west2', cors
     });
     // Remove the public projection + idempotency record (best effort).
     await shared_1.db.collection(PUBLIC).doc(eventId).delete().catch(() => { });
+    // Remove from search index (V2 §15.5)
+    try {
+        await (0, searchIndex_1.unindexContentInline)('calendar_event', eventId);
+    }
+    catch (e) {
+        console.error('unindex deleted event', eventId, e);
+    }
     const idempKey = idempotencyDocId(existing.owner_type, existing.owner_id, existing.source_system || 'manual', existing.source_id || '');
     await shared_1.db.collection(IDEMPOTENCY).doc(idempKey).delete().catch(() => { });
     // Destructive removal of the event document.

@@ -16,6 +16,7 @@ exports.buildDirectoryEntry = buildDirectoryEntry;
 const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const geo_1 = require("./geo");
+const searchIndex_1 = require("./searchIndex");
 const PROFILES = 'professionalProfiles';
 const PUBLIC = 'professionalProfilesPublic';
 const DIRECTORY = 'professionalDirectoryEntries';
@@ -236,11 +237,44 @@ exports.saveProfessionalProfile = (0, https_1.onCall)({ region: 'europe-west2', 
     for (const doc of existingAdverts.docs) {
         if (!isDirectoryListable || doc.id !== screenName) {
             await doc.ref.delete().catch(() => { });
+            // Remove orphaned directory adverts from the search index
+            try {
+                await (0, searchIndex_1.unindexContentInline)('professional', doc.id);
+            }
+            catch (e) {
+                console.error('unindex professional', doc.id, e);
+            }
         }
     }
     if (isDirectoryListable) {
         const advert = buildDirectoryEntry(identityId, profileId, merged, locationGeo);
         await shared_1.db.collection(DIRECTORY).doc(screenName).set(advert);
+        // ── Cross-system search indexing (V2 §15.5) ──
+        // Directory-listed professionals are indexed for discovery.
+        try {
+            const serviceLabels = Array.isArray(merged.services) ? merged.services.map((s) => s.label).filter(Boolean) : [];
+            const specialismLabels = Array.isArray(merged.specialisms) ? merged.specialisms.map((s) => s.label).filter(Boolean) : [];
+            await (0, searchIndex_1.indexContentInline)(identityId, 'professional', {
+                contentType: 'professional',
+                title: merged.display_name || merged.business_name || '',
+                description: merged.headline || '',
+                tags: [...serviceLabels, ...specialismLabels],
+                ownerId: identityId,
+                visibility: 'public',
+            });
+        }
+        catch (err) {
+            console.error('search index failed for professional', identityId, err);
+        }
+    }
+    else {
+        // Not listed — remove any existing index entry
+        try {
+            await (0, searchIndex_1.unindexContentInline)('professional', identityId);
+        }
+        catch (e) {
+            console.error('unindex professional', identityId, e);
+        }
     }
     return { id: profileId, ...merged };
 });

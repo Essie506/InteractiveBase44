@@ -9,8 +9,8 @@
 //   - cors: explicit approved-origin regex (not cors: true)
 //   - request.auth for Firebase-verified identity
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.setPersonalTimelineState = exports.revokeCalendarInvitation = exports.respondCalendarInvitation = exports.handleSourceUnavailable = exports.deactivateIdentityCalendar = exports.migrateCalendarLifecycleStates = exports.splitRecurrenceSeries = exports.saveOccurrenceException = exports.listReminderRules = exports.deleteReminderRule = exports.saveReminderRule = exports.sweepReminders = exports.sweepExpiredHolds = exports.getCalendarView = exports.deleteCalendarEvent = exports.saveCalendarEvent = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
-exports.retryDeliveries = exports.processDelivery = exports.backfillCalendarOwnership = exports.backfillProfessionalDirectory = exports.backfillPublicProfiles = exports.handleBusinessRelationshipExit = void 0;
+exports.saveCalendarEvent = exports.saveBusinessProfile = exports.validatePersonalScreenName = exports.savePersonalProfile = exports.validateScreenName = exports.saveProfessionalProfile = exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = exports.deletePost = exports.savePost = exports.deleteShare = exports.createShare = exports.deleteWorkout = exports.saveWorkout = exports.getInteractionState = exports.toggleSave = exports.deleteComment = exports.createComment = exports.toggleReaction = exports.createCustomerPortal = exports.getMySubscription = exports.createSubscriptionCheckout = exports.guestLookupBooking = exports.completeBooking = exports.reportNoShow = exports.rescheduleBooking = exports.cancelBooking = exports.stripeWebhook = exports.confirmFreeBooking = exports.createPaymentIntent = exports.createBookingDraft = exports.getStripeConfig = exports.getConnectAccountStatus = exports.createConnectAccount = exports.getProtectedMediaUrl = exports.migrateMedia = exports.setUserRole = exports.resolveParticipants = exports.findUserByEmail = exports.acceptInvitation = exports.decideVerification = exports.createTrustSignal = exports.createNotification = exports.respondMessageRequest = exports.createConversation = exports.resolveIdentity = void 0;
+exports.updateCampaignStatus = exports.saveCampaign = exports.unindexContent = exports.indexContent = exports.retryDeliveries = exports.processDelivery = exports.backfillCalendarOwnership = exports.backfillProfessionalDirectory = exports.backfillPublicProfiles = exports.handleBusinessRelationshipExit = exports.setPersonalTimelineState = exports.revokeCalendarInvitation = exports.respondCalendarInvitation = exports.handleSourceUnavailable = exports.deactivateIdentityCalendar = exports.migrateCalendarLifecycleStates = exports.splitRecurrenceSeries = exports.saveOccurrenceException = exports.listReminderRules = exports.deleteReminderRule = exports.saveReminderRule = exports.sweepReminders = exports.sweepExpiredHolds = exports.getCalendarView = exports.deleteCalendarEvent = void 0;
 var identity_1 = require("./identity");
 Object.defineProperty(exports, "resolveIdentity", { enumerable: true, get: function () { return identity_1.resolveIdentity; } });
 var conversations_1 = require("./conversations");
@@ -46,6 +46,32 @@ Object.defineProperty(exports, "cancelBooking", { enumerable: true, get: functio
 Object.defineProperty(exports, "rescheduleBooking", { enumerable: true, get: function () { return bookingLifecycle_1.rescheduleBooking; } });
 Object.defineProperty(exports, "reportNoShow", { enumerable: true, get: function () { return bookingLifecycle_1.reportNoShow; } });
 Object.defineProperty(exports, "completeBooking", { enumerable: true, get: function () { return bookingLifecycle_1.completeBooking; } });
+var bookingPayment_2 = require("./bookingPayment");
+Object.defineProperty(exports, "guestLookupBooking", { enumerable: true, get: function () { return bookingPayment_2.guestLookupBooking; } });
+// Phase 6 — Plans & Monetisation (Spec 17): recurring subscriptions via Stripe
+var subscriptionManage_1 = require("./subscriptionManage");
+Object.defineProperty(exports, "createSubscriptionCheckout", { enumerable: true, get: function () { return subscriptionManage_1.createSubscriptionCheckout; } });
+Object.defineProperty(exports, "getMySubscription", { enumerable: true, get: function () { return subscriptionManage_1.getMySubscription; } });
+Object.defineProperty(exports, "createCustomerPortal", { enumerable: true, get: function () { return subscriptionManage_1.createCustomerPortal; } });
+// Community Interaction (Spec 20): reactions, comments, saves
+var communityInteraction_1 = require("./communityInteraction");
+Object.defineProperty(exports, "toggleReaction", { enumerable: true, get: function () { return communityInteraction_1.toggleReaction; } });
+Object.defineProperty(exports, "createComment", { enumerable: true, get: function () { return communityInteraction_1.createComment; } });
+Object.defineProperty(exports, "deleteComment", { enumerable: true, get: function () { return communityInteraction_1.deleteComment; } });
+Object.defineProperty(exports, "toggleSave", { enumerable: true, get: function () { return communityInteraction_1.toggleSave; } });
+Object.defineProperty(exports, "getInteractionState", { enumerable: true, get: function () { return communityInteraction_1.getInteractionState; } });
+// Workout System (Spec 12): workout identity, composition, publication
+var workout_1 = require("./workout");
+Object.defineProperty(exports, "saveWorkout", { enumerable: true, get: function () { return workout_1.saveWorkout; } });
+Object.defineProperty(exports, "deleteWorkout", { enumerable: true, get: function () { return workout_1.deleteWorkout; } });
+// Share Engine (Spec 14.1): content sharing
+var share_1 = require("./share");
+Object.defineProperty(exports, "createShare", { enumerable: true, get: function () { return share_1.createShare; } });
+Object.defineProperty(exports, "deleteShare", { enumerable: true, get: function () { return share_1.deleteShare; } });
+// Post System: post lifecycle (create, edit, delete)
+var post_1 = require("./post");
+Object.defineProperty(exports, "savePost", { enumerable: true, get: function () { return post_1.savePost; } });
+Object.defineProperty(exports, "deletePost", { enumerable: true, get: function () { return post_1.deletePost; } });
 // Relationship System — Connections + Professional access
 var connections_1 = require("./connections");
 Object.defineProperty(exports, "createConnectionRequest", { enumerable: true, get: function () { return connections_1.createConnectionRequest; } });
@@ -116,4 +142,12 @@ var deliveryWorker_1 = require("./notifications/deliveryWorker");
 Object.defineProperty(exports, "processDelivery", { enumerable: true, get: function () { return deliveryWorker_1.processDelivery; } });
 var deliverySweep_1 = require("./notifications/deliverySweep");
 Object.defineProperty(exports, "retryDeliveries", { enumerable: true, get: function () { return deliverySweep_1.retryDeliveries; } });
+// Search Index — V2 §15.5 cross-system search indexing
+var searchIndex_1 = require("./searchIndex");
+Object.defineProperty(exports, "indexContent", { enumerable: true, get: function () { return searchIndex_1.indexContent; } });
+Object.defineProperty(exports, "unindexContent", { enumerable: true, get: function () { return searchIndex_1.unindexContent; } });
+// Promotions — V2 §19 campaign management
+var promotion_1 = require("./promotion");
+Object.defineProperty(exports, "saveCampaign", { enumerable: true, get: function () { return promotion_1.saveCampaign; } });
+Object.defineProperty(exports, "updateCampaignStatus", { enumerable: true, get: function () { return promotion_1.updateCampaignStatus; } });
 //# sourceMappingURL=index.js.map

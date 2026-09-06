@@ -52,10 +52,11 @@ exports.findUserByEmail = (0, https_1.onCall)({ region: 'europe-west2', cors: sh
 });
 // ── resolveParticipants ────────────────────────────────────
 exports.resolveParticipants = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
-    }
-    await (0, shared_1.getIdentityId)(request.auth.uid);
+    // §7.14/§8.3 (Spec 00): public-safe display-info resolution. Returns
+    // ONLY display_name + avatar_url — no email, no private fields.
+    // Unauthenticated callers may resolve display info for public content
+    // (e.g. post/workout authors on the public Feed) so the browse-first
+    // experience can show who authored each item without requiring sign-in.
     const { identity_ids } = request.data || {};
     if (!identity_ids || !Array.isArray(identity_ids)) {
         throw new https_1.HttpsError('invalid-argument', 'identity_ids array required');
