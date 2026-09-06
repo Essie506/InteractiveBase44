@@ -13,7 +13,19 @@
         "growth",
         "professional"
       ],
-      "title": "Plan Tier"
+      "title": "Plan Tier",
+      "description": "essential = Tier 1 (free core), growth = Tier 2 (Plus), professional = Tier 3 (Pro). Higher tiers inherit lower-tier capabilities."
+    },
+    "family": {
+      "type": "string",
+      "enum": [
+        "professional",
+        "business",
+        "both"
+      ],
+      "default": "both",
+      "title": "Plan Family",
+      "description": "Which account type this plan serves. 'both' applies to professionals and businesses (shared tier structure)."
     },
     "description": {
       "type": "string",
@@ -25,6 +37,32 @@
         "type": "string"
       },
       "title": "Features"
+    },
+    "price_pence": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0,
+      "title": "Price (pence)",
+      "description": "Recurring subscription price in pence. 0 for the free tier (Tier 1). Numerical values must be populated from authoritative plan configuration before live subscription activation."
+    },
+    "currency": {
+      "type": "string",
+      "default": "GBP",
+      "title": "Currency"
+    },
+    "billing_interval": {
+      "type": "string",
+      "enum": [
+        "monthly",
+        "annual"
+      ],
+      "default": "monthly",
+      "title": "Billing Interval"
+    },
+    "stripe_price_id": {
+      "type": "string",
+      "title": "Stripe Price ID",
+      "description": "Stripe Price ID for the recurring subscription. Null/empty for the free tier. Must be populated before live subscription activation."
     },
     "status": {
       "type": "string",
