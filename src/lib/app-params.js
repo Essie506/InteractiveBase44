@@ -1,6 +1,9 @@
 const isNode = typeof window === 'undefined';
 const windowObj = isNode ? { localStorage: new Map() } : window;
-const storage = windowObj.localStorage;
+// In Node, localStorage is unavailable; a Map placeholder is used but
+// storage methods are never called (getAppParamValue returns early).
+/** @type {Storage} */
+const storage = /** @type {Storage} */ (windowObj.localStorage);
 
 const toSnakeCase = (str) => {
 	return str.replace(/([A-Z])/g, '_$1').toLowerCase();

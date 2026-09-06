@@ -9,6 +9,10 @@ import { collection, getDocs, getDoc, doc, query, where, orderBy, limit } from '
 import { db } from '@/firebase/firebaseClient';
 import { callSaveWorkout, callDeleteWorkout } from '@/services/firebaseFunctions';
 
+/**
+ * @param {number} [maxResults]
+ * @returns {Promise<import('@/types/domain').Workout[]>}
+ */
 export async function listPublishedWorkouts(maxResults = 50) {
   // §7.14: public browse — filters by visibility == 'public' AND
   // lifecycle_state == 'published' so the query validates against the
@@ -24,6 +28,10 @@ export async function listPublishedWorkouts(maxResults = 50) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * @param {string} identityId
+ * @returns {Promise<import('@/types/domain').Workout[]>}
+ */
 export async function listMyWorkouts(identityId) {
   const q = query(
     collection(db, 'workouts'),
@@ -34,6 +42,11 @@ export async function listMyWorkouts(identityId) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * @param {string} ownerId
+ * @param {number} [maxResults]
+ * @returns {Promise<import('@/types/domain').Workout[]>}
+ */
 export async function listPublishedWorkoutsByOwner(ownerId, maxResults = 20) {
   // Public published workouts owned by a specific identity or business.
   // 3-field equality query — supported by single-field indexes.
@@ -48,12 +61,20 @@ export async function listPublishedWorkoutsByOwner(ownerId, maxResults = 20) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+/**
+ * @param {string} workoutId
+ * @returns {Promise<import('@/types/domain').Workout | null>}
+ */
 export async function getWorkout(workoutId) {
   const snap = await getDoc(doc(db, 'workouts', workoutId));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() };
 }
 
+/**
+ * @param {Record<string, any>} data
+ * @returns {Promise<{id: string}>}
+ */
 export async function saveWorkout(data) {
   return callSaveWorkout(data);
 }

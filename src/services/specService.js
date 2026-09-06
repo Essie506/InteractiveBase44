@@ -14,28 +14,52 @@ import * as specRepo from '@/data/firebase/firebaseSpecRepository';
 
 // --- Projects ---
 
+/**
+ * @returns {Promise<import('@/types/domain').Project[]>}
+ */
 export async function listProjects() {
   return specRepo.listProjects();
 }
 
+/**
+ * @param {string} projectId
+ * @returns {Promise<import('@/types/domain').Project | null>}
+ */
 export async function getProject(projectId) {
   return specRepo.getProject(projectId);
 }
 
+/**
+ * @param {Record<string, any>} data
+ * @returns {Promise<import('@/types/domain').Project>}
+ */
 export async function createProject(data) {
   return specRepo.createProject(data);
 }
 
 // --- Specifications ---
 
+/**
+ * @param {string} [sort]
+ * @param {number} [limit]
+ * @returns {Promise<import('@/types/domain').Specification[]>}
+ */
 export async function listSpecifications(sort = '-updated_date', limit = 100) {
   return specRepo.listSpecifications(sort, limit);
 }
 
+/**
+ * @param {string} specId
+ * @returns {Promise<import('@/types/domain').Specification | null>}
+ */
 export async function getSpecification(specId) {
   return specRepo.getSpecification(specId);
 }
 
+/**
+ * @param {Record<string, any>} data
+ * @returns {Promise<import('@/types/domain').Specification>}
+ */
 export async function createSpecification(data) {
   return specRepo.createSpecification(data);
 }
@@ -57,6 +81,10 @@ export async function getSpecVersions(specificationId) {
   return specRepo.listSpecVersions(specificationId);
 }
 
+/**
+ * @param {Record<string, any>} data
+ * @returns {Promise<import('@/types/domain').SpecVersion>}
+ */
 export async function createSpecVersion(data) {
   return specRepo.createSpecVersion(data);
 }

@@ -17,6 +17,11 @@ import {
 } from '@/services/firebaseFunctions';
 
 // ── Reactions ─────────────────────────────────────────────────
+/**
+ * @param {string} targetSystem
+ * @param {string} targetId
+ * @returns {Promise<Record<string, number>>}
+ */
 export async function listReactions(targetSystem, targetId) {
   const q = query(
     collection(db, 'reactions'),
@@ -41,6 +46,11 @@ export async function toggleReaction(targetSystem, targetType, targetId, reactio
 }
 
 // ── Comments ─────────────────────────────────────────────────
+/**
+ * @param {string} targetSystem
+ * @param {string} targetId
+ * @returns {Promise<import('@/types/domain').Comment[]>}
+ */
 export async function listComments(targetSystem, targetId) {
   const q = query(
     collection(db, 'comments'),
@@ -73,6 +83,11 @@ export async function toggleSave(targetSystem, targetType, targetId) {
 }
 
 // ── Caller's private interaction state ────────────────────────
+/**
+ * @param {string} targetSystem
+ * @param {string} targetId
+ * @returns {Promise<{ reacted?: boolean; reaction_type?: string; saved?: boolean }>}
+ */
 export async function getInteractionState(targetSystem, targetId) {
   return callGetInteractionState({ target_system: targetSystem, target_id: targetId });
 }

@@ -24,6 +24,10 @@ import {
 
 // Create a pending connection request to target_id.
 // Returns { status: 'pending' | 'already_connected', request_id?, connection_id? }
+/**
+ * @param {{ target_id?: string, requester_context?: string, request_message?: string }} [params]
+ * @returns {Promise<{ status: string, request_id?: string, connection_id?: string }>}
+ */
 export async function createConnectionRequest({ target_id, requester_context, request_message } = {}) {
   return callCreateConnectionRequest({ target_id, requester_context, request_message });
 }
@@ -44,12 +48,20 @@ export async function disconnectConnection({ target_id }) {
 //   | disconnected | none
 // Respects active blocks (returns 'blocked'). The frontend must use
 // this — never infer state from conversations or raw queries.
+/**
+ * @param {{ target_id?: string }} [params]
+ * @returns {Promise<{ status: string }>}
+ */
 export async function resolveConnectionStatus({ target_id } = {}) {
   return callResolveConnectionStatus({ target_id });
 }
 
 // Batch relationship-status read for Directory cards.
 // Returns { statuses: { [target_id]: status } }.
+/**
+ * @param {{ target_ids?: string[] }} [params]
+ * @returns {Promise<{ statuses: Record<string, string> }>}
+ */
 export async function resolveConnectionStatuses({ target_ids } = {}) {
   return callResolveConnectionStatuses({ target_ids });
 }

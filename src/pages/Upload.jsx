@@ -42,7 +42,7 @@ export default function UploadPage() {
 
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target.result;
+      const text = /** @type {string} */ (ev.target.result);
       setSummary(text.substring(0, 1500));
 
       // Auto-parse title and spec number from content
@@ -71,7 +71,7 @@ export default function UploadPage() {
     reader.readAsText(selectedFile);
   };
 
-  const createProject = async () => {
+  const handleCreateProject = async () => {
     if (!newProjectName) return;
     const proj = await createProject({
       name: newProjectName,
@@ -240,7 +240,7 @@ export default function UploadPage() {
                   />
                   <button
                     type="button"
-                    onClick={createProject}
+                    onClick={handleCreateProject}
                     className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700"
                   >
                     Create

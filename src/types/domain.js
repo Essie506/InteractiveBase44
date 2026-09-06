@@ -423,6 +423,44 @@
  * @property {'listed'|'unlisted'} [directory_visibility]
  */
 
+// ── Project / Specification (SpecVault) ───────────────────────
+/**
+ * @typedef {object} Project
+ * @property {string} id
+ * @property {string} [name]
+ * @property {string} [description]
+ * @property {string} [color]
+ * @property {string} [created_date]
+ * @property {string} [updated_date]
+ */
+
+/**
+ * @typedef {object} Specification
+ * @property {string} id
+ * @property {string} [title]
+ * @property {string} [spec_number]
+ * @property {string} [project_id]
+ * @property {string} [status]
+ * @property {string} [system_type]
+ * @property {string} [version]
+ * @property {string} [file_url]
+ * @property {string} [summary]
+ * @property {string[]} [tags]
+ * @property {string} [created_date]
+ * @property {string} [updated_date]
+ */
+
+/**
+ * @typedef {object} SpecVersion
+ * @property {string} id
+ * @property {string} [specification_id]
+ * @property {string} [version]
+ * @property {string} [status]
+ * @property {string} [file_url]
+ * @property {string} [change_note]
+ * @property {string} [created_date]
+ */
+
 // ── Search ───────────────────────────────────────────────────
 /**
  * @typedef {object} SearchIndexDocument

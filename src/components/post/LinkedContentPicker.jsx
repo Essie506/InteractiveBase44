@@ -49,7 +49,7 @@ export default function LinkedContentPicker({ system, value, onChange }) {
         const { doc, getDoc } = await import('firebase/firestore');
         const snap = await getDoc(doc(db, colName, value));
         if (!cancelled && snap.exists()) {
-          const data = snap.data();
+          const data = /** @type {Record<string, any>} */ (snap.data());
           setSelected({
             id: value,
             label: data.title || data.name || data.display_name || value,
@@ -73,7 +73,10 @@ export default function LinkedContentPicker({ system, value, onChange }) {
       const snap = await getDocs(q);
       const qLower = search.toLowerCase().trim();
       const matched = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
+        .map((d) => {
+          const data = /** @type {Record<string, any>} */ (d.data() || {});
+          return { id: d.id, ...data };
+        })
         .filter((d) => {
           const label = (d.title || d.name || d.display_name || '').toLowerCase();
           return label.includes(qLower);
