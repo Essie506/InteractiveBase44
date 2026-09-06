@@ -1,0 +1,102 @@
+{
+  "name": "GrowthOpportunity",
+  "type": "object",
+  "properties": {
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "The identity or business this opportunity is presented to."
+    },
+    "owner_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Owner Type"
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID"
+    },
+    "opportunity_type": {
+      "type": "string",
+      "enum": [
+        "profile",
+        "customer",
+        "promotional",
+        "business"
+      ],
+      "title": "Opportunity Type",
+      "description": "V2 Growth Hub \u00a75. profile = complete/improve profile; customer = customer acquisition; promotional = use Promotions; business = business operations improvement."
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "build",
+        "grow",
+        "scale"
+      ],
+      "title": "Growth Journey Stage",
+      "description": "V2 Growth Hub \u00a74.2\u2013\u00a74.4. Build = establishing presence; Grow = expanding reach; Scale = optimising operations."
+    },
+    "title": {
+      "type": "string",
+      "title": "Title"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description",
+      "description": "What the opportunity is and why it matters."
+    },
+    "action_label": {
+      "type": "string",
+      "title": "Action Label",
+      "description": "CTA button text (e.g. 'Complete your profile', 'Create a campaign')."
+    },
+    "action_url": {
+      "type": "string",
+      "title": "Action URL",
+      "description": "Internal route to navigate to when the opportunity is actioned."
+    },
+    "priority": {
+      "type": "number",
+      "default": 0,
+      "title": "Priority",
+      "description": "Sort priority \u2014 higher = shown first."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "actioned",
+        "dismissed"
+      ],
+      "default": "available",
+      "title": "Status"
+    },
+    "subscription_tier_required": {
+      "type": "string",
+      "enum": [
+        "basic",
+        "plus",
+        "pro"
+      ],
+      "title": "Subscription Tier Required",
+      "description": "Minimum subscription tier needed to action this opportunity. Null = available to all."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+    }
+  },
+  "required": [
+    "owner_id",
+    "owner_type",
+    "opportunity_type",
+    "stage",
+    "title"
+  ]
+}

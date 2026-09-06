@@ -1,30 +1,11 @@
-/**
- * Discovery Service — reusable Directory + Search layer.
- * ───────────────────────────────────────────────────────────
- * Reads the existing public profile projections:
- *   professionalDirectoryEntries/{screenName} (public-read, advert-safe fields)
- *   businessProfilesPublic/{businessId}     (public-read, public fields only)
- *   calendarEventsPublic/{eventId}          (public-read, public fields only)
- *
- * Professional discovery uses the Directory advert projection
- * (professionalDirectoryEntries), which is independent of profile
- * visibility: a doc exists when lifecycle_state=active &&
- * directory_visibility=listed, regardless of whether the full profile
- * is public, connections-only, or private. The advert contains only
- * discovery-safe fields — no bio, gallery, or private contact.
- * businessProfilesPublic and calendarEventsPublic remain as before.
- *
- * Directory and Search both consume this single layer:
- *   loadDirectory()   → fetch once
- *   filterResults()   → in-memory filter + deterministic rank
- *
- * No duplicate listing entities are created. Results reference the
- * existing public profile identity/business/event IDs and routes.
- *
- * Events are filtered by their own dimensions (Date, Format, Price,
- * Availability, Activity) and sorted by start time when 'date' sort
- * is selected.
- */
+// Search & Discovery Service — V2 §15.
+// Extends the existing Directory discovery (professionals, businesses,
+// events) with indexed content (posts, workouts, promotions) from the
+// SearchIndexAdapter.
+//
+// The Directory route remains the authoritative public discovery
+// surface. The SpecVault AI spec-search (src/pages/Search.jsx) stays
+// separate as an administrative tool.
 
 import { db } from '@/firebase/firebaseClient';
 import { collection, getDocs, query, where, limit } from 'firebase/firestore';
@@ -35,17 +16,13 @@ import { computeMatchScore, matchScoreValue } from '@/lib/matchScoring';
 import { resolveDateRange, isEventInRange } from '@/lib/eventDateRanges';
 import { compareEventsByPrice } from '@/lib/eventPriceSort';
 import { isPriceSort } from '@/lib/directorySortOptions';
+import { searchIndex, getSuggestions } from '@/lib/searchIndexAdapter';
 
 const PROFESSIONAL_DIRECTORY = 'professionalDirectoryEntries';
 const BUSINESS_PUBLIC = 'businessProfilesPublic';
 const EVENTS_PUBLIC = 'calendarEventsPublic';
 
 // ── Load all listable public profiles + events ────────────
-// Each discovery source loads independently via Promise.allSettled so
-// a permission-denied / network failure on ONE source (e.g. an
-// undeployed calendarEventsPublic rule) does NOT blank the whole
-// Directory. Failed sources are reported in `sourceErrors` rather
-// than rejecting the entire load.
 export async function loadDirectory() {
   if (!useFirebase) return { professionals: [], businesses: [], events: [], sourceErrors: {} };
 
@@ -68,10 +45,6 @@ export async function loadDirectory() {
 }
 
 // ── Public events by owner (profile content surface) ─────
-// Fetches upcoming public events for a specific identity or business
-// from the calendarEventsPublic projection. Single-field query on
-// owner_id (no composite index needed); client-side filters handle
-// visibility, lifecycle, and upcoming date filtering + sorting.
 export async function listPublicEventsByOwner(ownerId, maxResults = 20) {
   if (!useFirebase) return [];
   const q = query(
@@ -91,6 +64,21 @@ export async function listPublicEventsByOwner(ownerId, maxResults = 20) {
     .slice(0, maxResults);
 }
 
+// ── Indexed content search (posts, workouts, promotions) ─────
+// Queries the SearchIndexAdapter for content beyond the 3 projection-
+// based discovery types. Returns index documents with content_type
+// and system for the Directory to render as result cards.
+export async function searchIndexedContent(searchText, opts = {}) {
+  if (!searchText?.trim()) return [];
+  const types = opts.types || ['post', 'workout', 'promotion'];
+  return searchIndex(searchText, { types, maxResults: opts.maxResults || 30 });
+}
+
+// ── Search suggestions (autocomplete) ─────
+export async function getSearchSuggestions(prefix) {
+  return getSuggestions(prefix);
+}
+
 // ── Text match (case-insensitive across public fields) ────
 function matchesQuery(profile, q) {
   const fields = [
@@ -105,7 +93,6 @@ function matchesQuery(profile, q) {
   return fields.some(f => String(f).toLowerCase().includes(q));
 }
 
-// ── Event text match (title, description, host, services) ─
 function matchesEventQuery(event, q) {
   const fields = [
     event.title, event.description, event.location_label,
@@ -115,7 +102,6 @@ function matchesEventQuery(event, q) {
   return fields.some(f => String(f).toLowerCase().includes(q));
 }
 
-// Map location_type (physical/online/hybrid) to format filter ids.
 function eventFormatId(event) {
   if (event.location_type === 'online') return 'online';
   if (event.location_type === 'hybrid') return 'hybrid';
@@ -123,18 +109,12 @@ function eventFormatId(event) {
 }
 
 // ── Filter + rank ───────────────────────────────────────────
-// opts: { query, types, serviceIds, facilityIds, businessTypeIds, equipmentIds,
-//        professionalTypeIds, specialismIds, sessionTypeIds,
-//        verifiedOnly, locationText, sort, maxResults, origin, distance,
-//        dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly }
-//   types: null = all, or ['professional'] / ['business'] / ['event'] / any combo
 export function filterResults(data, opts = {}) {
   const {
     query, types, serviceIds, facilityIds, businessTypeIds, equipmentIds,
     professionalTypeIds, specialismIds, sessionTypeIds,
     verifiedOnly, locationText, sort = 'recommended', maxResults = 100,
     origin, distance,
-    // Event filters
     dateFilter, dateFrom, dateTo, formatIds, priceIds, availableOnly,
   } = opts;
 
@@ -150,18 +130,12 @@ export function filterResults(data, opts = {}) {
     results.push(...data.businesses.map(b => ({ ...b, _type: 'business' })));
   }
 
-  // ── Events are filtered separately then merged ──
-  // Events have their own filter dimensions (date, format, price,
-  // availability, activity) that don't apply to profiles. They are
-  // processed in isolation then appended to the results list so the
-  // shared sort can interleave them.
   let events = [];
   if (wantEvt && Array.isArray(data.events)) {
     events = data.events
       .filter(e => e.visibility === 'public' && e.lifecycle_state !== 'cancelled')
       .map(e => ({ ...e, _type: 'event' }));
 
-    // Date range filter
     if (dateFilter) {
       const range = resolveDateRange(dateFilter, dateFrom, dateTo);
       if (range) {
@@ -169,19 +143,16 @@ export function filterResults(data, opts = {}) {
       }
     }
 
-    // Format filter (in-person / online / hybrid)
     if (formatIds && formatIds.length > 0) {
       events = events.filter(e => formatIds.includes(eventFormatId(e)));
     }
 
-    // Price filter (free / paid)
     if (priceIds && priceIds.length > 0) {
       events = events.filter(e =>
         priceIds.includes(e.is_free ? 'free' : 'paid')
       );
     }
 
-    // Availability filter — spaces remaining > 0
     if (availableOnly) {
       events = events.filter(e =>
         e.availability_state === 'available' ||
@@ -189,11 +160,6 @@ export function filterResults(data, opts = {}) {
       );
     }
 
-    // Activities ranked match for events. Events reuse the shared
-    // ServiceDefinition taxonomy (presented as "Activities" in the UI),
-    // so they match against the same serviceIds dimension as profiles.
-    // This counts Activities as ONE matching dimension — not twice —
-    // because profiles and events are scored in separate blocks.
     if (serviceIds && serviceIds.length > 0) {
       events = events
         .map(e => {
@@ -203,13 +169,10 @@ export function filterResults(data, opts = {}) {
         .filter(e => e._matchScore.isEligible);
     }
 
-    // Verified-only for events — check host verification
     if (verifiedOnly) {
       events = events.filter(e => e.host?.verification_state === 'verified');
     }
 
-    // Location filter for events (local-scope aliases to avoid
-    // shadowing the outer hasOrigin used by profile filtering + sort)
     const evtHasOrigin = origin && origin.latitude != null && origin.longitude != null;
     const evtDistanceActive = evtHasOrigin && distance && distance > 0;
     if (evtDistanceActive) {
@@ -229,13 +192,11 @@ export function filterResults(data, opts = {}) {
       }
     }
 
-    // Free-text query for events
     if (query) {
       const q = query.toLowerCase().trim();
       if (q) events = events.filter(e => matchesEventQuery(e, q));
     }
 
-    // Attach distance for events
     if (evtHasOrigin) {
       events = events.map(e => ({
         ...e,
@@ -244,16 +205,10 @@ export function filterResults(data, opts = {}) {
     }
   }
 
-  // Verified-only filter (profiles)
   if (verifiedOnly) {
     results = results.filter(r => r.verification_state === 'verified');
   }
 
-  // Entity-specific strict filters — apply ONLY to the entity type
-  // that owns the dimension. Other result types pass through
-  // untouched: a professional/event cannot possess a business_type,
-  // so it must never be excluded when businessTypeIds is active
-  // (e.g. an "All" search with a business-type filter applied via URL).
   if (businessTypeIds && businessTypeIds.length > 0) {
     results = results.filter(r =>
       r._type !== 'business' ||
@@ -268,14 +223,6 @@ export function filterResults(data, opts = {}) {
     );
   }
 
-  // Entity-aware ranked multi-select matching. Each dimension is
-  // scored only against the entity type that semantically owns it, so
-  // a professional is never penalised for not having facilities, nor a
-  // business for not having specialisms. Services is the one shared
-  // dimension (scored for both professionals and businesses). Events
-  // are scored separately in the events block (Activities = services).
-  //   professional → services, specialisms, session_types
-  //   business     → services, facilities, equipment
   const hasStructuredFilters =
     (serviceIds && serviceIds.length > 0) ||
     (facilityIds && facilityIds.length > 0) ||
@@ -288,15 +235,13 @@ export function filterResults(data, opts = {}) {
       .map(r => {
         const dims = r._type === 'professional'
           ? { serviceIds, specialismIds, sessionTypeIds }
-          : { serviceIds, facilityIds, equipmentIds }; // business
+          : { serviceIds, facilityIds, equipmentIds };
         const _matchScore = computeMatchScore(r, dims);
         return { ...r, _matchScore };
       })
       .filter(r => r._matchScore.isEligible);
   }
 
-  // Location filter — distance-based when origin is resolved,
-  // text-based fallback when no origin (geocoding failed or no input).
   const hasOrigin = origin && origin.latitude != null && origin.longitude != null;
   const distanceActive = hasOrigin && distance && distance > 0;
 
@@ -317,13 +262,11 @@ export function filterResults(data, opts = {}) {
     }
   }
 
-  // Free-text query (profiles)
   if (query) {
     const q = query.toLowerCase().trim();
     if (q) results = results.filter(r => matchesQuery(r, q));
   }
 
-  // Attach calculated distance to each result for display + distance sort.
   if (hasOrigin) {
     results = results.map(r => {
       const coords = getGeoCoords(r);
@@ -331,12 +274,9 @@ export function filterResults(data, opts = {}) {
     });
   }
 
-  // Merge events into results
   results.push(...events);
 
-  // Ranking — structured match quality influences each sort mode.
   if (sort === 'date') {
-    // Soonest first. Events without start_time sort last.
     results.sort((a, b) => {
       const at = a.start_time ? new Date(a.start_time).getTime() : null;
       const bt = b.start_time ? new Date(b.start_time).getTime() : null;
@@ -372,78 +312,27 @@ export function filterResults(data, opts = {}) {
       return new Date(b._updated_date || 0).getTime() - new Date(a._updated_date || 0).getTime();
     });
   } else if (isPriceSort(sort)) {
-    // Event price sort. Only events carry a comparable public price
-    // (price_pence); non-events have no price and sort last (unknown,
-    // never treated as free). Free === price_pence === 0.
     const direction = sort === 'price-asc' ? 'asc' : 'desc';
     results.sort((a, b) => compareEventsByPrice(a, b, direction));
   } else {
-    // 'recommended' (default) or 'distance' without origin.
-    //
-    // Multi-layer ranking contract:
-    //
-    //   LAYER A — Explicit current filter match (highest priority)
-    //     Ranked by how closely results match the user's actively
-    //     selected Directory filters (services, professional type,
-    //     specialisms, session type, business type, facilities,
-    //     equipment, event Activity/Format/Date/Price, location/radius).
-    //     Reuses computeMatchScore. Current search intent always
-    //     outweighs personalization.
-    //
-    //   LAYER B — Personal relevance (DEFERRED)
-    //     Future layer using privacy-safe signals from a signed-in
-    //     user's Personal Profile (interests, goals, activities),
-    //     previously attended events, completed bookings, and followed
-    //     professionals/businesses. NOT yet implemented — the cross-
-    //     system data is not available, so no fake scores are invented.
-    //     Skipped entirely for signed-out users. Search & Discovery
-    //     owns this logic; nothing is written back to Personal Profile.
-    //
-    //   LAYER C — Contextual quality / fallback
-    //     Breaks ties after Layer A (and Layer B when available):
-    //       a. geographic proximity — soft, only when an origin is
-    //          resolved; never overrides a strong explicit match.
-    //       b. host/profile verification — secondary trust signal,
-    //          NOT a dominant boost.
-    //       c. upcoming date relevance for Events — sooner future
-    //          start time ranks higher.
-    //     With no filters and no personal signals, these form the
-    //     fallback ranking (location + verification + date relevance).
-    //
-    //   LAYER D — Deterministic final tie-break
-    //     Alphabetical by display name / business name / event title.
-    //
-    // No fake popularity, trending, engagement counts, sponsored
-    // ranking, or opaque random weights. Promotions stay separate.
     results.sort((a, b) => {
-      // Layer A — explicit current filter match
       const ms = matchScoreValue(b) - matchScoreValue(a);
       if (ms !== 0) return ms;
-
-      // Layer B — personal relevance (deferred; intentional no-op)
-
-      // Layer C — contextual quality
-      // a. geographic proximity (soft, only when origin resolved)
       if (hasOrigin) {
         const ad = a._distance;
         const bd = b._distance;
         if (ad == null && bd == null) {
-          // both unknown — fall through
         } else if (ad == null) {
-          return 1; // no coords → ranks after a located result
+          return 1;
         } else if (bd == null) {
           return -1;
         } else if (ad !== bd) {
           return ad - bd;
         }
       }
-
-      // b. verification (secondary trust signal)
       const av = (a.verification_state || a.host?.verification_state) === 'verified' ? 0 : 1;
       const bv = (b.verification_state || b.host?.verification_state) === 'verified' ? 0 : 1;
       if (av !== bv) return av - bv;
-
-      // c. upcoming date relevance for events (sooner future = better)
       if (a._type === 'event' && b._type === 'event') {
         const now = Date.now();
         const at = a.start_time ? new Date(a.start_time).getTime() : null;
@@ -452,8 +341,6 @@ export function filterResults(data, opts = {}) {
         const bRank = bt != null && bt >= now ? bt : Infinity;
         if (aRank !== bRank) return aRank - bRank;
       }
-
-      // Layer D — deterministic alphabetical tie-break
       const an = (a.display_name || a.name || a.title || '').toLowerCase();
       const bn = (b.display_name || b.name || b.title || '').toLowerCase();
       return an.localeCompare(bn);

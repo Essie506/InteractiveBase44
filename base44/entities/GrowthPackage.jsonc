@@ -1,0 +1,89 @@
+{
+  "name": "GrowthPackage",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Package Name",
+      "description": "Display name for this Growth Package (e.g. 'Starter Boost', 'Growth Pro')."
+    },
+    "tier": {
+      "type": "string",
+      "enum": [
+        "basic",
+        "plus",
+        "pro"
+      ],
+      "title": "Tier",
+      "description": "V2 \u00a719.5. Maps to the SubscriptionPlan tier that unlocks this package. basic/plus/pro correspond to the subscription tier architecture."
+    },
+    "family": {
+      "type": "string",
+      "enum": [
+        "professional",
+        "business"
+      ],
+      "title": "Family",
+      "description": "Which subscription family this package belongs to. Professional and Business have separate Growth Packages."
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Capabilities",
+      "description": "V2 \u00a719.5. List of promotional capabilities unlocked by this package (e.g. 'service_boost', 'event_boost', 'profile_boost', 'analytics_advanced')."
+    },
+    "max_active_campaigns": {
+      "type": "number",
+      "default": 1,
+      "title": "Max Active Campaigns",
+      "description": "Maximum number of simultaneous active campaigns allowed by this package."
+    },
+    "monthly_budget_pence": {
+      "type": "number",
+      "default": 0,
+      "title": "Monthly Budget (pence)",
+      "description": "Monthly promotional budget allowance in pence. 0 = no budget included (pay-per-campaign)."
+    },
+    "campaign_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "service_boost",
+          "event_boost",
+          "workout_boost",
+          "post_boost",
+          "profile_boost",
+          "business_boost"
+        ]
+      },
+      "title": "Allowed Campaign Types",
+      "description": "Which campaign types this package permits."
+    },
+    "sort_order": {
+      "type": "number",
+      "default": 0,
+      "title": "Sort Order"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "retired"
+      ],
+      "default": "active",
+      "title": "Status"
+    }
+  },
+  "required": [
+    "name",
+    "tier",
+    "family"
+  ]
+}

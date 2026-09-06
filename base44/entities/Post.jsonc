@@ -33,10 +33,44 @@
       "title": "Operating Context",
       "description": "Provenance: the context in which this post was created."
     },
+    "post_type": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "achievement",
+        "educational",
+        "workout",
+        "business_update",
+        "promotion",
+        "event",
+        "calendar_event",
+        "blog_share",
+        "progress_update",
+        "community_question"
+      ],
+      "default": "standard",
+      "title": "Post Type",
+      "description": "V2 Post Type Engine \u00a79. Each type extends the Universal Post Model. standard = general text/media post; achievement = milestone/accomplishment; educational = instructional content; workout = references a Workout; business_update = business announcement; promotion = references a Promotion/campaign; event = references a CalendarEvent; calendar_event = calendar share; blog_share = external blog link share; progress_update = personal journey update; community_question = discussion prompt."
+    },
+    "title": {
+      "type": "string",
+      "title": "Title",
+      "description": "Optional title for post types that support a headline (educational, achievement, business_update, blog_share, community_question). Null for standard posts."
+    },
+    "summary": {
+      "type": "string",
+      "title": "Summary",
+      "description": "Optional short summary/excerpt for longer-form post types (educational, blog_share). Null when not applicable."
+    },
     "body": {
       "type": "string",
       "title": "Body",
-      "description": "Text content of the post."
+      "description": "Primary text content of the post. For rich_text types this stores the plain-text fallback."
+    },
+    "rich_text": {
+      "type": "string",
+      "title": "Rich Text Content",
+      "description": "Optional formatted content (HTML or markdown) for post types that support rich formatting (educational, blog_share, business_update). Null for plain-text posts."
     },
     "media_urls": {
       "type": "array",
@@ -44,7 +78,7 @@
         "type": "string"
       },
       "title": "Media URLs",
-      "description": "Attached media (images) for the post."
+      "description": "Display URLs for attached media (images and video). Convenience denormalisation; the authoritative references are media_asset_ids."
     },
     "media_asset_ids": {
       "type": "array",
@@ -52,12 +86,12 @@
         "type": "string"
       },
       "title": "Media Asset IDs",
-      "description": "Stable references to MediaAssets used in this post."
+      "description": "Stable references to MediaAssets used in this post. Images and video are stored as MediaAsset references so the Media System owns processing/delivery."
     },
     "link_url": {
       "type": "string",
       "title": "Link URL",
-      "description": "Optional external link attached to the post."
+      "description": "Optional external link attached to the post (blog_share, educational, standard)."
     },
     "link_preview": {
       "type": "object",
@@ -74,6 +108,89 @@
       },
       "title": "Link Preview",
       "description": "OG-style preview metadata for the attached link."
+    },
+    "linked_content_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "type": "string",
+            "enum": [
+              "workout",
+              "calendar_event",
+              "booking",
+              "promotion",
+              "post",
+              "business",
+              "professional"
+            ],
+            "title": "Target System"
+          },
+          "type": {
+            "type": "string",
+            "title": "Target Type",
+            "description": "Content type within the target system (e.g. 'workout', 'event', 'campaign')."
+          },
+          "id": {
+            "type": "string",
+            "title": "Target ID",
+            "description": "Stable reference to the linked content record."
+          }
+        },
+        "required": [
+          "system",
+          "id"
+        ]
+      },
+      "title": "Linked Content References",
+      "description": "Structured references to connected-system content (\u00a78 Universal Post Model). Replaces ad-hoc link_url for platform-internal content: workout posts reference a Workout, event posts reference a CalendarEvent, promotion posts reference a Promotion. References are stable IDs \u2014 never embedded copies."
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "description": "Free-form tags for categorisation and discovery."
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Categories",
+      "description": "Structured category labels for classification."
+    },
+    "mentions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "identity_id": {
+            "type": "string",
+            "title": "Mentioned Identity ID"
+          },
+          "business_id": {
+            "type": "string",
+            "title": "Mentioned Business ID"
+          },
+          "label": {
+            "type": "string",
+            "title": "Display Label"
+          }
+        }
+      },
+      "title": "Mentions",
+      "description": "Identities/businesses mentioned in this post. References, not duplicates."
+    },
+    "hashtags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Hashtags",
+      "description": "Normalised lowercase hashtags extracted from body or explicitly set."
     },
     "visibility": {
       "type": "string",
@@ -98,6 +215,65 @@
       "default": "published",
       "title": "Lifecycle State",
       "description": "Drafts are private. Published posts are visible per visibility rules. Archived/Deleted remove from Feed. Under_review is a moderation state."
+    },
+    "locality_settings": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": [
+            "global",
+            "local",
+            "regional"
+          ],
+          "default": "global",
+          "title": "Locality Scope"
+        },
+        "location_ref": {
+          "type": "string",
+          "title": "Location Reference",
+          "description": "Stable reference to a Location record for local/regional posts."
+        }
+      },
+      "title": "Locality Settings",
+      "description": "Controls geographic discoverability scope (\u00a78). Global = discoverable everywhere; local/regional = discoverable within a geographic scope."
+    },
+    "discovery_eligibility": {
+      "type": "boolean",
+      "default": true,
+      "title": "Discovery Eligibility",
+      "description": "Whether this post is eligible for Search & Discovery indexing. False for posts that should not appear in discovery (e.g. private, under_review, or author-opted-out)."
+    },
+    "reporting_status": {
+      "type": "string",
+      "enum": [
+        "clear",
+        "reported",
+        "actioned"
+      ],
+      "default": "clear",
+      "title": "Reporting Status",
+      "description": "Moderation reporting state. clear = no reports; reported = pending moderation review; actioned = moderation action taken."
+    },
+    "publishing_account_id": {
+      "type": "string",
+      "title": "Publishing Account ID",
+      "description": "The account that published this post. For identity-authored posts this is the identity ID; for business-authored posts this is the business ID. Mirrors author_identity_id/business_id for clarity per \u00a78."
+    },
+    "publishing_account_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "business"
+      ],
+      "title": "Publishing Account Type",
+      "description": "The type of publishing account. Mirrors author_type per \u00a78."
+    },
+    "view_count": {
+      "type": "number",
+      "default": 0,
+      "title": "View Count",
+      "description": "Denormalised count of post views for analytics."
     },
     "edited_at": {
       "type": "string",

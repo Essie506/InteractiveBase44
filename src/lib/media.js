@@ -2,11 +2,18 @@ import { base44 } from '@/api/base44Client';
 import { mediaRepository } from '@/data/firebase';
 import { useFirebase } from '@/lib/backendConfig';
 import { callGetProtectedMediaUrl } from '@/services/firebaseFunctions';
+import { processMedia, defaultProcessingIntent } from '@/lib/mediaProcessingAdapter';
 
-// Media System — M3: routes to Firebase when configured.
-// Media metadata is migrated to Firestore. Media FILES remain on Base44
-// storage temporarily — file_url references are preserved.
-// This is a remaining migration dependency (M3 §25).
+// Media System — V2 §9 Upload Engine.
+// Routes all uploads through the canonical lifecycle:
+//   pending_upload → uploading → validating → processing → active
+// (or → quarantined / processing_failed on failure)
+//
+// The Processing Adapter (mediaProcessingAdapter.js) handles
+// screening/optimisation/transcoding at the provider boundary.
+// The Delivery Adapter (mediaDeliveryAdapter.js) handles CDN/streaming
+// at the provider boundary. Both have default no-op/passthrough
+// implementations so the Interactive architecture is provider-independent.
 
 function getMediaType(mimeType) {
   if (!mimeType) return 'document';
@@ -18,16 +25,13 @@ function getMediaType(mimeType) {
 
 // Upload a file through the authoritative Media pipeline.
 export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'private', sourceRefId = null, authorizedIdentityIds = null) {
-  // Step 1: Create MediaAsset in uploading state
-  // source_ref_id links the asset to its source-domain entity:
-  //   - messaging: conversation_id
-  //   - verification: verification_request_id
-  // authorized_identity_ids: denormalized list of identities authorized
-  // to access this media (for verification evidence). Storage Rules use
-  // this for source-domain authorization within the 2-access limit.
+  const mediaType = getMediaType(file.type);
+  const intent = defaultProcessingIntent(mediaType);
+
+  // Step 1: Create MediaAsset in uploading state with processing intent
   const assetData = {
     owner_id: ownerId,
-    media_type: getMediaType(file.type),
+    media_type: mediaType,
     file_name: file.name,
     mime_type: file.type,
     size_bytes: file.size,
@@ -36,6 +40,7 @@ export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'pri
     source_ref_id: sourceRefId,
     authorized_identity_ids: authorizedIdentityIds,
     visibility,
+    processing_intent: intent,
   };
 
   let asset;
@@ -62,33 +67,73 @@ export async function uploadMedia(file, ownerId, sourceDomain, visibility = 'pri
       storagePath = file_url;
     }
 
-    // Step 3: Transition to active
+    // Step 3: Transition to validating
+    const validatingData = { lifecycle_state: 'validating' };
     if (useFirebase) {
-      // Resolve the Firebase Storage download URL for display purposes.
-      // Firebase Storage download URLs are long-lived (do not expire).
-      // file_url is preserved for backward compatibility with components
-      // that display media via URL. storage_path is the authoritative
-      // reference for server-side operations and storage rules.
+      await mediaRepository.updateMediaAsset(asset.id, validatingData);
+    } else {
+      await base44.entities.MediaAsset.update(asset.id, validatingData);
+    }
+
+    // Step 4: Transition to processing
+    const processingData = { lifecycle_state: 'processing' };
+    if (useFirebase) {
+      await mediaRepository.updateMediaAsset(asset.id, processingData);
+    } else {
+      await base44.entities.MediaAsset.update(asset.id, processingData);
+    }
+
+    // Step 5: Run the Processing Adapter (screening, optimisation, transcoding)
+    const result = await processMedia(
+      { ...asset, storage_path: storagePath, file_name: file.name, mime_type: file.type },
+      intent,
+    );
+
+    if (!result.passed) {
+      // Security screening failed → quarantine
+      const quarantineData = {
+        lifecycle_state: 'quarantined',
+        processing_error: result.error || 'Security screening failed',
+      };
+      if (useFirebase) {
+        await mediaRepository.updateMediaAsset(asset.id, quarantineData);
+      } else {
+        await base44.entities.MediaAsset.update(asset.id, quarantineData);
+      }
+      throw new Error(result.error || 'Media failed security screening');
+    }
+
+    // Step 6: Transition to active
+    if (useFirebase) {
       const downloadUrl = await mediaRepository.getMediaDownloadUrl(storagePath);
       return mediaRepository.updateMediaAsset(asset.id, {
         storage_path: storagePath,
         file_url: downloadUrl,
         lifecycle_state: 'active',
+        derivatives: result.derivatives || [],
       });
     }
     return base44.entities.MediaAsset.update(asset.id, {
       file_url: storagePath,
       lifecycle_state: 'active',
+      derivatives: result.derivatives || [],
     });
   } catch (err) {
+    // Don't overwrite quarantined state with processing_failed
     const failData = {
       lifecycle_state: 'processing_failed',
       processing_error: err.message || 'Upload failed',
     };
     if (useFirebase) {
-      await mediaRepository.updateMediaAsset(asset.id, failData);
+      const current = await mediaRepository.getMediaAsset(asset.id);
+      if (current?.lifecycle_state !== 'quarantined') {
+        await mediaRepository.updateMediaAsset(asset.id, failData);
+      }
     } else {
-      await base44.entities.MediaAsset.update(asset.id, failData);
+      const current = await base44.entities.MediaAsset.get(asset.id);
+      if (current?.lifecycle_state !== 'quarantined') {
+        await base44.entities.MediaAsset.update(asset.id, failData);
+      }
     }
     throw err;
   }
@@ -128,20 +173,13 @@ export async function removeReference(mediaId) {
 }
 
 /**
- * Gets a displayable URL for a media asset.
- * In Firebase mode, resolves a Firebase Storage download URL from the storage_path.
- * In Base44 mode, returns the file_url directly.
+ * Gets a displayable URL for a media asset via the Delivery Adapter.
  * @param {object} asset — MediaAsset record
  * @returns {Promise<string|null>} URL or null
  */
 export async function getMediaUrl(asset) {
   if (!asset) return null;
   if (useFirebase && asset.storage_path) {
-    // Protected media (messaging, verification): use server-mediated
-    // signed URL to enforce source-domain authorization server-side
-    // and prevent long-lived download URL sharing. The Cloud Function
-    // verifies conversation participation / verification submitter
-    // before returning a 15-minute signed URL.
     const sourceDomain = asset.source_domain;
     if (sourceDomain === 'messaging' || sourceDomain === 'verification') {
       try {
@@ -151,8 +189,6 @@ export async function getMediaUrl(asset) {
         return null;
       }
     }
-    // Non-protected media: use Firebase Storage download URL directly.
-    // Storage Rules enforce owner/public access at the SDK level.
     try {
       return await mediaRepository.getMediaDownloadUrl(asset.storage_path);
     } catch {

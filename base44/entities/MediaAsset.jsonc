@@ -61,12 +61,15 @@
         "processing",
         "active",
         "processing_failed",
+        "quarantined",
+        "updating",
         "archived",
         "scheduled_for_deletion",
         "deleted"
       ],
       "default": "pending_upload",
-      "title": "Lifecycle State"
+      "title": "Lifecycle State",
+      "description": "V2 Media \u00a710 lifecycle: pending_upload \u2192 uploading \u2192 validating \u2192 processing \u2192 active. quarantined = failed security screening (\u00a711); updating = asset is being re-processed; processing_failed = transcoding/optimisation failure; archived/scheduled_for_deletion/deleted = end-of-life states."
     },
     "derivatives": {
       "type": "array",
@@ -74,20 +77,26 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string"
+            "type": "string",
+            "title": "Derivative Type",
+            "description": "thumbnail, preview, optimized, transcoded_720p, transcoded_1080p, etc."
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "title": "Derivative URL"
           },
           "width": {
-            "type": "number"
+            "type": "number",
+            "title": "Width"
           },
           "height": {
-            "type": "number"
+            "type": "number",
+            "title": "Height"
           }
         }
       },
-      "title": "Derivatives"
+      "title": "Derivatives",
+      "description": "Generated derivatives (thumbnails, previews, transcoded renditions) produced by the Media Processing Adapter."
     },
     "alt_text": {
       "type": "string",
@@ -102,15 +111,17 @@
         "verification",
         "post",
         "workout",
-        "promotion"
+        "promotion",
+        "booking",
+        "payment"
       ],
       "title": "Source Domain",
-      "description": "Which connected system owns the usage context"
+      "description": "Which connected system owns the usage context. booking = booking attachments/evidence; payment = receipts/invoices/payment documents."
     },
     "source_ref_id": {
       "type": "string",
       "title": "Source Reference ID",
-      "description": "Authoritative link to the source-domain entity. For messaging: conversation_id. For verification: verification_request_id. Used by Storage Rules for source-domain authorization."
+      "description": "Authoritative link to the source-domain entity. For messaging: conversation_id. For verification: verification_request_id. For booking: booking_id. For payment: payment_id. Used by Storage Rules for source-domain authorization."
     },
     "authorized_identity_ids": {
       "type": "array",
@@ -133,7 +144,35 @@
     },
     "processing_error": {
       "type": "string",
-      "title": "Processing Error"
+      "title": "Processing Error",
+      "description": "Error message when lifecycle_state is processing_failed or quarantined."
+    },
+    "processing_intent": {
+      "type": "object",
+      "properties": {
+        "screen": {
+          "type": "boolean",
+          "default": true,
+          "title": "Security Screen Requested"
+        },
+        "optimize": {
+          "type": "boolean",
+          "default": true,
+          "title": "Image Optimisation Requested"
+        },
+        "thumbnail": {
+          "type": "boolean",
+          "default": true,
+          "title": "Thumbnail Generation Requested"
+        },
+        "transcode": {
+          "type": "boolean",
+          "default": true,
+          "title": "Video Transcoding Requested"
+        }
+      },
+      "title": "Processing Intent",
+      "description": "Record of what processing was requested when the asset was uploaded. The Processing Adapter uses this to determine which operations to apply. Preserved for audit even when the default adapter is a no-op."
     },
     "checksum": {
       "type": "string",

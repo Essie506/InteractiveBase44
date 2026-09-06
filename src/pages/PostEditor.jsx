@@ -1,10 +1,16 @@
+// PostEditor — V2 Post System.
+// Supports the 11 spec post types (§9), Universal Post Model fields (§8),
+// video + image media via the Media System, and linked content references.
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { callSavePost } from '@/services/postService';
 import { useToast } from '@/components/ui/use-toast';
 import MediaUploadButton from '@/components/MediaUploadButton';
-import { Loader2, Send, Globe, Users, Lock, ImagePlus, Link2, X } from 'lucide-react';
+import PostTypeSelector from '@/components/post/PostTypeSelector';
+import LinkedContentPicker from '@/components/post/LinkedContentPicker';
+import { getPostTypeConfig } from '@/data/postTypes';
+import { Loader2, Send, Globe, Users, Lock, ImagePlus, Video, Link2, X, Tag } from 'lucide-react';
 
 const VISIBILITY_OPTIONS = [
   { value: 'public', label: 'Public', desc: 'Anyone can see this post', icon: Globe },
@@ -12,17 +18,32 @@ const VISIBILITY_OPTIONS = [
   { value: 'private', label: 'Private', desc: 'Only you can see this', icon: Lock },
 ];
 
+const REFERENCE_SYSTEM_MAP = {
+  workout: 'workout',
+  calendar_event: 'calendar_event',
+  promotion: 'promotion',
+};
+
 export default function PostEditor() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [postType, setPostType] = useState('standard');
+  const [title, setTitle] = useState('');
+  const [summary, setSummary] = useState('');
   const [body, setBody] = useState('');
-  const [mediaUrls, setMediaUrls] = useState([]);
+  const [mediaAssets, setMediaAssets] = useState([]);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkUrlInput, setLinkUrlInput] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [visibility, setVisibility] = useState('public');
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
+  const [linkedRefId, setLinkedRefId] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const config = getPostTypeConfig(postType);
+  const refSystem = config.requiresReference ? REFERENCE_SYSTEM_MAP[config.requiresReference] : null;
 
   const normalizeUrl = (url) => {
     const trimmed = url.trim();
@@ -38,19 +59,40 @@ export default function PostEditor() {
     setShowLinkInput(false);
   };
 
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase();
+    if (t && !tags.includes(t)) setTags([...tags, t]);
+    setTagInput('');
+  };
+
   const handleSave = async () => {
     if (!body.trim()) {
       toast({ title: 'Post body is empty', variant: 'destructive' });
       return;
     }
+    if (config.requiresReference && !linkedRefId) {
+      toast({ title: `Please link a ${config.label} reference`, variant: 'destructive' });
+      return;
+    }
     setSaving(true);
     try {
+      const linkedRefs = linkedRefId && refSystem
+        ? [{ system: refSystem, type: config.requiresReference, id: linkedRefId }]
+        : [];
+
       await callSavePost({
         author_identity_id: user.id,
         author_type: 'identity',
+        post_type: postType,
+        title: config.supportsTitle ? (title.trim() || null) : null,
+        summary: config.supportsSummary ? (summary.trim() || null) : null,
         body: body.trim(),
-        media_urls: mediaUrls,
-        link_url: linkUrl || null,
+        media_urls: mediaAssets.map((a) => a.file_url).filter(Boolean),
+        media_asset_ids: mediaAssets.map((a) => a.id).filter(Boolean),
+        link_url: config.supportsLink ? (linkUrl || null) : null,
+        linked_content_references: linkedRefs,
+        tags,
+        hashtags: tags,
         visibility,
         operating_context: user.active_context || 'personal',
         lifecycle_state: 'published',
@@ -76,42 +118,90 @@ export default function PostEditor() {
       </div>
 
       <div className="bg-white rounded-xl border border-stone-200 p-5">
+        {/* Post type selector */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-stone-700 mb-2">Post Type</label>
+          <PostTypeSelector value={postType} onChange={setPostType} />
+          <p className="text-xs text-stone-400 mt-1.5">{config.description}</p>
+        </div>
+
+        {/* Title (type-specific) */}
+        {config.supportsTitle && (
+          <div className="mb-3">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Title"
+              className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm font-medium focus:outline-none focus:border-indigo-400"
+            />
+          </div>
+        )}
+
+        {/* Summary (type-specific) */}
+        {config.supportsSummary && (
+          <div className="mb-3">
+            <input
+              type="text"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="Short summary..."
+              className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm text-stone-600 focus:outline-none focus:border-indigo-400"
+            />
+          </div>
+        )}
+
         {/* Body */}
         <textarea
           value={body}
-          onChange={e => setBody(e.target.value)}
+          onChange={(e) => setBody(e.target.value)}
           placeholder="What's on your mind?"
           rows={6}
           className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm resize-none focus:outline-none focus:border-indigo-400"
           autoFocus
         />
 
-        {/* Media upload */}
-        <div className="mt-3">
+        {/* Linked content reference (type-specific) */}
+        {refSystem && (
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              Linked {config.label} <span className="text-red-500">*</span>
+            </label>
+            <LinkedContentPicker system={refSystem} value={linkedRefId} onChange={setLinkedRefId} />
+          </div>
+        )}
+
+        {/* Media upload — images + video per spec scope */}
+        <div className="mt-3 flex items-center gap-2">
           <MediaUploadButton
             ownerId={user.id}
-            sourceDomain={user.active_context || 'personal'}
+            sourceDomain="post"
             visibility={visibility}
+            accept="image/*,video/*"
             multiple
             onUploaded={(assets) => {
               const arr = Array.isArray(assets) ? assets : [assets];
-              setMediaUrls(prev => [...prev, ...arr.map(a => a.file_url)].slice(0, 4));
+              setMediaAssets((prev) => [...prev, ...arr].slice(0, 4));
             }}
             onError={() => toast({ title: 'Upload failed', variant: 'destructive' })}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50"
           >
-            <ImagePlus className="w-4 h-4" /> Add photos
+            <ImagePlus className="w-4 h-4" /> Add media
           </MediaUploadButton>
         </div>
 
         {/* Media previews */}
-        {mediaUrls.length > 0 && (
+        {mediaAssets.length > 0 && (
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {mediaUrls.map((url, i) => (
+            {mediaAssets.map((asset, i) => (
               <div key={i} className="relative">
-                <img src={url} alt="" className="w-full h-32 object-cover rounded-lg" />
+                {asset.media_type === 'video' ? (
+                  <video src={asset.file_url} className="w-full h-32 object-cover rounded-lg" muted />
+                ) : (
+                  <img src={asset.file_url} alt="" className="w-full h-32 object-cover rounded-lg" />
+                )}
                 <button
-                  onClick={() => setMediaUrls(prev => prev.filter((_, idx) => idx !== i))}
+                  onClick={() => setMediaAssets((prev) => prev.filter((_, idx) => idx !== i))}
                   className="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full text-xs flex items-center justify-center hover:bg-black/80"
                 >
                   ×
@@ -121,47 +211,74 @@ export default function PostEditor() {
           </div>
         )}
 
-        {/* Link attachment */}
+        {/* Link attachment (type-specific) */}
+        {config.supportsLink && (
+          <div className="mt-4">
+            {linkUrl ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg">
+                <Link2 className="w-4 h-4 text-stone-400 shrink-0" />
+                <span className="text-sm text-stone-600 truncate flex-1">{linkUrl}</span>
+                <button onClick={() => setLinkUrl('')} className="text-stone-400 hover:text-stone-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : showLinkInput ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="url"
+                  value={linkUrlInput}
+                  onChange={(e) => setLinkUrlInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); attachLink(); } }}
+                  placeholder="https://example.com"
+                  className="flex-1 px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                  autoFocus
+                />
+                <button onClick={attachLink} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Attach</button>
+                <button onClick={() => { setShowLinkInput(false); setLinkUrlInput(''); }} className="px-2 py-2 text-stone-400 hover:text-stone-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowLinkInput(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50"
+              >
+                <Link2 className="w-4 h-4" /> Add link
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Tags */}
         <div className="mt-4">
-          {linkUrl ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg">
-              <Link2 className="w-4 h-4 text-stone-400 shrink-0" />
-              <span className="text-sm text-stone-600 truncate flex-1">{linkUrl}</span>
-              <button onClick={() => setLinkUrl('')} className="text-stone-400 hover:text-stone-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ) : showLinkInput ? (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-1 flex-wrap">
+              {tags.map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 px-2 py-1 bg-stone-100 text-stone-600 rounded-full text-xs">
+                  <Tag className="w-3 h-3" />
+                  {t}
+                  <button onClick={() => setTags((prev) => prev.filter((x) => x !== t))} className="text-stone-400 hover:text-stone-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
               <input
-                type="url"
-                value={linkUrlInput}
-                onChange={e => setLinkUrlInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); attachLink(); } }}
-                placeholder="https://example.com"
-                className="flex-1 px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
-                autoFocus
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+                placeholder="Add tag..."
+                className="flex-1 min-w-[100px] px-2 py-1 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
               />
-              <button onClick={attachLink} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Attach</button>
-              <button onClick={() => { setShowLinkInput(false); setLinkUrlInput(''); }} className="px-2 py-2 text-stone-400 hover:text-stone-600">
-                <X className="w-4 h-4" />
-              </button>
             </div>
-          ) : (
-            <button
-              onClick={() => setShowLinkInput(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-stone-600 border border-stone-200 rounded-lg hover:bg-stone-50"
-            >
-              <Link2 className="w-4 h-4" /> Add link
-            </button>
-          )}
+          </div>
         </div>
 
         {/* Visibility */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-stone-700 mb-2">Visibility</label>
           <div className="grid grid-cols-3 gap-2">
-            {VISIBILITY_OPTIONS.map(opt => {
+            {VISIBILITY_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               return (
                 <button
@@ -191,7 +308,7 @@ export default function PostEditor() {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !body.trim()}
+            disabled={saving || !body.trim() || (config.requiresReference && !linkedRefId)}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

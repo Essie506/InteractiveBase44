@@ -1,0 +1,201 @@
+{
+  "name": "Promotion",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Campaign Name",
+      "description": "Internal name for this promotional campaign."
+    },
+    "owner_id": {
+      "type": "string",
+      "title": "Owner ID",
+      "description": "The identity or business that owns this campaign. For owner_type 'identity' this is the stable Interactive identity ID; for 'business' this is the businessId."
+    },
+    "owner_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Owner Type"
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Business context if owner_type is business."
+    },
+    "growth_package_id": {
+      "type": "string",
+      "title": "Growth Package ID",
+      "description": "Reference to the GrowthPackage that entitles this campaign. Determines the campaign's capabilities and limits."
+    },
+    "campaign_type": {
+      "type": "string",
+      "enum": [
+        "service_boost",
+        "event_boost",
+        "workout_boost",
+        "post_boost",
+        "profile_boost",
+        "business_boost"
+      ],
+      "title": "Campaign Type",
+      "description": "V2 \u00a719.5. What kind of content is being promoted."
+    },
+    "target_content_references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "system": {
+            "type": "string",
+            "enum": [
+              "workout",
+              "calendar_event",
+              "post",
+              "business",
+              "professional",
+              "service"
+            ],
+            "title": "Target System"
+          },
+          "type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "id": {
+            "type": "string",
+            "title": "Target ID"
+          }
+        },
+        "required": [
+          "system",
+          "id"
+        ]
+      },
+      "title": "Target Content References",
+      "description": "The content being promoted by this campaign. References, not duplicates."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "pending_review",
+        "active",
+        "paused",
+        "completed",
+        "rejected",
+        "expired"
+      ],
+      "default": "draft",
+      "title": "Campaign Status",
+      "description": "V2 \u00a719.7 campaign lifecycle."
+    },
+    "budget_pence": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0,
+      "title": "Budget (pence)",
+      "description": "Total promotional budget for this campaign in pence."
+    },
+    "spent_pence": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0,
+      "title": "Spent (pence)",
+      "description": "Amount of budget consumed so far."
+    },
+    "currency": {
+      "type": "string",
+      "default": "GBP",
+      "title": "Currency"
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Start Date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "End Date"
+    },
+    "targeting": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "title": "Target Location"
+        },
+        "radius_miles": {
+          "type": "number",
+          "title": "Target Radius (miles)"
+        },
+        "service_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Target Service IDs"
+        },
+        "audience_type": {
+          "type": "string",
+          "enum": [
+            "all",
+            "connections",
+            "local",
+            "targeted"
+          ],
+          "default": "all",
+          "title": "Audience Type"
+        }
+      },
+      "title": "Targeting",
+      "description": "V2 \u00a719.6 audience targeting criteria."
+    },
+    "media_asset_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Promotional Media Asset IDs",
+      "description": "Media assets used in the promotional creative. Owned by the campaign owner's identity with source_domain 'promotion'."
+    },
+    "impressions": {
+      "type": "number",
+      "default": 0,
+      "title": "Impressions",
+      "description": "Denormalised count of times the promoted content was displayed."
+    },
+    "clicks": {
+      "type": "number",
+      "default": 0,
+      "title": "Clicks",
+      "description": "Denormalised count of clicks on the promoted content."
+    },
+    "conversions": {
+      "type": "number",
+      "default": 0,
+      "title": "Conversions",
+      "description": "Denormalised count of conversions attributed to this campaign."
+    },
+    "headline": {
+      "type": "string",
+      "title": "Promotional Headline",
+      "description": "Short promotional copy displayed with the boosted content."
+    },
+    "description": {
+      "type": "string",
+      "title": "Promotional Description",
+      "description": "Longer promotional copy for the campaign detail view."
+    }
+  },
+  "required": [
+    "name",
+    "owner_id",
+    "owner_type",
+    "campaign_type"
+  ]
+}

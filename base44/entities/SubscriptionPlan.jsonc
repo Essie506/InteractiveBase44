@@ -112,6 +112,11 @@
       },
       "title": "Fee Rule",
       "description": "V2 \u00a747\u2013\u00a749: Booking fees are a separate commercial mechanism from subscription price, governed by the Payments system. No authoritative commercial configuration currently defines fee values \u2014 leave this field unset until the owning Payments/commercial rules provide authoritative values. Do not assume 'none'."
+    },
+    "growth_package_id": {
+      "type": "string",
+      "title": "Growth Package ID",
+      "description": "V2 \u00a719.3/\u00a719.5. Reference to the GrowthPackage that entitles this plan's promotional capabilities. Links subscription tier to Growth Package entitlements. Null for the free tier (Professional Basic) which has no promotional capabilities."
     }
   },
   "required": [

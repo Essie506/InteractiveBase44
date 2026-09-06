@@ -6,7 +6,15 @@ import { callDeletePost } from '@/services/postService';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
-import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2 } from 'lucide-react';
+import PostTypeBadge from '@/components/post/PostTypeBadge';
+import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone } from 'lucide-react';
+
+const REF_ICONS = { workout: Dumbbell, calendar_event: Calendar, promotion: Megaphone };
+const REF_ROUTES = {
+  workout: (id) => `/workouts/${id}`,
+  calendar_event: (id) => `/e/${id}`,
+  promotion: (id) => `/promotions/${id}`,
+};
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -107,17 +115,63 @@ export default function PostCard({ post, onDeleted }) {
         )}
       </div>
 
+      {/* Post type badge + title */}
+      <div className="px-4 pb-2">
+        {post.post_type && post.post_type !== 'standard' && (
+          <div className="mb-2"><PostTypeBadge type={post.post_type} /></div>
+        )}
+        {post.title && (
+          <h2 className="text-base font-semibold text-stone-800 mb-1">{post.title}</h2>
+        )}
+        {post.summary && (
+          <p className="text-xs text-stone-500 mb-2">{post.summary}</p>
+        )}
+      </div>
+
       {/* Body */}
       <div className="px-4 pb-3">
         <p className="text-sm text-stone-700 whitespace-pre-wrap break-words">{post.body}</p>
       </div>
 
-      {/* Media */}
+      {/* Linked content references */}
+      {post.linked_content_references && post.linked_content_references.length > 0 && (
+        <div className="px-4 pb-3 space-y-2">
+          {post.linked_content_references.map((ref, i) => {
+            const RefIcon = REF_ICONS[ref.system] || Link2;
+            const route = REF_ROUTES[ref.system]?.(ref.id);
+            const content = (
+              <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+                <RefIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span className="text-sm text-indigo-700 truncate">{ref.type || ref.system} reference</span>
+              </div>
+            );
+            return route ? <Link key={i} to={route}>{content}</Link> : <div key={i}>{content}</div>;
+          })}
+        </div>
+      )}
+
+      {/* Tags */}
+      {post.tags && post.tags.length > 0 && (
+        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+          {post.tags.map((t) => (
+            <span key={t} className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-stone-100 text-stone-500 rounded-full text-xs">
+              <Tag className="w-2.5 h-2.5" />{t}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Media — images and video via Media System */}
       {post.media_urls && post.media_urls.length > 0 && (
         <div className={`grid gap-1 ${post.media_urls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-          {post.media_urls.map((url, i) => (
-            <img key={i} src={url} alt="" className="w-full max-h-96 object-cover" loading="lazy" />
-          ))}
+          {post.media_urls.map((url, i) => {
+            const isVideo = post.media_asset_ids?.length > 0 && url.includes('video');
+            return isVideo ? (
+              <video key={i} src={url} controls className="w-full max-h-96 object-cover" />
+            ) : (
+              <img key={i} src={url} alt="" className="w-full max-h-96 object-cover" loading="lazy" />
+            );
+          })}
         </div>
       )}
 
