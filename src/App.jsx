@@ -54,6 +54,9 @@ import BusinessBookings from '@/pages/business/BusinessBookings';
 import BusinessServicesFacilities from '@/pages/business/BusinessServicesFacilities';
 import BusinessAvailability from '@/pages/business/BusinessAvailability';
 import Plans from '@/pages/Plans';
+import Workouts from '@/pages/Workouts';
+import WorkoutDetail from '@/pages/WorkoutDetail';
+import WorkoutEditor from '@/pages/WorkoutEditor';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -138,6 +141,10 @@ const AuthenticatedApp = () => {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/book/:screenName" element={<BookingPage />} />
             <Route path="/plans" element={<Plans />} />
+            <Route path="/workouts" element={<Workouts />} />
+            <Route path="/workouts/new" element={<WorkoutEditor />} />
+            <Route path="/workouts/:id" element={<WorkoutDetail />} />
+            <Route path="/workouts/:id/edit" element={<WorkoutEditor />} />
           </Route>
         </Route>
       </Route>

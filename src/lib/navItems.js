@@ -8,7 +8,7 @@
 import {
   LayoutDashboard, User as UserIcon, Settings, FileText, Search,
   Briefcase, Building2, Users, Calendar, MessageSquare,
-  Clock, ShieldCheck, Compass, Crown,
+  Clock, ShieldCheck, Compass, Crown, Dumbbell,
 } from 'lucide-react';
 
 export function getContextNavItems(user) {
@@ -19,6 +19,7 @@ export function getContextNavItems(user) {
   let navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/calendar', label: 'Calendar', icon: Calendar },
+    { path: '/workouts', label: 'Workouts', icon: Dumbbell },
     { path: '/messages', label: 'Messages', icon: MessageSquare },
     { path: '/profile', label: 'Profile', icon: UserIcon },
     { path: '/settings', label: 'Settings', icon: Settings },
@@ -34,6 +35,7 @@ export function getContextNavItems(user) {
       { path: '/professional', label: 'Workspace', icon: Building2 },
       { path: '/messages', label: 'Messages', icon: MessageSquare },
       { path: '/calendar', label: 'Calendar', icon: Calendar },
+      { path: '/workouts', label: 'Workouts', icon: Dumbbell },
       { path: '/availability', label: 'Availability', icon: Clock },
       { path: '/professional-profile', label: 'Pro Profile', icon: Briefcase },
       { path: '/verify-professional', label: 'Verification', icon: ShieldCheck },
@@ -51,6 +53,7 @@ export function getContextNavItems(user) {
       { path: `/business/${activeBusinessId}/workspace`, label: 'Workspace', icon: Building2 },
       { path: '/messages', label: 'Messages', icon: MessageSquare },
       { path: '/calendar', label: 'Calendar', icon: Calendar },
+      { path: '/workouts', label: 'Workouts', icon: Dumbbell },
       { path: `/business/${activeBusinessId}/staff`, label: 'Staff', icon: Users },
       { path: `/business/${activeBusinessId}/profile`, label: 'Biz Profile', icon: FileText },
       { path: `/business/${activeBusinessId}/verify`, label: 'Verification', icon: ShieldCheck },

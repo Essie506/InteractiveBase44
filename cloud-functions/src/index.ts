@@ -28,6 +28,9 @@ export { createSubscriptionCheckout, getMySubscription, createCustomerPortal } f
 // Community Interaction (Spec 20): reactions, comments, saves
 export { toggleReaction, createComment, deleteComment, toggleSave, getInteractionState } from './communityInteraction';
 
+// Workout System (Spec 12): workout identity, composition, publication
+export { saveWorkout, deleteWorkout } from './workout';
+
 // Relationship System — Connections + Professional access
 export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses } from './connections';
 

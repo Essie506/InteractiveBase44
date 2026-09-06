@@ -181,6 +181,17 @@ export async function callGetInteractionState(data) {
   return result.data;
 }
 
+// ── Workout System (Spec 12) ──
+export async function callSaveWorkout(data) {
+  const result = await callable('saveWorkout')(data);
+  return result.data;
+}
+
+export async function callDeleteWorkout(data) {
+  const result = await callable('deleteWorkout')(data);
+  return result.data;
+}
+
 // ── Professional Profile (public projection + screen_name uniqueness) ──
 export async function callSaveProfessionalProfile(data) {
   const result = await callable('saveProfessionalProfile')(data);
