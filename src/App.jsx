@@ -58,6 +58,8 @@ import Plans from '@/pages/Plans';
 import Workouts from '@/pages/Workouts';
 import WorkoutDetail from '@/pages/WorkoutDetail';
 import WorkoutEditor from '@/pages/WorkoutEditor';
+import Feed from '@/pages/Feed';
+import PostEditor from '@/pages/PostEditor';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -147,6 +149,8 @@ const AuthenticatedApp = () => {
             <Route path="/workouts/new" element={<WorkoutEditor />} />
             <Route path="/workouts/:id" element={<WorkoutDetail />} />
             <Route path="/workouts/:id/edit" element={<WorkoutEditor />} />
+            <Route path="/feed" element={<Feed />} />
+            <Route path="/posts/new" element={<PostEditor />} />
           </Route>
         </Route>
       </Route>

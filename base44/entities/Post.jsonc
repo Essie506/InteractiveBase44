@@ -1,0 +1,145 @@
+{
+  "name": "Post",
+  "type": "object",
+  "properties": {
+    "author_identity_id": {
+      "type": "string",
+      "title": "Author Identity ID",
+      "description": "The stable Interactive identity that authored this post. Immutable after creation."
+    },
+    "author_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "business"
+      ],
+      "default": "identity",
+      "title": "Author Type",
+      "description": "identity = an Interactive identity authored the post. business = a Business organisation authored the post."
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Business ID",
+      "description": "Business context if author_type is business. Null for identity-authored posts."
+    },
+    "operating_context": {
+      "type": "string",
+      "enum": [
+        "personal",
+        "professional",
+        "business"
+      ],
+      "default": "personal",
+      "title": "Operating Context",
+      "description": "Provenance: the context in which this post was created."
+    },
+    "body": {
+      "type": "string",
+      "title": "Body",
+      "description": "Text content of the post."
+    },
+    "media_urls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Media URLs",
+      "description": "Attached media (images) for the post."
+    },
+    "media_asset_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Media Asset IDs",
+      "description": "Stable references to MediaAssets used in this post."
+    },
+    "link_url": {
+      "type": "string",
+      "title": "Link URL",
+      "description": "Optional external link attached to the post."
+    },
+    "link_preview": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "image_url": {
+          "type": "string"
+        }
+      },
+      "title": "Link Preview",
+      "description": "OG-style preview metadata for the attached link."
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "connections",
+        "private"
+      ],
+      "default": "public",
+      "title": "Visibility",
+      "description": "Controls who can see this post. public = anyone; connections = author + accepted Connections; private = author only."
+    },
+    "lifecycle_state": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "archived",
+        "deleted",
+        "under_review"
+      ],
+      "default": "published",
+      "title": "Lifecycle State",
+      "description": "Drafts are private. Published posts are visible per visibility rules. Archived/Deleted remove from Feed. Under_review is a moderation state."
+    },
+    "edited_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Edited At",
+      "description": "Timestamp of the last edit. Null if never edited."
+    },
+    "reaction_count": {
+      "type": "number",
+      "default": 0,
+      "title": "Reaction Count",
+      "description": "Denormalised count of active reactions for Feed display."
+    },
+    "comment_count": {
+      "type": "number",
+      "default": 0,
+      "title": "Comment Count",
+      "description": "Denormalised count of visible comments for Feed display."
+    },
+    "share_count": {
+      "type": "number",
+      "default": 0,
+      "title": "Share Count",
+      "description": "Denormalised count of active shares for Feed display."
+    },
+    "save_count": {
+      "type": "number",
+      "default": 0,
+      "title": "Save Count",
+      "description": "Denormalised count of active saves for Feed display."
+    }
+  },
+  "required": [
+    "author_identity_id",
+    "author_type",
+    "body",
+    "visibility"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

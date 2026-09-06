@@ -1,0 +1,131 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/lib/AuthContext';
+import { callSavePost } from '@/services/postService';
+import { useToast } from '@/components/ui/use-toast';
+import { Loader2, Send, Globe, Users, Lock } from 'lucide-react';
+
+const VISIBILITY_OPTIONS = [
+  { value: 'public', label: 'Public', desc: 'Anyone can see this post', icon: Globe },
+  { value: 'connections', label: 'Connections', desc: 'Only your connections', icon: Users },
+  { value: 'private', label: 'Private', desc: 'Only you can see this', icon: Lock },
+];
+
+export default function PostEditor() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [body, setBody] = useState('');
+  const [mediaUrls, setMediaUrls] = useState([]);
+  const [visibility, setVisibility] = useState('public');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!body.trim()) {
+      toast({ title: 'Post body is empty', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      await callSavePost({
+        author_identity_id: user.id,
+        author_type: 'identity',
+        body: body.trim(),
+        media_urls: mediaUrls,
+        visibility,
+        operating_context: user.active_context || 'personal',
+        lifecycle_state: 'published',
+      });
+      toast({ title: 'Post published' });
+      navigate('/feed');
+    } catch (err) {
+      toast({
+        title: 'Could not publish post',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-4 md:p-6 max-w-2xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-stone-800">Create Post</h1>
+        <p className="text-stone-500 text-sm">Share something with the Interactive community</p>
+      </div>
+
+      <div className="bg-white rounded-xl border border-stone-200 p-5">
+        {/* Body */}
+        <textarea
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          placeholder="What's on your mind?"
+          rows={6}
+          className="w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm resize-none focus:outline-none focus:border-indigo-400"
+          autoFocus
+        />
+
+        {/* Media URLs (simple input for now) */}
+        {mediaUrls.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {mediaUrls.map((url, i) => (
+              <div key={i} className="relative">
+                <img src={url} alt="" className="w-full h-32 object-cover rounded-lg" />
+                <button
+                  onClick={() => setMediaUrls(prev => prev.filter((_, idx) => idx !== i))}
+                  className="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full text-xs flex items-center justify-center hover:bg-black/80"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Visibility */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-stone-700 mb-2">Visibility</label>
+          <div className="grid grid-cols-3 gap-2">
+            {VISIBILITY_OPTIONS.map(opt => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setVisibility(opt.value)}
+                  className={`flex flex-col items-center gap-1 p-3 border rounded-lg text-center transition-colors ${
+                    visibility === opt.value
+                      ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                      : 'border-stone-200 text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-xs font-medium">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-3 mt-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 text-sm text-stone-600 hover:text-stone-800 font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !body.trim()}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {saving ? 'Publishing...' : 'Publish'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

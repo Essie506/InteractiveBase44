@@ -914,5 +914,16 @@ service cloud.firestore {
       allow write: if false; // Server-only — Cloud Functions (Admin SDK)
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // POST SYSTEM
+    // ═══════════════════════════════════════════════════════════
+    // Public posts are readable by authenticated users. Private/
+    // connections-only posts are filtered by the client via the
+    // visibility field. All writes go through Cloud Functions.
+    match /posts/{postId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Server-only — Cloud Functions (Admin SDK)
+    }
+
   }
 }

@@ -34,6 +34,9 @@ export { saveWorkout, deleteWorkout } from './workout';
 // Share Engine (Spec 14.1): content sharing
 export { createShare, deleteShare } from './share';
 
+// Post System: post lifecycle (create, edit, delete)
+export { savePost, deletePost } from './post';
+
 // Relationship System — Connections + Professional access
 export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses } from './connections';
 

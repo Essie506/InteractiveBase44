@@ -293,6 +293,24 @@
         { "fieldPath": "target_system", "order": "ASCENDING" },
         { "fieldPath": "target_id", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "lifecycle_state", "order": "ASCENDING" },
+        { "fieldPath": "_created_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "author_identity_id", "order": "ASCENDING" },
+        { "fieldPath": "lifecycle_state", "order": "ASCENDING" },
+        { "fieldPath": "_created_date", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -203,6 +203,17 @@ export async function callDeleteShare(data) {
   return result.data;
 }
 
+// ── Post System ──
+export async function callSavePost(data) {
+  const result = await callable('savePost')(data);
+  return result.data;
+}
+
+export async function callDeletePost(data) {
+  const result = await callable('deletePost')(data);
+  return result.data;
+}
+
 // ── Professional Profile (public projection + screen_name uniqueness) ──
 export async function callSaveProfessionalProfile(data) {
   const result = await callable('saveProfessionalProfile')(data);

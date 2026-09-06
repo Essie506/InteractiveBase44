@@ -8,7 +8,7 @@
 import {
   LayoutDashboard, User as UserIcon, Settings, FileText, Search,
   Briefcase, Building2, Users, Calendar, MessageSquare,
-  Clock, ShieldCheck, Compass, Crown, Dumbbell,
+  Clock, ShieldCheck, Compass, Crown, Dumbbell, Newspaper,
 } from 'lucide-react';
 
 export function getContextNavItems(user) {
@@ -18,6 +18,7 @@ export function getContextNavItems(user) {
 
   let navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/feed', label: 'Feed', icon: Newspaper },
     { path: '/calendar', label: 'Calendar', icon: Calendar },
     { path: '/workouts', label: 'Workouts', icon: Dumbbell },
     { path: '/messages', label: 'Messages', icon: MessageSquare },
@@ -32,6 +33,7 @@ export function getContextNavItems(user) {
   if (activeContext === 'professional' && isProfessionalActive) {
     navItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/feed', label: 'Feed', icon: Newspaper },
       { path: '/professional', label: 'Workspace', icon: Building2 },
       { path: '/messages', label: 'Messages', icon: MessageSquare },
       { path: '/calendar', label: 'Calendar', icon: Calendar },
@@ -50,6 +52,7 @@ export function getContextNavItems(user) {
   if (activeContext === 'business' && activeBusinessId) {
     navItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/feed', label: 'Feed', icon: Newspaper },
       { path: `/business/${activeBusinessId}/workspace`, label: 'Workspace', icon: Building2 },
       { path: '/messages', label: 'Messages', icon: MessageSquare },
       { path: '/calendar', label: 'Calendar', icon: Calendar },
