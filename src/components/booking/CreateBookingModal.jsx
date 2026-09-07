@@ -11,11 +11,13 @@
 // confirmFreeBooking; paid bookings require the customer to pay via
 // createPaymentIntent.
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Loader2, Calendar, Clock, User, Briefcase, MapPin, PoundSterling, FileText, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Loader2, Calendar, Clock, User, Briefcase, MapPin, PoundSterling, FileText, Shield, Settings } from 'lucide-react';
 import { getAvailabilityForDate, getLocalTimezone } from '@/lib/calendar';
 import { createProviderBooking } from '@/services/bookingService';
 import { callFindUserByEmail } from '@/services/firebaseFunctions';
 import { useToast } from '@/components/ui/use-toast';
+import PlaceAutocomplete from '@/components/booking/PlaceAutocomplete';
 
 const PAYMENT_ROUTES = [
   { value: 'free', label: 'Free', needsStripe: false },
@@ -81,7 +83,9 @@ function generateSlots(availabilityRules, durationMinutes) {
  */
 export default function CreateBookingModal({ open, onClose, onCreated, services, providerIdentityId, businessId, operatingContext }) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [step, setStep] = useState(1); // 1=service+customer, 2=date+time, 3=details
+  const [selectedPlace, setSelectedPlace] = useState(null); // structured location from PlaceAutocomplete
   const [selectedService, setSelectedService] = useState(null);
   const [customerMode, setCustomerMode] = useState('guest'); // 'guest' | 'identity'
   const [guestEmail, setGuestEmail] = useState('');
@@ -106,32 +110,104 @@ export default function CreateBookingModal({ open, onClose, onCreated, services,
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Reset state when modal opens
+  // Reset state when modal opens — or restore from a preserved draft
+  // if the provider navigated to Availability and came back (Issue 2).
   useEffect(() => {
     if (open) {
-      setStep(1);
-      setSelectedService(null);
-      setCustomerMode('guest');
-      setGuestEmail('');
-      setGuestName('');
-      setGuestPhone('');
-      setCustomerId('');
-      setCustomerResolved(null);
-      setSelectedDate(nextDays(1)[0]);
-      setSlots([]);
-      setSelectedSlot(null);
-      setIsFree(true);
-      setPricePence(0);
-      setPaymentRoute('free');
-      setLocationType('physical');
-      setMeetingUrl('');
-      setLocationLabel('');
-      setNotes('');
-      setCancellationHours(24);
-      setCancellationRefund(100);
-      setError('');
+      const preserved = sessionStorage.getItem('interactive:bookingDraft');
+      if (preserved) {
+        try {
+          const draft = JSON.parse(preserved);
+          setStep(draft.step || 2);
+          setSelectedService(draft.selectedService || null);
+          setCustomerMode(draft.customerMode || 'guest');
+          setGuestEmail(draft.guestEmail || '');
+          setGuestName(draft.guestName || '');
+          setGuestPhone(draft.guestPhone || '');
+          setCustomerId(draft.customerId || '');
+          setCustomerResolved(draft.customerResolved || null);
+          setSelectedDate(draft.selectedDate ? new Date(draft.selectedDate) : nextDays(1)[0]);
+          setIsFree(draft.isFree ?? true);
+          setPricePence(draft.pricePence || 0);
+          setPaymentRoute(draft.paymentRoute || 'free');
+          setLocationType(draft.locationType || 'physical');
+          setMeetingUrl(draft.meetingUrl || '');
+          setLocationLabel(draft.locationLabel || '');
+          setSelectedPlace(draft.selectedPlace || null);
+          setNotes(draft.notes || '');
+          setCancellationHours(draft.cancellationHours || 24);
+          setCancellationRefund(draft.cancellationRefund || 100);
+          setError('');
+          sessionStorage.removeItem('interactive:bookingDraft');
+          toast({ title: 'Booking draft restored' });
+        } catch {
+          resetForm();
+        }
+      } else {
+        resetForm();
+      }
     }
   }, [open]);
+
+  function resetForm() {
+    setStep(1);
+    setSelectedService(null);
+    setCustomerMode('guest');
+    setGuestEmail('');
+    setGuestName('');
+    setGuestPhone('');
+    setCustomerId('');
+    setCustomerResolved(null);
+    setSelectedDate(nextDays(1)[0]);
+    setSlots([]);
+    setSelectedSlot(null);
+    setIsFree(true);
+    setPricePence(0);
+    setPaymentRoute('free');
+    setLocationType('physical');
+    setMeetingUrl('');
+    setLocationLabel('');
+    setSelectedPlace(null);
+    setNotes('');
+    setCancellationHours(24);
+    setCancellationRefund(100);
+    setError('');
+  }
+
+  // Availability detour (Issue 2): preserve the current draft and navigate
+  // to the Availability management surface. When the provider returns,
+  // the useEffect above restores the draft and the availability reload
+  // automatically picks up newly-created slots.
+  const handleEditAvailability = () => {
+    const draft = {
+      step,
+      selectedService,
+      customerMode,
+      guestEmail,
+      guestName,
+      guestPhone,
+      customerId,
+      customerResolved,
+      selectedDate: selectedDate.toISOString(),
+      isFree,
+      pricePence,
+      paymentRoute,
+      locationType,
+      meetingUrl,
+      locationLabel,
+      selectedPlace,
+      notes,
+      cancellationHours,
+      cancellationRefund,
+    };
+    sessionStorage.setItem('interactive:bookingDraft', JSON.stringify(draft));
+    // Navigate to the availability page — the provider changes availability,
+    // then returns (browser back or the page's return link).
+    const availPath = businessId
+      ? `/business/${businessId}/workspace/availability`
+      : '/professional/availability';
+    navigate(availPath);
+  };
 
   // Filter bookable services
   const bookableServices = useMemo(() => {
@@ -217,6 +293,19 @@ export default function CreateBookingModal({ open, onClose, onCreated, services,
         notes: notes.trim() || undefined,
         business_id: businessId || undefined,
       };
+
+      // Propagate structured location from PlaceAutocomplete (Issue 1).
+      // The authoritative selected location flows through:
+      //   Booking → Calendar event → notifications → email details
+      if (locationType === 'physical' && selectedPlace) {
+        draftData.location = selectedPlace.label;
+        draftData.location_lat = selectedPlace.latitude;
+        draftData.location_lng = selectedPlace.longitude;
+        draftData.location_place_id = selectedPlace.place_id;
+        draftData.location_formatted_address = selectedPlace.formatted_address;
+      } else if (locationType === 'physical' && locationLabel) {
+        draftData.location = locationLabel;
+      }
 
       if (customerMode === 'identity' && customerResolved) {
         draftData.customer_identity_id = customerResolved.identity_id;
@@ -419,7 +508,16 @@ export default function CreateBookingModal({ open, onClose, onCreated, services,
                 {loadingSlots ? (
                   <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 text-indigo-600 animate-spin" /></div>
                 ) : slots.length === 0 ? (
-                  <p className="text-sm text-stone-400 p-3 bg-stone-50 rounded-lg">No availability on this day. Try another date.</p>
+                  <div className="p-3 bg-stone-50 rounded-lg space-y-2">
+                    <p className="text-sm text-stone-400">No availability on this day.</p>
+                    <button
+                      onClick={handleEditAvailability}
+                      className="inline-flex items-center gap-1.5 text-sm text-indigo-600 font-medium hover:text-indigo-700"
+                    >
+                      <Settings className="w-3.5 h-3.5" /> Edit availability
+                    </button>
+                    <p className="text-xs text-stone-400">Your booking draft will be preserved while you add availability.</p>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {slots.map(s => {
@@ -515,12 +613,11 @@ export default function CreateBookingModal({ open, onClose, onCreated, services,
                   />
                 )}
                 {locationType !== 'online' && (
-                  <input
-                    type="text"
+                  <PlaceAutocomplete
                     value={locationLabel}
-                    onChange={e => setLocationLabel(e.target.value)}
-                    placeholder="Venue name or address"
-                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
+                    onChange={setLocationLabel}
+                    onPlaceSelect={setSelectedPlace}
+                    placeholder="Start typing an address or venue..."
                   />
                 )}
               </div>

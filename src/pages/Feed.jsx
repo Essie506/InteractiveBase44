@@ -3,19 +3,25 @@ import { useAuth } from '@/lib/AuthContext';
 import { fetchPublicPosts } from '@/services/postService';
 import { blockRepository } from '@/data/firebase';
 import { fetchPublicCommentaryShares } from '@/services/shareService';
+import { listPublishedWorkouts } from '@/services/workoutService';
+import { loadDirectory } from '@/services/discoveryService';
 import PostCard from '@/components/post/PostCard';
 import ShareCard from '@/components/community/ShareCard';
+import FeedDiscoverySection from '@/components/feed/FeedDiscoverySection';
+import FeedLocationControl from '@/components/feed/FeedLocationControl';
 import { Plus, Loader2, PenSquare, LogIn, RefreshCw } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export default function Feed() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const location = useLocation();
   const returnTo = encodeURIComponent(location.pathname + location.search);
   const [feedItems, setFeedItems] = useState([]);
   const [visibleCount, setVisibleCount] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [discoveryItems, setDiscoveryItems] = useState({ workouts: [], events: [] });
+  const [discoveryLocation, setDiscoveryLocation] = useState(null);
 
   // Fetch public posts AND public commentary shares (§14.4), then merge
   // by date descending. Commentary shares are new posts that accompany a
@@ -36,15 +42,22 @@ export default function Feed() {
         }
       }
 
-      const [postList, shareList] = await Promise.all([
-        fetchPublicPosts(30).catch((err) => {
+      const isAuthed = isAuthenticated === true;
+      const dirResult = await loadDirectory().catch(() => ({ events: [] }));
+      const eventList = (dirResult.events || []).filter(e =>
+        e.visibility === 'public' && e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed'
+      ).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()).slice(0, 6);
+
+      const [postList, shareList, workoutList] = await Promise.all([
+        fetchPublicPosts(30, { isAuthenticated: isAuthed }).catch((err) => {
           console.error('[Feed] Failed to load posts:', err);
           return [];
         }),
-        fetchPublicCommentaryShares(30).catch((err) => {
+        fetchPublicCommentaryShares(30, { isAuthenticated: isAuthed }).catch((err) => {
           console.error('[Feed] Failed to load shares:', err);
           return [];
         }),
+        listPublishedWorkouts(6).catch(() => []),
       ]);
 
       const merged = [
@@ -60,24 +73,28 @@ export default function Feed() {
       });
 
       setFeedItems(merged);
+      setDiscoveryItems({ workouts: workoutList, events: eventList });
     } catch (err) {
       console.error('[Feed] Failed to load feed:', err);
       setError(err?.message || 'Failed to load feed');
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, isAuthenticated]);
 
-  useEffect(() => { loadFeed(); }, [loadFeed]);
+  // Re-fetch when navigating to the Feed (e.g. after publishing a post).
+  // Without location.pathname in deps, navigating from PostEditor → /feed
+  // would NOT re-trigger loadFeed because user?.id doesn't change.
+  useEffect(() => { loadFeed(); }, [loadFeed, location.pathname]);
 
   const handleDeleted = (id) => {
     setFeedItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 max-w-2xl mx-auto pb-20 md:pb-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-stone-800">Feed</h1>
           <p className="text-stone-500 text-sm">Public posts and shares from the Interactive community</p>
@@ -108,6 +125,22 @@ export default function Feed() {
           )}
         </div>
       </div>
+
+      {/* Location control — public discovery signal (Issue 8) */}
+      <div className="mb-4">
+        <FeedLocationControl onLocationChange={setDiscoveryLocation} />
+      </div>
+
+      {/* Discovery content — connected types (Issue 5) */}
+      {!loading && !error && (discoveryItems.workouts.length > 0 || discoveryItems.events.length > 0) && (
+        <div className="mb-6">
+          <FeedDiscoverySection
+            workouts={discoveryItems.workouts}
+            events={discoveryItems.events}
+            location={discoveryLocation}
+          />
+        </div>
+      )}
 
       {/* Loading — skeleton cards */}
       {loading && (

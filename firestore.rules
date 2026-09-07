@@ -947,7 +947,7 @@ service cloud.firestore {
     // Public posts are readable by authenticated users. Private/
     // connections-only posts are filtered by the client via the
     // visibility field. All writes go through Cloud Functions.
-    match /posts/{postId} {
+    match /posts/{postId} { /* FIND_MARKER */
       // §7.14/§8.3: public published posts are readable by anyone
       // (including unauthenticated guests) so the Feed supports
       // browse-first access. Drafts/private/archived posts remain

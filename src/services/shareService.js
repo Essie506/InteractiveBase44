@@ -30,21 +30,42 @@ export async function deleteShare(shareId) {
  * @param {number} maxResults
  * @returns {Promise<Array>}
  */
-export async function fetchPublicCommentaryShares(maxResults = 20) {
+export async function fetchPublicCommentaryShares(maxResults = 20, options = {}) {
+  const isAuthed = options.isAuthenticated === true;
+  if (isAuthed) {
+    // Authenticated users can read all shares (rules: isAuthenticated()).
+    // Single-field query on lifecycle_state — no composite index needed.
+    const q = query(
+      collection(db, 'shares'),
+      where('lifecycle_state', '==', 'active'),
+      limit(maxResults * 3),
+    );
+    const snap = await getDocs(q);
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const filtered = all.filter(s => s.share_type === 'commentary' && s.visibility === 'public');
+    filtered.sort((a, b) => {
+      const aT = a._created_date?.toDate ? a._created_date.toDate().getTime() : new Date(a._created_date || 0).getTime();
+      const bT = b._created_date?.toDate ? b._created_date.toDate().getTime() : new Date(b._created_date || 0).getTime();
+      return bT - aT;
+    });
+    return filtered.slice(0, maxResults);
+  }
+  // Unauthenticated — rules require visibility + lifecycle_state in query.
+  // share_type is not rule-required, so filter it client-side to reduce
+  // the query to two fields (zigzag-mergeable with single-field indexes).
   const q = query(
     collection(db, 'shares'),
-    where('share_type', '==', 'commentary'),
     where('visibility', '==', 'public'),
     where('lifecycle_state', '==', 'active'),
-    limit(maxResults),
+    limit(maxResults * 3),
   );
   const snap = await getDocs(q);
-  const shares = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  // Client-side sort (composite index not yet deployed)
-  shares.sort((a, b) => {
+  const all = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const filtered = all.filter(s => s.share_type === 'commentary');
+  filtered.sort((a, b) => {
     const aT = a._created_date?.toDate ? a._created_date.toDate().getTime() : new Date(a._created_date || 0).getTime();
     const bT = b._created_date?.toDate ? b._created_date.toDate().getTime() : new Date(b._created_date || 0).getTime();
     return bT - aT;
   });
-  return shares;
+  return filtered.slice(0, maxResults);
 }

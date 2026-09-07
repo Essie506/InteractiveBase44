@@ -259,6 +259,10 @@ export default function ProfessionalBookings() {
     if (!user) return;
     loadBookings();
     getProfessionalProfile(user.id).then(setProfile).catch(() => {});
+    // Auto-open the Create Booking modal if a preserved draft exists
+    // (provider navigated to Availability and came back — Issue 2).
+    const draft = sessionStorage.getItem('interactive:bookingDraft');
+    if (draft) setShowCreate(true);
   }, [user]);
 
   const handleCreated = () => {

@@ -7,6 +7,7 @@ import AuthenticatedSidebarContent from '@/components/AuthenticatedSidebarConten
 import AuthenticatedTopNav from '@/components/nav/AuthenticatedTopNav';
 import NavCollapseControl from '@/components/nav/NavCollapseControl';
 import AuthenticatedMobileHeader from '@/components/nav/AuthenticatedMobileHeader';
+import PublicMobileNav from '@/components/public/PublicMobileNav';
 import { getPageIdentity } from '@/lib/pageIdentity';
 import FloatingMessageDrawer from '@/components/messaging/FloatingMessageDrawer';
 
@@ -47,9 +48,15 @@ export default function AuthenticatedShell() {
   // Only render the authenticated chrome once auth has fully resolved
   // AND the user is confirmed authenticated. During loading, signed-out
   // Directory, or any unresolved/redirecting auth state, render plain
-  // content — no sidebar/chrome flash.
+  // content — no sidebar/chrome flash. Unauthenticated mobile visitors
+  // get the public bottom navigation (Issue 7).
   if (isLoadingAuth || !user) {
-    return <Outlet />;
+    return (
+      <>
+        <Outlet />
+        <PublicMobileNav />
+      </>
+    );
   }
 
   return (

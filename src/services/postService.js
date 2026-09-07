@@ -25,15 +25,36 @@ export { callSavePost, callDeletePost } from '@/services/firebaseFunctions';
 
 /**
  * Fetch public posts for the Feed.
+ * For authenticated users, uses a single-field query (lifecycle_state)
+ * and filters visibility client-side — avoids the composite-index
+ * dependency that was silently zeroing the Feed. For unauthenticated
+ * users, both filters must be in the query per Firestore rules.
  * @param {number} maxResults
+ * @param {{ isAuthenticated?: boolean }} [options]
  * @returns {Promise<Array>}
  */
-export async function fetchPublicPosts(maxResults = 20) {
+export async function fetchPublicPosts(maxResults = 20, options = {}) {
+  const isAuthed = options.isAuthenticated === true;
+  if (isAuthed) {
+    // Authenticated users can read all posts (rules: isAuthenticated()).
+    // Single-field query on lifecycle_state uses the auto-created
+    // single-field index — no composite index needed.
+    const q = query(
+      collection(db, 'posts'),
+      where('lifecycle_state', '==', 'published'),
+      limit(maxResults * 3),
+    );
+    const snap = await getDocs(q);
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const publicPosts = all.filter(p => p.visibility === 'public');
+    return sortByCreatedDesc(publicPosts).slice(0, maxResults);
+  }
+  // Unauthenticated — rules require both filters in the query.
   const q = query(
     collection(db, 'posts'),
     where('visibility', '==', 'public'),
     where('lifecycle_state', '==', 'published'),
-    limit(maxResults)
+    limit(maxResults),
   );
   const snap = await getDocs(q);
   return sortByCreatedDesc(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -46,14 +67,17 @@ export async function fetchPublicPosts(maxResults = 20) {
  * @returns {Promise<Array>}
  */
 export async function fetchPostsByAuthor(identityId, maxResults = 20) {
+  // Single-field query on author_identity_id — auto-created index.
+  // Filter lifecycle_state client-side to avoid composite-index dependency.
   const q = query(
     collection(db, 'posts'),
     where('author_identity_id', '==', identityId),
-    where('lifecycle_state', '==', 'published'),
-    limit(maxResults)
+    limit(maxResults * 3),
   );
   const snap = await getDocs(q);
-  return sortByCreatedDesc(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const published = all.filter(p => p.lifecycle_state === 'published');
+  return sortByCreatedDesc(published).slice(0, maxResults);
 }
 
 /**

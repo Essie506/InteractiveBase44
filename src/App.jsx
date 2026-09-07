@@ -65,6 +65,8 @@ import PostEditor from '@/pages/PostEditor';
 import Saved from '@/pages/Saved';
 import GrowthHub from '@/pages/GrowthHub';
 import Promotions from '@/pages/Promotions';
+import Articles from '@/pages/Articles';
+import PostDetail from '@/pages/PostDetail';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -117,6 +119,8 @@ const AuthenticatedApp = () => {
         {/* §3.2/§7.14 Public browse routes — viewable without authentication */}
         <Route element={<AppLayout />}>
           <Route path="/feed" element={<Feed />} />
+          <Route path="/articles" element={<Articles />} />
+          <Route path="/posts/:id" element={<PostDetail />} />
           <Route path="/workouts" element={<Workouts />} />
           <Route path="/workouts/:id" element={<WorkoutDetail />} />
         </Route>
