@@ -321,6 +321,24 @@
         { "fieldPath": "lifecycle_state", "order": "ASCENDING" },
         { "fieldPath": "_created_date", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "promotions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "owner_type", "order": "ASCENDING" },
+        { "fieldPath": "_updated_date", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "growthPackages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "family", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "sort_order", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

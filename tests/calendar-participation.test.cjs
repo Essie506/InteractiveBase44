@@ -171,7 +171,7 @@ test('CLIENT: calendarParticipation.js exports accept/decline/revoke', () => {
 });
 
 test('CLIENT: loadParticipationForEvents returns a Map keyed by event_id', () => {
-  if (!/new Map\(.*\.map\(\(p\)\s*=>\s*\[p\.event_id,\s*p\]\)/.test(clientSrc)) {
+  if (!/new Map\([\s\S]*\.map\(\(p\)\s*=>\s*\[p\.event_id,\s*p\]\)/.test(clientSrc)) {
     throw new Error('loadParticipationForEvents must return a Map keyed by event_id');
   }
 });
