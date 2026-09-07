@@ -92,7 +92,7 @@ function classifyPath(pathname) {
   if (p === '/feed') return 'feed';
   if (p === '/workouts' || p.startsWith('/workouts/')) return 'workouts';
   if (p === '/saved') return 'saved';
-  if (p === '/growth-hub') return 'growth-hub';
+  if (p === '/growth-hub') return 'growth_hub';
   if (p === '/promotions') return 'promotions';
   if (p === '/plans') return 'plans';
   return null;
@@ -107,6 +107,9 @@ function contextIndependentSubpath(key, pathname) {
   }
   if (key === 'specs' && pathname.startsWith('/specifications/')) {
     return pathname.slice('/specifications'.length);
+  }
+  if (key === 'workouts' && pathname.startsWith('/workouts/')) {
+    return pathname.slice('/workouts'.length);
   }
   return '';
 }
