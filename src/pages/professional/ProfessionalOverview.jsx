@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { getProfessionalProfile } from '@/services/profileService';
 import { listProviderBookings } from '@/services/bookingService';
 import { getAvailabilityRules } from '@/lib/calendar';
-import { ShieldCheck, Briefcase, Clock, CalendarCheck, Loader2 } from 'lucide-react';
+import { ShieldCheck, Briefcase, Clock, CalendarCheck, Loader2, Plus } from 'lucide-react';
 import StatCard from '@/components/workspace/StatCard';
 
 export default function ProfessionalOverview() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [availabilityCount, setAvailabilityCount] = useState(0);
@@ -52,8 +54,30 @@ export default function ProfessionalOverview() {
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto">
       <div className="mb-6">
-        
+        <h1 className="text-2xl font-bold text-stone-800 mb-1">Overview</h1>
         <p className="text-stone-500 text-sm">Your professional workspace at a glance.</p>
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-3 mb-8">
+        <button
+          onClick={() => navigate('/professional/bookings')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Create Booking
+        </button>
+        <button
+          onClick={() => navigate('/professional/services')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors"
+        >
+          <Briefcase className="w-4 h-4" /> Manage Services
+        </button>
+        <button
+          onClick={() => navigate('/professional/availability')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors"
+        >
+          <Clock className="w-4 h-4" /> Set Availability
+        </button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

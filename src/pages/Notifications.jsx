@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { getNotifications, markAsRead, markAllAsRead } from '@/lib/notifications';
-import { Loader2, Check, CheckCheck, Bell, Filter } from 'lucide-react';
+import { confirmFreeBooking, cancelBooking } from '@/services/bookingService';
+import { Loader2, Check, CheckCheck, Bell, Filter, CalendarCheck, XCircle } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 // Notification Centre — full notification experience.
 // References the same Notification Records as the bell/modal.
 export default function Notifications() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all | unread | by category
   const [processing, setProcessing] = useState(null);
+  const [bookingActionLoading, setBookingActionLoading] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -46,6 +50,42 @@ export default function Notifications() {
   const handleMarkAllRead = async () => {
     await markAllAsRead(user.id);
     setItems(items.map(i => ({ ...i, is_read: true })));
+  };
+
+  // Booking invitation accept/decline — converges on the existing
+  // confirmFreeBooking (free) or createPaymentIntent (paid, via redirect
+  // to booking management) and cancelBooking (decline).
+  const handleAcceptBooking = async (bookingId) => {
+    setBookingActionLoading(bookingId);
+    try {
+      await confirmFreeBooking(bookingId);
+      toast({ title: 'Booking accepted' });
+      loadItems();
+    } catch (err) {
+      // If payment is required, redirect to the booking management page
+      if (err.message?.includes('payment') || err.code === 'functions/failed-precondition') {
+        toast({ title: 'Payment required', description: 'Complete payment to confirm your booking.' });
+        // Navigate to booking management — the customer pays there
+        window.location.href = `/booking/manage?booking=${bookingId}`;
+      } else {
+        toast({ title: 'Could not accept', description: err.message, variant: 'destructive' });
+      }
+    } finally {
+      setBookingActionLoading(null);
+    }
+  };
+
+  const handleDeclineBooking = async (bookingId) => {
+    setBookingActionLoading(bookingId);
+    try {
+      await cancelBooking(bookingId, 'Declined by customer');
+      toast({ title: 'Booking declined' });
+      loadItems();
+    } catch (err) {
+      toast({ title: 'Could not decline', description: err.message, variant: 'destructive' });
+    } finally {
+      setBookingActionLoading(null);
+    }
   };
 
   const categories = ['all', 'unread', 'verification', 'media', 'business', 'security', 'system', 'calendar'];
@@ -116,6 +156,28 @@ export default function Notifications() {
                     {n.action_url && (
                       <Link to={n.action_url} onClick={() => { if (!n.is_read) handleMarkRead(n.id); }} className="text-xs text-indigo-600 font-medium hover:underline">{n.action_label || 'View'}</Link>
                     )}
+                    {/* Booking invitation accept/decline actions */}
+                    {n.event_type === 'booking_invitation' && n.source_id?.startsWith('booking:') && (() => {
+                      const bookingId = n.source_id.replace('booking:', '');
+                      return (
+                        <div className="flex items-center gap-2 ml-2">
+                          <button
+                            onClick={() => handleAcceptBooking(bookingId)}
+                            disabled={bookingActionLoading === bookingId}
+                            className="text-xs px-2 py-1 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700 disabled:opacity-50 inline-flex items-center gap-1"
+                          >
+                            {bookingActionLoading === bookingId ? <Loader2 className="w-3 h-3 animate-spin" /> : <CalendarCheck className="w-3 h-3" />} Accept
+                          </button>
+                          <button
+                            onClick={() => handleDeclineBooking(bookingId)}
+                            disabled={bookingActionLoading === bookingId}
+                            className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded font-medium hover:bg-red-100 disabled:opacity-50 inline-flex items-center gap-1"
+                          >
+                            <XCircle className="w-3 h-3" /> Decline
+                          </button>
+                        </div>
+                      );
+                    })()}
                     {!n.is_read && (
                       <button
                         onClick={() => handleMarkRead(n.id)}

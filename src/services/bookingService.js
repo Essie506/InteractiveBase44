@@ -21,6 +21,7 @@ import {
   callReportNoShow,
   callCompleteBooking,
   callGuestLookupBooking,
+  callCreateProviderBooking,
 } from '@/services/firebaseFunctions';
 
 // ── Booking Draft Creation ──────────────────────────────────
@@ -29,6 +30,15 @@ import {
 // an authoritative total.
 export async function createBookingDraft(bookingData) {
   return callCreateBookingDraft(bookingData);
+}
+
+// ── Provider-initiated Booking ──────────────────────────────
+// Provider creates a booking for a specified customer or guest.
+// The customer receives a booking invitation notification.
+// For free bookings the customer can accept via confirmFreeBooking.
+// For paid bookings the customer pays via createPaymentIntent.
+export async function createProviderBooking(bookingData) {
+  return callCreateProviderBooking(bookingData);
 }
 
 // ── Payment Intent ──────────────────────────────────────────

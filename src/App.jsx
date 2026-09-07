@@ -45,6 +45,7 @@ import PublicPersonalProfile from '@/pages/PublicPersonalProfile';
 import PublicBusinessProfile from '@/pages/PublicBusinessProfile';
 import PublicEventPage from '@/pages/PublicEventPage';
 import BookingPage from '@/pages/BookingPage';
+import EventBookingPage from '@/pages/EventBookingPage';
 import GuestBookingManage from '@/pages/GuestBookingManage';
 import ProfessionalWorkspace from '@/pages/professional/ProfessionalWorkspace';
 import ProfessionalOverview from '@/pages/professional/ProfessionalOverview';
@@ -99,6 +100,7 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       {/* Public booking entry point — guest checkout (Spec 00 §1.5) */}
       <Route path="/book/:screenName" element={<BookingPage />} />
+      <Route path="/book/event/:eventId" element={<EventBookingPage />} />
       {/* Guest booking management — email + booking reference (Booking §3.10–§3.11) */}
       <Route path="/booking/manage" element={<GuestBookingManage />} />
       {/* Persistent authenticated shell — one sidebar survives navigation

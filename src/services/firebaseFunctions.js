@@ -124,6 +124,12 @@ export async function callGuestLookupBooking(data) {
   return /** @type {any} */ (result.data);
 }
 
+// ── Provider-initiated Booking ──
+export async function callCreateProviderBooking(data) {
+  const result = await callable('createProviderBooking')(data);
+  return /** @type {any} */ (result.data);
+}
+
 // ── Phase 5: Booking Lifecycle ──
 export async function callCancelBooking(data) {
   const result = await callable('cancelBooking')(data);

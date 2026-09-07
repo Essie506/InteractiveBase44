@@ -7,7 +7,7 @@ import {
 const navItems = [
   { path: 'overview', label: 'Overview / analytics', icon: BarChart3 },
   { path: 'profile-performance', label: 'Profile performance', icon: TrendingUp, deferred: true },
-  { path: 'bookings', label: 'Bookings performance', icon: CalendarCheck },
+  { path: 'bookings', label: 'Bookings', icon: CalendarCheck },
   { path: 'revenue', label: 'Revenue / earnings', icon: DollarSign, deferred: true },
   { path: 'payments', label: 'Payments / payouts', icon: CreditCard, deferred: true },
   { path: 'services', label: 'Services', icon: Briefcase },

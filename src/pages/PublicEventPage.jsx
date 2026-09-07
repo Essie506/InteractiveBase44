@@ -247,7 +247,7 @@ export default function PublicEventPage() {
               <div className="mt-5 pt-5 border-t border-stone-100">
                 {hasSpaces ? (
                   <Link
-                    to={`/book/${event.event_id}`}
+                    to={`/book/event/${event.event_id}`}
                     className="block w-full text-center px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
                   >
                     {isFree ? 'Reserve Spot' : 'Book Now'}
