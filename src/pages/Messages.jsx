@@ -38,21 +38,27 @@ export default function Messages() {
   const loadConversations = async () => {
     if (!user) return;
     setLoading(true);
-    const convs = await getConversations(user.id);
-    setConversations(convs);
-    const allParticipantIds = new Set();
-    for (const conv of convs) {
-      for (const pid of conv.participant_ids || []) {
-        if (pid !== user.id && !displayCache[pid]) {
-          allParticipantIds.add(pid);
+    try {
+      const convs = await getConversations(user.id);
+      setConversations(convs);
+      const allParticipantIds = new Set();
+      for (const conv of convs) {
+        for (const pid of conv.participant_ids || []) {
+          if (pid !== user.id && !displayCache[pid]) {
+            allParticipantIds.add(pid);
+          }
         }
       }
+      if (allParticipantIds.size > 0) {
+        const resolved = await resolveParticipants([...allParticipantIds]);
+        setDisplayCache(prev => ({ ...prev, ...resolved }));
+      }
+    } catch (err) {
+      console.error('Failed to load conversations', err);
+      setConversations([]);
+    } finally {
+      setLoading(false);
     }
-    if (allParticipantIds.size > 0) {
-      const resolved = await resolveParticipants([...allParticipantIds]);
-      setDisplayCache(prev => ({ ...prev, ...resolved }));
-    }
-    setLoading(false);
   };
 
   useEffect(() => { loadConversations(); }, [user]);

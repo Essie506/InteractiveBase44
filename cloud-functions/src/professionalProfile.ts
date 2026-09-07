@@ -178,12 +178,30 @@ export const saveProfessionalProfile = onCall(
     // ── Server-side contract enforcement ──
     // An active Professional must carry a canonical screen_name: it is the
     // public URL key (/p/:screenName) and the professionalProfilesPublic
-    // doc ID. Without it the profile can never be publicly listable and the
-    // public route cannot resolve. This guard prevents activation or editor
-    // saves from persisting an active profile with a null screen_name, and
-    // blocks editor saves that would re-null an existing active profile's
-    // screen_name (the root cause of profiles disappearing from the Directory).
-    if (merged.lifecycle_state === 'active' && !screenName) {
+    // doc ID. The guard blocks the two saves that are RESPONSIBLE for an
+    // active+null state:
+    //   (1) activation — a save that sets lifecycle_state to 'active'
+    //       without a screen_name;
+    //   (2) screen_name clearing — a save that explicitly nulls the
+    //       screen_name of an already-active profile.
+    // A partial field update (e.g. services) on an already-active profile
+    // is NOT blocked by a pre-existing null screen_name: that is legacy
+    // data corruption from the earlier screen_name-overwrite bug (now
+    // fixed by the body.screen_name !== undefined preservation above),
+    // not this save's responsibility. Blocking it would prevent the owner
+    // from managing services until they re-set a screen_name, without
+    // repairing the underlying corruption. The screen_name requirement
+    // for NEW activations and for public/directory listability
+    // (isPubliclyListable / isDirectoryListable below) remains enforced.
+    const isActivating = body.lifecycle_state === 'active';
+    const isClearingScreenName = body.screen_name !== undefined && !requestedScreenName;
+    if (isActivating && !screenName) {
+      throw new HttpsError(
+        'invalid-argument',
+        'A screen name is required for an active professional profile',
+      );
+    }
+    if (isClearingScreenName && merged.lifecycle_state === 'active') {
       throw new HttpsError(
         'invalid-argument',
         'A screen name is required for an active professional profile',

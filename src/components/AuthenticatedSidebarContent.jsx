@@ -63,7 +63,7 @@ export default function AuthenticatedSidebarContent() {
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
         {navItems.map(item => {
           const Icon = item.icon;
-          const active = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
+          const active = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path + '/'));
           return (
             <Link
               key={item.path}

@@ -138,6 +138,18 @@ export async function createHoldCalendarEvent(
   const idempKey = idempotencyDocId(ownerType, ownerId, sourceSystem, sourceId);
   const idempRef = db.collection(IDEMPOTENCY).doc(idempKey);
 
+  // Meaningful hold label — service + customer/guest context from the
+  // authoritative draft booking, while still clearly marking the event as
+  // a held slot. The event is private (visibility 'private'), so guest
+  // contact is visible only to the provider — consistent with privacy
+  // rules. Prefer display_name over raw email when available.
+  const holdServiceLabel = hold.service_id || 'session';
+  const holdCustomerLabel = hold.guest_display_name || hold.guest_email || (hold.customer_identity_id ? 'customer' : null);
+  const holdTitle = holdCustomerLabel
+    ? `Held slot · ${holdServiceLabel} · ${holdCustomerLabel}`
+    : `Held slot · ${holdServiceLabel}`;
+  const holdDescription = `Held for booking — service: ${holdServiceLabel}${holdCustomerLabel ? `, customer: ${holdCustomerLabel}` : ''}. Hold ref ${holdId}`;
+
   let existingEventId: string | null = null;
   let eventDocId = '';
   await db.runTransaction(async (tx) => {
@@ -152,8 +164,8 @@ export async function createHoldCalendarEvent(
       owner_id: ownerId,
       owner_type: ownerType,
       operating_context: isBusinessHold ? 'business' : 'professional',
-      title: 'Held slot',
-      description: `Hold ${holdId}`,
+      title: holdTitle,
+      description: holdDescription,
       start_time: hold.start_time,
       end_time: hold.end_time,
       timezone: hold.timezone || 'UTC',

@@ -190,6 +190,10 @@ export const createProviderBooking = onCall(
     await createHoldCalendarEvent(holdResult, {
       provider_identity_id: providerIdentityId,
       business_id: business_id || null,
+      service_id,
+      guest_email: guest?.email || null,
+      guest_display_name: guest?.display_name || null,
+      customer_identity_id: customer_identity_id || null,
       start_time,
       end_time,
       timezone: timezone || 'UTC',
