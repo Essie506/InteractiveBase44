@@ -21,7 +21,7 @@ export default function ProfilePosts({ identityId, canView = true }) {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-6">
+      <div className="max-w-[89%] mx-auto px-4 sm:px-6 mt-6">
         <h2 className="text-lg font-semibold text-stone-800 mb-3">Posts</h2>
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-5 h-5 text-stone-300 animate-spin" />
@@ -33,7 +33,7 @@ export default function ProfilePosts({ identityId, canView = true }) {
   if (posts.length === 0) return null;
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 mt-8">
+    <div className="max-w-[89%] mx-auto px-4 sm:px-6 mt-8">
       <h2 className="text-lg font-semibold text-stone-800 mb-3">Posts</h2>
       <div className="space-y-4">
         {posts.map(post => (

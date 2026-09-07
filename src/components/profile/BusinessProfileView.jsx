@@ -90,7 +90,7 @@ export default function BusinessProfileView({
   const hasContact = profile.location || profile.website || profile.contact_email || profile.contact_phone || profile.operating_hours;
 
   return (
-    <div>
+    <div className="max-w-[89%] mx-auto">
       <ProfileHeader
         coverUrl={profile.cover_url}
         coverPos={coverPos}
@@ -116,7 +116,7 @@ export default function BusinessProfileView({
         ) : actions}
       />
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+      <div className="px-4 sm:px-6">
         {/* About */}
         <ProfileSection title="About" onEdit={editable ? () => onEditField('description') : null}>
           {profile.description ? (

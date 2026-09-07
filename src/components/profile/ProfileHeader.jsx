@@ -73,7 +73,7 @@ export default function ProfileHeader({
       </div>
 
       {/* Identity row — grid gives each block its own column on tablet+ */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6">
+      <div className="px-4 sm:px-6">
         <div className="grid grid-cols-1 sm:grid-cols-[9rem_1fr_auto] sm:gap-8 gap-4 sm:items-start">
           {/* Avatar / logo column — overlaps cover bottom */}
           <div className="relative -mt-16 sm:-mt-20">
