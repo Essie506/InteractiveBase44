@@ -148,16 +148,19 @@ export default function CreateBookingModal({ open, onClose, onCreated, services,
     }
   }, [selectedService]);
 
-  // Load availability slots when date or service changes
+  // Load availability slots when date or service changes.
+  // For business bookings the availability owner is the business ID;
+  // for professional bookings it is the provider identity ID.
+  const availabilityOwner = businessId || providerIdentityId;
   useEffect(() => {
-    if (!open || !selectedService || !providerIdentityId) return;
+    if (!open || !selectedService || !availabilityOwner) return;
     setLoadingSlots(true);
     setSelectedSlot(null);
-    getAvailabilityForDate(providerIdentityId, operatingContext, selectedDate)
+    getAvailabilityForDate(availabilityOwner, operatingContext, selectedDate)
       .then(rules => setSlots(generateSlots(rules, selectedService.duration_minutes)))
       .catch(() => setSlots([]))
       .finally(() => setLoadingSlots(false));
-  }, [open, selectedService, selectedDate, providerIdentityId, operatingContext]);
+  }, [open, selectedService, selectedDate, availabilityOwner, operatingContext]);
 
   // Customer email lookup
   const handleCustomerLookup = async () => {
@@ -200,7 +203,6 @@ export default function CreateBookingModal({ open, onClose, onCreated, services,
       end.setHours(eh, em, 0, 0);
 
       const draftData = {
-        provider_identity_id: providerIdentityId,
         service_id: selectedService.id || selectedService.label || 'general',
         booking_type: selectedService.booking_type || 'session',
         start_time: start.toISOString(),

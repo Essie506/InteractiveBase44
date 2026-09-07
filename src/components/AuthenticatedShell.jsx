@@ -39,7 +39,7 @@ import FloatingMessageDrawer from '@/components/messaging/FloatingMessageDrawer'
 //     with the Interactive branding as the drawer trigger.
 export default function AuthenticatedShell() {
   const { user, isLoadingAuth } = useAuth();
-  const { navOpen, setNavOpen, toggleNav } = useNav();
+  const { navOpen, setNavOpen } = useNav();
   const isMobile = useIsMobile();
   const location = useLocation();
   const identity = getPageIdentity(location.pathname);
@@ -90,8 +90,7 @@ export default function AuthenticatedShell() {
           <AuthenticatedTopNav
             pageIcon={identity.icon}
             pageLabel={identity.label}
-            navOpen={navOpen}
-            onToggleNav={toggleNav}
+            onOpenNav={() => setNavOpen(true)}
           />
         </div>
 

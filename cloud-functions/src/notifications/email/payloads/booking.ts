@@ -16,7 +16,8 @@ export type BookingEventType =
   | 'booking_cancelled'
   | 'booking_rescheduled'
   | 'booking_completed'
-  | 'booking_no_show';
+  | 'booking_no_show'
+  | 'booking_invitation';
 
 export interface BookingEmailContext {
   bookingReference: string;
@@ -60,6 +61,10 @@ const TEMPLATES: Record<
   booking_no_show: {
     subject: (t) => `No-show recorded — ${t.serviceLabel || 'session'}${t.providerOrBusinessName ? ' with ' + t.providerOrBusinessName : ''}`,
     intro: () => `A no-show has been recorded for a booking on Interactive.`,
+  },
+  booking_invitation: {
+    subject: (t) => `Booking invitation — ${t.serviceLabel || 'session'}${t.providerOrBusinessName ? ' with ' + t.providerOrBusinessName : ''}`,
+    intro: () => `You have been invited to a booking on Interactive.`,
   },
 };
 

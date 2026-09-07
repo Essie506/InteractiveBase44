@@ -10,14 +10,14 @@
 //            the drawer is OPEN this side is empty; the drawer's edge
 //            collapse control (NavCollapseControl) handles closing.
 //   - Right: current page identity (icon + label, from getPageIdentity).
-export default function AuthenticatedTopNav({ pageIcon: PageIcon, pageLabel, navOpen, onToggleNav }) {
+export default function AuthenticatedTopNav({ pageIcon: PageIcon, pageLabel, onOpenNav }) {
   return (
     <header className="bg-white border-b border-stone-200">
       <div className="flex items-center justify-between px-6 md:px-10 py-4">
         <button
           type="button"
-          onClick={onToggleNav}
-          aria-label={navOpen ? "Close navigation" : "Open navigation"}
+          onClick={onOpenNav}
+          aria-label="Open navigation"
           className="flex items-center gap-2.5"
         >
           <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">

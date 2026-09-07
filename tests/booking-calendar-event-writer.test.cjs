@@ -56,7 +56,7 @@ test('C1: bookingCalendarEvent records schedule history on creation', () => {
 });
 
 test('C1: stripeWebhook imports createBookingCalendarEvent', () => {
-  if (!/import \{ createBookingCalendarEvent \} from '\.\/bookingCalendarEvent'/.test(swSrc)) {
+  if (!/import \{[^}]*createBookingCalendarEvent[^}]*\} from '\.\/bookingCalendarEvent'/.test(swSrc)) {
     throw new Error('stripeWebhook must import createBookingCalendarEvent');
   }
 });
@@ -75,7 +75,7 @@ test('C1: stripeWebhook uses createBookingCalendarEvent instead of direct db.col
 });
 
 test('C1: bookingPayment imports createBookingCalendarEvent', () => {
-  if (!/import \{ createBookingCalendarEvent \} from '\.\/bookingCalendarEvent'/.test(bpSrc)) {
+  if (!/import \{[^}]*createBookingCalendarEvent[^}]*\} from '\.\/bookingCalendarEvent'/.test(bpSrc)) {
     throw new Error('bookingPayment must import createBookingCalendarEvent');
   }
 });

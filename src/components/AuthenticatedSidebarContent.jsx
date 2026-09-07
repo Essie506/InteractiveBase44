@@ -41,12 +41,17 @@ export default function AuthenticatedSidebarContent() {
     <>
       <div className="px-6 py-7">
         <div className="flex items-center justify-between">
-          <Link to="/dashboard" onClick={closeOnMobileNavigate} className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setNavOpen(false)}
+            aria-label="Close navigation"
+            className="flex items-center gap-2.5"
+          >
             <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">I</span>
             </div>
             <span className="text-lg font-semibold tracking-tight">Interactive</span>
-          </Link>
+          </button>
           <NotificationBell />
         </div>
       </div>
