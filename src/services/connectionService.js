@@ -20,6 +20,9 @@ import {
   callDisconnectConnection,
   callResolveConnectionStatus,
   callResolveConnectionStatuses,
+  callFollowIdentity,
+  callUnfollowIdentity,
+  callGetFollowState,
 } from '@/services/firebaseFunctions';
 
 // Create a pending connection request to target_id.
@@ -64,4 +67,19 @@ export async function resolveConnectionStatus({ target_id } = {}) {
  */
 export async function resolveConnectionStatuses({ target_ids } = {}) {
   return callResolveConnectionStatuses({ target_ids });
+}
+
+// ── Follow / Unfollow (Profile §33) ─────────────────────────
+// One-way follow relationship. No acceptance needed (unlike Connection).
+// The relationship system owns follow state — Profile presents it.
+export async function followIdentity({ target_id } = {}) {
+  return callFollowIdentity({ target_id });
+}
+
+export async function unfollowIdentity({ target_id } = {}) {
+  return callUnfollowIdentity({ target_id });
+}
+
+export async function getFollowState({ target_id } = {}) {
+  return callGetFollowState({ target_id });
 }

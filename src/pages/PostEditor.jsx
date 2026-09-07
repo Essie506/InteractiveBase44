@@ -1,10 +1,10 @@
 // PostEditor — V2 Post System.
 // Supports the 11 spec post types (§9), Universal Post Model fields (§8),
 // video + image media via the Media System, and linked content references.
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { callSavePost } from '@/services/postService';
+import { callSavePost, fetchPostById } from '@/services/postService';
 import { useToast } from '@/components/ui/use-toast';
 import MediaUploadButton from '@/components/MediaUploadButton';
 import PostTypeSelector from '@/components/post/PostTypeSelector';
@@ -28,6 +28,8 @@ export default function PostEditor() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { id: editId } = useParams();
+  const [loadingPost, setLoadingPost] = useState(false);
   const [postType, setPostType] = useState('standard');
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
@@ -44,6 +46,27 @@ export default function PostEditor() {
 
   const config = getPostTypeConfig(postType);
   const refSystem = config.requiresReference ? REFERENCE_SYSTEM_MAP[config.requiresReference] : null;
+
+  // Load existing post for editing
+  useEffect(() => {
+    if (!editId) return;
+    setLoadingPost(true);
+    fetchPostById(editId)
+      .then((post) => {
+        if (!post) { toast({ title: 'Post not found', variant: 'destructive' }); navigate('/feed'); return; }
+        setPostType(post.post_type || 'standard');
+        setTitle(post.title || '');
+        setSummary(post.summary || '');
+        setBody(post.body || '');
+        setMediaAssets((post.media_asset_ids || []).map((aid, i) => ({ id: aid, file_url: post.media_urls?.[i] || '' })).filter(a => a.file_url));
+        setLinkUrl(post.link_url || '');
+        setVisibility(post.visibility || 'public');
+        setTags(post.tags || []);
+        if (post.linked_content_references?.length > 0) setLinkedRefId(post.linked_content_references[0].id);
+      })
+      .catch(() => { toast({ title: 'Could not load post', variant: 'destructive' }); navigate('/feed'); })
+      .finally(() => setLoadingPost(false));
+  }, [editId]);
 
   const normalizeUrl = (url) => {
     const trimmed = url.trim();
@@ -81,6 +104,7 @@ export default function PostEditor() {
         : [];
 
       await callSavePost({
+        id: editId || undefined,
         author_identity_id: user.id,
         author_type: 'identity',
         post_type: postType,
@@ -97,7 +121,7 @@ export default function PostEditor() {
         operating_context: user.active_context || 'personal',
         lifecycle_state: 'published',
       });
-      toast({ title: 'Post published' });
+      toast({ title: editId ? 'Post updated' : 'Post published' });
       navigate('/feed');
     } catch (err) {
       toast({
@@ -110,11 +134,21 @@ export default function PostEditor() {
     }
   };
 
+  if (loadingPost) {
+    return (
+      <div className="p-4 md:p-6 max-w-2xl mx-auto">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-stone-400" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-stone-800">Create Post</h1>
-        <p className="text-stone-500 text-sm">Share something with the Interactive community</p>
+        <h1 className="text-xl font-bold text-stone-800">{editId ? 'Edit Post' : 'Create Post'}</h1>
+        <p className="text-stone-500 text-sm">{editId ? 'Update your post' : 'Share something with the Interactive community'}</p>
       </div>
 
       <div className="bg-white rounded-xl border border-stone-200 p-5">
@@ -312,7 +346,7 @@ export default function PostEditor() {
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            {saving ? 'Publishing...' : 'Publish'}
+            {saving ? 'Saving...' : editId ? 'Save Changes' : 'Publish'}
           </button>
         </div>
       </div>

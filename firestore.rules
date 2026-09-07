@@ -714,6 +714,19 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════════
+    // FOLLOWS (Relationship System — Profile §33)
+    // One-way follow relationship. Deterministic doc ID: {followerId}__{followedId}
+    // Server-only writes via Cloud Functions (followIdentity / unfollowIdentity).
+    // Follower can read their own follows; followed identity can read who follows them.
+    // ═══════════════════════════════════════════════════════════
+
+    match /follows/{followId} {
+      allow read: if isOwner(resource.data.follower_id) || isOwner(resource.data.followed_id);
+      allow create: if isOwner(request.resource.data.follower_id);
+      allow delete: if isOwner(resource.data.follower_id);
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // CONNECTION REQUESTS (Relationship System)
     // ───────────────────────────────────────────────────────────
     // Server-only writes (Cloud Functions). Requester and target can

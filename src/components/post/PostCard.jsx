@@ -7,7 +7,7 @@ import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
 import PostTypeBadge from '@/components/post/PostTypeBadge';
-import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone, Flag, Ban } from 'lucide-react';
+import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone, Flag, Ban, PenSquare } from 'lucide-react';
 import { blockUser, reportUser } from '@/lib/messaging';
 
 const REF_ICONS = { workout: Dumbbell, calendar_event: Calendar, promotion: Megaphone };
@@ -129,14 +129,23 @@ export default function PostCard({ post, onDeleted }) {
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                 <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-stone-200 rounded-lg shadow-lg py-1 min-w-[160px]">
                   {isAuthor ? (
-                    <button
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      {deleting ? 'Deleting...' : 'Delete post'}
-                    </button>
+                    <>
+                      <Link
+                        to={`/posts/${post.id}/edit`}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50"
+                      >
+                        <PenSquare className="w-3.5 h-3.5" />
+                        Edit post
+                      </Link>
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {deleting ? 'Deleting...' : 'Delete post'}
+                      </button>
+                    </>
                   ) : (
                     <>
                       <button

@@ -39,7 +39,7 @@ export { createShare, deleteShare } from './share';
 export { savePost, deletePost } from './post';
 
 // Relationship System — Connections + Professional access
-export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses } from './connections';
+export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses, followIdentity, unfollowIdentity, getFollowState } from './connections';
 
 // Professional Profile — public projection + screen name uniqueness
 export { saveProfessionalProfile, validateScreenName } from './professionalProfile';

@@ -471,3 +471,58 @@ async function computeStatusMap(callerId: string, targetIds: string[]): Promise<
   }
   return results;
 }
+
+// ── Follow System (Profile §33) ─────────────────────────────
+// One-way follow relationship. No acceptance needed (unlike Connection).
+// Follow doc ID: {followerId}__{followedId} (deterministic, like blockRecords)
+
+const FOLLOWS = 'follows';
+
+export const followIdentity = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required');
+    const followerId = await getIdentityId(request.auth.uid);
+    const { target_id } = request.data || {};
+    if (!target_id) throw new HttpsError('invalid-argument', 'target_id is required');
+    if (target_id === followerId) throw new HttpsError('invalid-argument', 'Cannot follow yourself');
+    const blocked = await isBlocked(followerId, target_id);
+    if (blocked) throw new HttpsError('permission-denied', 'Cannot follow — blocking relationship exists');
+    const followId = `${followerId}__${target_id}`;
+    const now = new Date().toISOString();
+    await db.collection(FOLLOWS).doc(followId).set({
+      follower_id: followerId, followed_id: target_id, status: 'active',
+      _created_date: now, _updated_date: now,
+    });
+    return { status: 'following' };
+  },
+);
+
+export const unfollowIdentity = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required');
+    const followerId = await getIdentityId(request.auth.uid);
+    const { target_id } = request.data || {};
+    if (!target_id) throw new HttpsError('invalid-argument', 'target_id is required');
+    const followId = `${followerId}__${target_id}`;
+    await db.collection(FOLLOWS).doc(followId).delete();
+    return { status: 'not_following' };
+  },
+);
+
+export const getFollowState = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required');
+    const callerId = await getIdentityId(request.auth.uid);
+    const { target_id } = request.data || {};
+    if (!target_id) throw new HttpsError('invalid-argument', 'target_id is required');
+    const followId = `${callerId}__${target_id}`;
+    const followDoc = await db.collection(FOLLOWS).doc(followId).get();
+    const isFollowing = followDoc.exists && followDoc.data()!.status === 'active';
+    const followersSnap = await db.collection(FOLLOWS).where('followed_id', '==', target_id).where('status', '==', 'active').get();
+    const followingSnap = await db.collection(FOLLOWS).where('follower_id', '==', target_id).where('status', '==', 'active').get();
+    return { is_following: isFollowing, follower_count: followersSnap.size, following_count: followingSnap.size };
+  },
+);

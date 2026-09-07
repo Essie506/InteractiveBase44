@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { fetchPublicPosts } from '@/services/postService';
+import { blockRepository } from '@/data/firebase';
 import { fetchPublicCommentaryShares } from '@/services/shareService';
 import PostCard from '@/components/post/PostCard';
 import ShareCard from '@/components/community/ShareCard';
@@ -12,6 +13,7 @@ export default function Feed() {
   const location = useLocation();
   const returnTo = encodeURIComponent(location.pathname + location.search);
   const [feedItems, setFeedItems] = useState([]);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -23,6 +25,17 @@ export default function Feed() {
     setLoading(true);
     setError(null);
     try {
+      // Fetch blocked identity IDs for the current user (authoritative filter)
+      let blockedIds = new Set();
+      if (user?.id) {
+        try {
+          const blocks = await blockRepository.listBlocksForBlocker(user.id);
+          blockedIds = new Set(blocks.map(b => b.blocked_id).filter(Boolean));
+        } catch (e) {
+          console.error('[Feed] Failed to load blocks:', e);
+        }
+      }
+
       const [postList, shareList] = await Promise.all([
         fetchPublicPosts(30).catch((err) => {
           console.error('[Feed] Failed to load posts:', err);
@@ -37,7 +50,10 @@ export default function Feed() {
       const merged = [
         ...postList.map((p) => ({ ...p, _feedType: 'post' })),
         ...shareList.map((s) => ({ ...s, _feedType: 'share' })),
-      ].sort((a, b) => {
+      ].filter((item) => {
+        const authorId = item.author_identity_id || item.sharer_identity_id;
+        return !blockedIds.has(authorId);
+      }).sort((a, b) => {
         const aDate = a._created_date?.toDate ? a._created_date.toDate().getTime() : new Date(a._created_date || 0).getTime();
         const bDate = b._created_date?.toDate ? b._created_date.toDate().getTime() : new Date(b._created_date || 0).getTime();
         return bDate - aDate;
@@ -50,7 +66,7 @@ export default function Feed() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => { loadFeed(); }, [loadFeed]);
 
@@ -146,12 +162,22 @@ export default function Feed() {
       {/* Feed — merged posts + commentary shares */}
       {!loading && !error && feedItems.length > 0 && (
         <div className="space-y-4">
-          {feedItems.map((item) =>
+          {feedItems.slice(0, visibleCount).map((item) =>
             item._feedType === 'share' ? (
               <ShareCard key={`share-${item.id}`} share={item} onDeleted={handleDeleted} />
             ) : (
               <PostCard key={`post-${item.id}`} post={item} onDeleted={handleDeleted} />
             )
+          )}
+          {visibleCount < feedItems.length && (
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={() => setVisibleCount((c) => c + 10)}
+                className="px-5 py-2.5 text-sm font-medium text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+              >
+                Load more
+              </button>
+            </div>
           )}
         </div>
       )}

@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { resolveProfessionalAccess } from '@/services/profileService';
-import { createConnectionRequest, resolveConnectionStatus } from '@/services/connectionService';
-import { CalendarPlus, Pencil, Loader2, AlertCircle, MessageSquare, Share2 } from 'lucide-react';
+import { createConnectionRequest, resolveConnectionStatus, followIdentity, unfollowIdentity, getFollowState } from '@/services/connectionService';
+import { CalendarPlus, Pencil, Loader2, AlertCircle, MessageSquare, Share2, MoreVertical, Flag, Ban, UserPlus, UserCheck } from 'lucide-react';
 import ProfessionalProfileView from '@/components/professional/ProfessionalProfileView';
 import ProfessionalAdvertView from '@/components/professional/ProfessionalAdvertView';
 import ConnectionActions from '@/components/directory/ConnectionActions';
-import { createOrGetConversation } from '@/lib/messaging';
+import { createOrGetConversation, blockUser, reportUser } from '@/lib/messaging';
+import { blockRepository } from '@/data/firebase';
 import { useToast } from '@/components/ui/use-toast';
 import ProfilePosts from '@/components/profile/ProfilePosts';
 
@@ -36,6 +37,12 @@ export default function PublicProfile() {
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [followState, setFollowState] = useState(null);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [showReportConfirm, setShowReportConfirm] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,11 +69,19 @@ export default function PublicProfile() {
   useEffect(() => {
     if (!user || !profile || isOwner) {
       setConnectionStatus(null);
+      setFollowState(null);
+      setIsBlocked(false);
       return;
     }
     resolveConnectionStatus({ target_id: profile.identity_id })
       .then((res) => setConnectionStatus(res?.status || 'none'))
       .catch(() => setConnectionStatus('none'));
+    getFollowState({ target_id: profile.identity_id })
+      .then((res) => setFollowState(res))
+      .catch(() => setFollowState(null));
+    blockRepository.blockExists(user.id, profile.identity_id)
+      .then((exists) => setIsBlocked(exists))
+      .catch(() => setIsBlocked(false));
   }, [user, profile, isOwner]);
 
   const handleConnect = async () => {
@@ -119,6 +134,73 @@ export default function PublicProfile() {
     }).catch(() => {
       toast({ title: 'Could not copy link', variant: 'destructive' });
     });
+  };
+
+  const handleFollow = async () => {
+    if (!user) { navigate(`/login?returnTo=${encodeURIComponent(`/p/${screenName}`)}`); return; }
+    if (!profile) return;
+    setFollowLoading(true);
+    try {
+      await followIdentity({ target_id: profile.identity_id });
+      setFollowState((prev) => ({ ...prev, is_following: true, follower_count: (prev?.follower_count || 0) + 1 }));
+    } catch (err) {
+      toast({ title: 'Could not follow', description: err?.message, variant: 'destructive' });
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const handleUnfollow = async () => {
+    if (!user || !profile) return;
+    setFollowLoading(true);
+    try {
+      await unfollowIdentity({ target_id: profile.identity_id });
+      setFollowState((prev) => ({ ...prev, is_following: false, follower_count: Math.max(0, (prev?.follower_count || 1) - 1) }));
+    } catch (err) {
+      toast({ title: 'Could not unfollow', description: err?.message, variant: 'destructive' });
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!user || !profile) return;
+    try {
+      await blockUser(user.id, profile.identity_id, user.active_context || 'personal');
+      setIsBlocked(true);
+      toast({ title: 'User blocked' });
+    } catch (err) {
+      toast({ title: 'Could not block', variant: 'destructive' });
+    } finally {
+      setShowBlockConfirm(false);
+      setShowMoreMenu(false);
+    }
+  };
+
+  const handleUnblock = async () => {
+    if (!user || !profile) return;
+    try {
+      await blockRepository.removeBlock(user.id, profile.identity_id);
+      setIsBlocked(false);
+      toast({ title: 'User unblocked' });
+    } catch (err) {
+      toast({ title: 'Could not unblock', variant: 'destructive' });
+    } finally {
+      setShowMoreMenu(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!user || !profile) return;
+    try {
+      await reportUser(user.id, profile.identity_id, 'Inappropriate profile content', user.active_context || 'personal');
+      toast({ title: 'Report submitted' });
+    } catch (err) {
+      toast({ title: 'Could not report', variant: 'destructive' });
+    } finally {
+      setShowReportConfirm(false);
+      setShowMoreMenu(false);
+    }
   };
 
   if (loading) {

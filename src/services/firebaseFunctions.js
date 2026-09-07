@@ -401,3 +401,20 @@ export async function callUpdateCampaignStatus(data) {
   const result = await callable('updateCampaignStatus')(data);
   return /** @type {any} */ (result.data);
 }
+
+// ── Follow System (Profile §33) ──
+// One-way follow relationship. No acceptance needed.
+export async function callFollowIdentity(data) {
+  const result = await callable('followIdentity')(data);
+  return /** @type {any} */ (result.data);
+}
+
+export async function callUnfollowIdentity(data) {
+  const result = await callable('unfollowIdentity')(data);
+  return /** @type {any} */ (result.data);
+}
+
+export async function callGetFollowState(data) {
+  const result = await callable('getFollowState')(data);
+  return /** @type {any} */ (result.data);
+}
