@@ -128,6 +128,8 @@ export default function PublicProfile() {
     }
   };
 
+  const hasBookableService = !!(profile?.services || []).some(s => s.is_active && s.duration_minutes);
+
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       toast({ title: 'Profile link copied' });
@@ -273,12 +275,14 @@ export default function PublicProfile() {
       >
         <MessageSquare className="w-4 h-4" /> Message
       </button>
-      <button
-        onClick={handleBook}
-        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
-      >
-        <CalendarPlus className="w-4 h-4" /> Book
-      </button>
+      {hasBookableService && (
+        <button
+          onClick={handleBook}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
+        >
+          <CalendarPlus className="w-4 h-4" /> Book
+        </button>
+      )}
       <button
         onClick={handleShare}
         className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50"

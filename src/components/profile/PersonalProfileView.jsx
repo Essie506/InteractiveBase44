@@ -42,7 +42,7 @@ export default function PersonalProfileView({
   };
 
   return (
-    <div className="max-w-[89%] mx-auto">
+    <div>
       <ProfileHeader
         coverUrl={profile.cover_url}
         coverPos={coverPos}
@@ -69,7 +69,7 @@ export default function PersonalProfileView({
         ) : actions}
       />
 
-      <div className="px-4 sm:px-6">
+      <div className="max-w-[89%] mx-auto px-4 sm:px-6">
         {/* About */}
         <ProfileSection title="About" onEdit={editable ? () => onEditField('bio') : null}>
           {profile.bio ? (

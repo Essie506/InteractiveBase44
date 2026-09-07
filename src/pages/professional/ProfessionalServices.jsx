@@ -3,7 +3,8 @@ import { useAuth } from '@/lib/AuthContext';
 import { getProfessionalProfile, saveProfessionalProfile } from '@/services/profileService';
 import { STANDARD_SERVICES } from '@/data/standardServices';
 import TaxonomySelectDialog from '@/components/profile/TaxonomySelectDialog';
-import { Briefcase, Loader2, Plus } from 'lucide-react';
+import BookableServiceCard from '@/components/professional/BookableServiceCard';
+import { Briefcase, Loader2, Plus, CalendarCheck } from 'lucide-react';
 
 export default function ProfessionalServices() {
   const { user } = useAuth();
@@ -23,9 +24,29 @@ export default function ProfessionalServices() {
     loadProfile();
   }, [user]);
 
-  const handleSave = async (services) => {
+  // Save taxonomy tags — preserve bookable fields for services that still exist
+  const handleSaveTags = async (newServices) => {
     setSaving(true);
     try {
+      const existingMap = new Map((profile?.services || []).map(s => [s.id || s.label, s]));
+      const merged = newServices.map(s => {
+        const existing = existingMap.get(s.id || s.label);
+        return existing ? { ...existing, ...s } : s;
+      });
+      await saveProfessionalProfile(user.id, { services: merged });
+      await loadProfile();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Save a single bookable service's details
+  const handleSaveBookable = async (updatedService) => {
+    setSaving(true);
+    try {
+      const services = (profile?.services || []).map(s =>
+        (s.id || s.label) === (updatedService.id || updatedService.label) ? updatedService : s
+      );
       await saveProfessionalProfile(user.id, { services });
       await loadProfile();
     } finally {
@@ -42,13 +63,14 @@ export default function ProfessionalServices() {
   }
 
   const services = profile?.services || [];
+  const bookableServices = services.filter(s => s.is_active && s.duration_minutes);
 
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-stone-800 mb-1">Services</h1>
-          <p className="text-stone-500 text-sm">The services and specialisms you offer.</p>
+          <p className="text-stone-500 text-sm">The services you offer and their booking configuration.</p>
         </div>
         <button
           onClick={() => setShowDialog(true)}
@@ -59,8 +81,9 @@ export default function ProfessionalServices() {
         </button>
       </div>
 
+      {/* Service tags */}
       {services.length === 0 ? (
-        <div className="bg-white rounded-xl border border-stone-200 p-8 text-center">
+        <div className="bg-white rounded-xl border border-stone-200 p-8 text-center mb-6">
           <Briefcase className="w-8 h-8 text-stone-300 mx-auto mb-2" />
           <p className="text-sm text-stone-500 mb-3">No services added yet.</p>
           <button
@@ -71,7 +94,7 @@ export default function ProfessionalServices() {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-stone-200 p-5">
+        <div className="bg-white rounded-xl border border-stone-200 p-5 mb-6">
           <div className="flex flex-wrap gap-2">
             {services.map((s, i) => (
               <span
@@ -86,10 +109,37 @@ export default function ProfessionalServices() {
         </div>
       )}
 
+      {/* Bookable services configuration */}
+      {services.length > 0 && (
+        <div>
+          <h2 className="text-lg font-semibold text-stone-800 mb-1 flex items-center gap-2">
+            <CalendarCheck className="w-5 h-5 text-indigo-600" />
+            Bookable Services
+          </h2>
+          <p className="text-sm text-stone-500 mb-4">
+            Configure which services visitors can book, including duration, price, and availability.
+          </p>
+          <div className="space-y-3">
+            {services.map((s, i) => (
+              <BookableServiceCard
+                key={(s.id || s.label) + i}
+                service={s}
+                onSave={handleSaveBookable}
+              />
+            ))}
+          </div>
+          {bookableServices.length === 0 && (
+            <p className="text-sm text-stone-400 mt-3">
+              No services are currently bookable. Use "Make bookable" above to enable booking for a service.
+            </p>
+          )}
+        </div>
+      )}
+
       <TaxonomySelectDialog
         open={showDialog}
         onClose={() => setShowDialog(false)}
-        onSave={handleSave}
+        onSave={handleSaveTags}
         title="Edit Services"
         items={services}
         standardOptions={STANDARD_SERVICES}
