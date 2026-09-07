@@ -5,10 +5,11 @@ import {
   getConversation, getMessages, sendMessage, markConversationAsRead,
   acceptMessageRequest, declineMessageRequest, blockUser, isBlocked, reportUser,
   resolveParticipantDisplay, notifyRecipients, createCalendarEventFromConversation,
+  archiveConversation,
 } from '@/lib/messaging';
 import { uploadMedia } from '@/lib/media';
 import { getLocalTimezone } from '@/lib/calendar';
-import { ArrowLeft, Send, Paperclip, Loader2, Ban, CalendarPlus, Check, X, ShieldAlert, Flag } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Loader2, Ban, CalendarPlus, Check, X, ShieldAlert, Flag, Archive } from 'lucide-react';
 import MessageEventCard from '@/components/messaging/MessageEventCard';
 
 export default function ConversationPage() {
@@ -130,6 +131,11 @@ export default function ConversationPage() {
     setShowReportConfirm(false);
   };
 
+  const handleArchive = async () => {
+    await archiveConversation(conversationId);
+    navigate('/messages');
+  };
+
   const handleCreateCalendarEvent = async (eventData) => {
     await createCalendarEventFromConversation(conversationId, eventData);
     setShowCalendarModal(false);
@@ -201,6 +207,13 @@ export default function ConversationPage() {
               title="Block user"
             >
               <Ban className="w-5 h-5 text-stone-500" />
+            </button>
+            <button
+              onClick={handleArchive}
+              className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+              title="Archive conversation"
+            >
+              <Archive className="w-5 h-5 text-stone-500" />
             </button>
           </>
         )}

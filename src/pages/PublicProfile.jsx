@@ -244,6 +244,23 @@ export default function PublicProfile() {
     </Link>
   ) : (
     <div className="flex flex-wrap items-center gap-2 sm:pb-2">
+      {followState?.is_following ? (
+        <button
+          onClick={handleUnfollow}
+          disabled={followLoading}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+        >
+          <UserCheck className="w-4 h-4" /> Following
+        </button>
+      ) : (
+        <button
+          onClick={handleFollow}
+          disabled={followLoading}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-indigo-200 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-50 disabled:opacity-50"
+        >
+          <UserPlus className="w-4 h-4" /> {followLoading ? '...' : 'Follow'}
+        </button>
+      )}
       <ConnectionActions
         status={connectionStatus}
         onConnect={handleConnect}
@@ -251,7 +268,8 @@ export default function PublicProfile() {
       />
       <button
         onClick={handleMessage}
-        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-800 rounded-lg text-sm font-medium hover:bg-stone-50"
+        disabled={isBlocked}
+        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-800 rounded-lg text-sm font-medium hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <MessageSquare className="w-4 h-4" /> Message
       </button>
@@ -268,14 +286,95 @@ export default function PublicProfile() {
       >
         <Share2 className="w-4 h-4" />
       </button>
+      <div className="relative">
+        <button
+          onClick={() => setShowMoreMenu(!showMoreMenu)}
+          className="p-2.5 bg-white border border-stone-200 rounded-lg hover:bg-stone-50"
+          title="More options"
+        >
+          <MoreVertical className="w-4 h-4 text-stone-600" />
+        </button>
+        {showMoreMenu && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setShowMoreMenu(false)} />
+            <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-stone-200 rounded-lg shadow-lg py-1 min-w-[160px]">
+              <button
+                onClick={() => { setShowReportConfirm(true); setShowMoreMenu(false); }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50"
+              >
+                <Flag className="w-3.5 h-3.5" /> Report
+              </button>
+              {isBlocked ? (
+                <button
+                  onClick={handleUnblock}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50"
+                >
+                  <Ban className="w-3.5 h-3.5" /> Unblock
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setShowBlockConfirm(true); setShowMoreMenu(false); }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Ban className="w-3.5 h-3.5" /> Block
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+      {followState && (followState.follower_count > 0 || followState.following_count > 0) && (
+        <div className="flex items-center gap-3 text-xs text-stone-500 ml-1">
+          {followState.follower_count > 0 && <span><strong className="text-stone-700">{followState.follower_count}</strong> followers</span>}
+          {followState.following_count > 0 && <span><strong className="text-stone-700">{followState.following_count}</strong> following</span>}
+        </div>
+      )}
     </div>
   );
 
   return (
     <div className="bg-stone-50">
       <ProfessionalProfileView profile={profile} editable={false} actions={actions} />
-      <ProfilePosts identityId={profile.identity_id} canView={access === 'public' || access === 'connection' || isOwner} />
+      <ProfilePosts identityId={profile.identity_id} canView={(access === 'public' || access === 'connection' || isOwner) && !isBlocked} />
       <div className="h-12" />
+
+      {/* Block confirmation */}
+      {showBlockConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowBlockConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Ban className="w-5 h-5 text-red-600" />
+              </div>
+              <h2 className="text-lg font-bold text-stone-800">Block {profile?.display_name || 'this user'}?</h2>
+            </div>
+            <p className="text-sm text-stone-500 mb-5">They will not be able to send you messages or see your profile.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowBlockConfirm(false)} className="flex-1 px-4 py-2.5 text-stone-600 hover:bg-stone-100 rounded-lg font-medium">Cancel</button>
+              <button onClick={handleBlock} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700">Block</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report confirmation */}
+      {showReportConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowReportConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                <Flag className="w-5 h-5 text-amber-600" />
+              </div>
+              <h2 className="text-lg font-bold text-stone-800">Report this profile?</h2>
+            </div>
+            <p className="text-sm text-stone-500 mb-5">This will submit a report to Trust & Safety for review.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowReportConfirm(false)} className="flex-1 px-4 py-2.5 text-stone-600 hover:bg-stone-100 rounded-lg font-medium">Cancel</button>
+              <button onClick={handleReport} className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700">Report</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
