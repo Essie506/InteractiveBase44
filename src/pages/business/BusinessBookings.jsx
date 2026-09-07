@@ -253,6 +253,10 @@ export default function BusinessBookings() {
     if (!id) return;
     loadBookings();
     getBusinessProfile(id).then(setProfile).catch(() => {});
+    // Auto-open the Create Booking modal if a preserved draft exists
+    // (business admin navigated to Availability and came back — Issue 2).
+    const draft = sessionStorage.getItem('interactive:bookingDraft');
+    if (draft) setShowCreate(true);
   }, [id]);
 
   const handleCreated = () => {

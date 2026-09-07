@@ -12,9 +12,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { MapPin, Loader2, X } from 'lucide-react';
 
-// Google Places API key — read from a global config if available.
-// This is set via index.html script tag or environment variable.
+// Google Places API key — resolved via the project's established runtime
+// configuration pattern. Priority:
+//   1. Vite build-time env: VITE_GOOGLE_MAPS_API_KEY (import.meta.env)
+//   2. Runtime injection: window.__GOOGLE_MAPS_API_KEY__ (index.html script)
+//   3. Empty string → manual text-entry fallback (no API call)
+//
+// The key is NEVER hard-coded in source. Operators set it via a .env file
+// or inject it at runtime via index.html. Without a key, the component
+// degrades gracefully to a plain text input (manual fallback).
 function getGoogleMapsApiKey() {
+  // Vite env — inlined at build time, safe to reference unconditionally.
+  const envKey = import.meta.env?.VITE_GOOGLE_MAPS_API_KEY;
+  if (envKey) return envKey;
+  // Runtime injection — set via index.html before the app loads.
   if (typeof window !== 'undefined' && window.__GOOGLE_MAPS_API_KEY__) {
     return window.__GOOGLE_MAPS_API_KEY__;
   }

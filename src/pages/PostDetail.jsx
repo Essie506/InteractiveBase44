@@ -1,7 +1,20 @@
-// PostDetail — individual post view for "Read article" navigation (Issue 6).
-// Shows the full post content (body, rich_text, media, link) for posts
-// that don't have an external link_url. This is the in-app authoritative
-// view for blog_share posts with body/rich_text content.
+// PostDetail — in-app view for blog_share posts that carry body/rich_text
+// content but no external link_url.
+//
+// ARCHITECTURE BOUNDARY:
+//   Article/Blog System   = owns the long-form article (no approved owner
+//                            spec exists yet — NOT invented here)
+//   Post/Blog Share       = owns the Feed/discovery representation
+//
+// This route renders the blog_share POST's content — the discovery/share
+// object — NOT an authoritative Article. When a blog_share post has an
+// external link_url, the Articles page routes to the external source
+// (the authoritative article). This page is the fallback for blog_share
+// posts that embed their content directly in the Post record.
+//
+// No Article CMS or ownership model is fabricated. If a dedicated Article
+// owner specification is later approved, "Read article" should route to
+// that authoritative owner instead.
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchPostById } from '@/services/postService';
