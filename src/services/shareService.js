@@ -5,7 +5,7 @@
  * to existing content, never duplicates (§14.3).
  */
 
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase/firebaseClient';
 import { callCreateShare, callDeleteShare } from '@/services/firebaseFunctions';
 
@@ -36,9 +36,15 @@ export async function fetchPublicCommentaryShares(maxResults = 20) {
     where('share_type', '==', 'commentary'),
     where('visibility', '==', 'public'),
     where('lifecycle_state', '==', 'active'),
-    orderBy('_created_date', 'desc'),
     limit(maxResults),
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const shares = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  // Client-side sort (composite index not yet deployed)
+  shares.sort((a, b) => {
+    const aT = a._created_date?.toDate ? a._created_date.toDate().getTime() : new Date(a._created_date || 0).getTime();
+    const bT = b._created_date?.toDate ? b._created_date.toDate().getTime() : new Date(b._created_date || 0).getTime();
+    return bT - aT;
+  });
+  return shares;
 }

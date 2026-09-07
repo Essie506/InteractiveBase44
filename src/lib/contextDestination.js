@@ -21,28 +21,29 @@
 // Per-context base routes for each semantic destination key.
 // Business routes depend on the active business id.
 function contextRoutes(targetContext, activeBusinessId) {
+  // Context-independent routes — same path in all contexts
+  const shared = {
+    feed: '/feed',
+    workouts: '/workouts',
+    saved: '/saved',
+    growth_hub: '/growth-hub',
+    promotions: '/promotions',
+    plans: '/plans',
+    search: '/search',
+    directory: '/directory',
+    specs: '/specifications',
+    settings: '/settings',
+    messages: '/messages',
+    calendar: '/calendar',
+    dashboard: '/dashboard',
+  };
   if (targetContext === 'personal') {
-    return {
-      dashboard: '/dashboard',
-      calendar: '/calendar',
-      messages: '/messages',
-      profile: '/profile',
-      settings: '/settings',
-      specs: '/specifications',
-      search: '/search',
-      directory: '/directory',
-    };
+    return { ...shared, profile: '/profile' };
   }
   if (targetContext === 'professional') {
     return {
-      dashboard: '/dashboard',
-      calendar: '/calendar',
-      messages: '/messages',
+      ...shared,
       profile: '/professional-profile',
-      settings: '/settings',
-      specs: '/specifications',
-      search: '/search',
-      directory: '/directory',
       workspace: '/professional',
       availability: '/availability',
       verification: '/verify-professional',
@@ -51,29 +52,15 @@ function contextRoutes(targetContext, activeBusinessId) {
   if (targetContext === 'business' && activeBusinessId) {
     const b = `/business/${activeBusinessId}`;
     return {
-      dashboard: '/dashboard',
-      calendar: '/calendar',
-      messages: '/messages',
+      ...shared,
       profile: `${b}/profile`,
-      settings: '/settings',
-      specs: '/specifications',
-      search: '/search',
-      directory: '/directory',
       workspace: `${b}/workspace`,
       availability: `${b}/workspace`,
       staff: `${b}/staff`,
       verification: `${b}/verify`,
     };
   }
-  return {
-    dashboard: '/dashboard',
-    calendar: '/calendar',
-    messages: '/messages',
-    settings: '/settings',
-    specs: '/specifications',
-    search: '/search',
-    directory: '/directory',
-  };
+  return shared;
 }
 
 // Classify a pathname into a semantic destination key.
@@ -101,6 +88,13 @@ function classifyPath(pathname) {
   if (p === '/specifications' || p.startsWith('/specifications/')) return 'specs';
   if (p === '/search') return 'search';
   if (p === '/directory') return 'directory';
+  // Context-independent destinations — same route in all contexts
+  if (p === '/feed') return 'feed';
+  if (p === '/workouts' || p.startsWith('/workouts/')) return 'workouts';
+  if (p === '/saved') return 'saved';
+  if (p === '/growth-hub') return 'growth-hub';
+  if (p === '/promotions') return 'promotions';
+  if (p === '/plans') return 'plans';
   return null;
 }
 

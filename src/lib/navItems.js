@@ -93,10 +93,10 @@ export function getBottomNavItems(user) {
       { path: '/login', label: 'Sign In', icon: UserIcon },
     ];
   }
+  // Approved 4-item bottom navigation — consistent across all contexts
   return [
     { path: '/feed', label: 'Feed', icon: Newspaper },
     { path: '/directory', label: 'Directory', icon: Compass },
-    { path: '/calendar', label: 'Calendar', icon: Calendar },
     { path: '/messages', label: 'Messages', icon: MessageSquare },
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   ];

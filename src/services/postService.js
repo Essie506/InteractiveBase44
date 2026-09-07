@@ -5,7 +5,20 @@
 // (savePost / deletePost) for authority enforcement.
 
 import { db } from '@/firebase/firebaseClient';
-import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+
+// Sort posts client-side by _created_date desc. The composite Firestore
+// index (visibility, lifecycle_state, _created_date) is defined in
+// firestore.indexes.json but not yet deployed — server-side orderBy
+// fails with FAILED_PRECONDITION until it is. Client-side sort avoids
+// the hard dependency and works for the small Feed page-set.
+function sortByCreatedDesc(items) {
+  return items.sort((a, b) => {
+    const aT = a._created_date?.toDate ? a._created_date.toDate().getTime() : new Date(a._created_date || 0).getTime();
+    const bT = b._created_date?.toDate ? b._created_date.toDate().getTime() : new Date(b._created_date || 0).getTime();
+    return bT - aT;
+  });
+}
 
 // Re-export the callable wrappers for convenience
 export { callSavePost, callDeletePost } from '@/services/firebaseFunctions';
@@ -20,11 +33,10 @@ export async function fetchPublicPosts(maxResults = 20) {
     collection(db, 'posts'),
     where('visibility', '==', 'public'),
     where('lifecycle_state', '==', 'published'),
-    orderBy('_created_date', 'desc'),
     limit(maxResults)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return sortByCreatedDesc(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 }
 
 /**
@@ -38,11 +50,10 @@ export async function fetchPostsByAuthor(identityId, maxResults = 20) {
     collection(db, 'posts'),
     where('author_identity_id', '==', identityId),
     where('lifecycle_state', '==', 'published'),
-    orderBy('_created_date', 'desc'),
     limit(maxResults)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return sortByCreatedDesc(snap.docs.map(d => ({ id: d.id, ...d.data() })));
 }
 
 /**

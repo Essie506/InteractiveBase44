@@ -101,7 +101,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 relative">
+    <div className="relative">
       <PersonalProfileView
         profile={profile}
         editable
