@@ -7,7 +7,8 @@ import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
 import PostTypeBadge from '@/components/post/PostTypeBadge';
-import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone } from 'lucide-react';
+import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone, Flag, Ban } from 'lucide-react';
+import { blockUser, reportUser } from '@/lib/messaging';
 
 const REF_ICONS = { workout: Dumbbell, calendar_event: Calendar, promotion: Megaphone };
 const REF_ROUTES = {
@@ -36,6 +37,8 @@ export default function PostCard({ post, onDeleted }) {
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [showReportConfirm, setShowReportConfirm] = useState(false);
 
   useEffect(() => {
     if (!post?.author_identity_id) return;
@@ -56,6 +59,31 @@ export default function PostCard({ post, onDeleted }) {
       console.error('Failed to delete post:', err);
     } finally {
       setDeleting(false);
+      setMenuOpen(false);
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!user || !post?.author_identity_id) return;
+    try {
+      await blockUser(user.id, post.author_identity_id, user.active_context || 'personal', null);
+      onDeleted?.(post.id);
+    } catch (err) {
+      console.error('Failed to block:', err);
+    } finally {
+      setShowBlockConfirm(false);
+      setMenuOpen(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!user || !post?.author_identity_id) return;
+    try {
+      await reportUser(user.id, post.author_identity_id, 'Inappropriate post content', user.active_context || 'personal');
+    } catch (err) {
+      console.error('Failed to report:', err);
+    } finally {
+      setShowReportConfirm(false);
       setMenuOpen(false);
     }
   };
@@ -87,7 +115,7 @@ export default function PostCard({ post, onDeleted }) {
             </div>
           </div>
         </div>
-        {isAuthor && (
+        {user && (
           <div className="relative">
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -100,14 +128,33 @@ export default function PostCard({ post, onDeleted }) {
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
                 <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-stone-200 rounded-lg shadow-lg py-1 min-w-[160px]">
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    {deleting ? 'Deleting...' : 'Delete post'}
-                  </button>
+                  {isAuthor ? (
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {deleting ? 'Deleting...' : 'Delete post'}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { setShowReportConfirm(true); setMenuOpen(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50"
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                        Report post
+                      </button>
+                      <button
+                        onClick={() => { setShowBlockConfirm(true); setMenuOpen(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                        Block author
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}
@@ -214,6 +261,44 @@ export default function PostCard({ post, onDeleted }) {
       {showComments && (
         <div className="px-4 pb-4 border-t border-stone-100 pt-3">
           <CommentSection targetSystem="post" targetType="post" targetId={post.id} />
+        </div>
+      )}
+
+      {/* Block confirmation */}
+      {showBlockConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowBlockConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <Ban className="w-5 h-5 text-red-600" />
+              </div>
+              <h2 className="text-lg font-bold text-stone-800">Block {author?.display_name || 'this author'}?</h2>
+            </div>
+            <p className="text-sm text-stone-500 mb-5">They will not be able to send you messages. This post will be removed from your feed.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowBlockConfirm(false)} className="flex-1 px-4 py-2.5 text-stone-600 hover:bg-stone-100 rounded-lg font-medium transition-colors">Cancel</button>
+              <button onClick={handleBlock} className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors">Block</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report confirmation */}
+      {showReportConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowReportConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
+                <Flag className="w-5 h-5 text-amber-600" />
+              </div>
+              <h2 className="text-lg font-bold text-stone-800">Report this post?</h2>
+            </div>
+            <p className="text-sm text-stone-500 mb-5">This will submit a report to Trust & Safety for review.</p>
+            <div className="flex gap-2">
+              <button onClick={() => setShowReportConfirm(false)} className="flex-1 px-4 py-2.5 text-stone-600 hover:bg-stone-100 rounded-lg font-medium transition-colors">Cancel</button>
+              <button onClick={handleReport} className="flex-1 px-4 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors">Report</button>
+            </div>
+          </div>
         </div>
       )}
     </article>

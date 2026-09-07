@@ -4,7 +4,7 @@ import { fetchPublicPosts } from '@/services/postService';
 import { fetchPublicCommentaryShares } from '@/services/shareService';
 import PostCard from '@/components/post/PostCard';
 import ShareCard from '@/components/community/ShareCard';
-import { Plus, Loader2, PenSquare, LogIn } from 'lucide-react';
+import { Plus, Loader2, PenSquare, LogIn, RefreshCw } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 export default function Feed() {
@@ -66,27 +66,49 @@ export default function Feed() {
           <h1 className="text-xl font-bold text-stone-800">Feed</h1>
           <p className="text-stone-500 text-sm">Public posts and shares from the Interactive community</p>
         </div>
-        {user ? (
-          <Link
-            to="/posts/new"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={loadFeed}
+            className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+            title="Refresh feed"
+            disabled={loading}
           >
-            <PenSquare className="w-4 h-4" /> New Post
-          </Link>
-        ) : (
-          <Link
-            to={`/login?returnTo=${returnTo}`}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap"
-          >
-            <LogIn className="w-4 h-4" /> Sign in to post
-          </Link>
-        )}
+            <RefreshCw className={`w-4 h-4 text-stone-500 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          {user ? (
+            <Link
+              to="/posts/new"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap"
+            >
+              <PenSquare className="w-4 h-4" /> New Post
+            </Link>
+          ) : (
+            <Link
+              to={`/login?returnTo=${returnTo}`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors whitespace-nowrap"
+            >
+              <LogIn className="w-4 h-4" /> Sign in to post
+            </Link>
+          )}
+        </div>
       </div>
 
-      {/* Loading */}
+      {/* Loading — skeleton cards */}
       {loading && (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-stone-300 animate-spin" />
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-white rounded-xl border border-stone-200 p-4 animate-pulse">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full bg-stone-200" />
+                <div className="flex-1">
+                  <div className="h-3 w-24 bg-stone-200 rounded mb-1.5" />
+                  <div className="h-2 w-16 bg-stone-200 rounded" />
+                </div>
+              </div>
+              <div className="h-3 w-full bg-stone-200 rounded mb-2" />
+              <div className="h-3 w-3/4 bg-stone-200 rounded" />
+            </div>
+          ))}
         </div>
       )}
 
