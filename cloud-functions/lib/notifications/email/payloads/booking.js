@@ -34,6 +34,10 @@ const TEMPLATES = {
         subject: (t) => `No-show recorded — ${t.serviceLabel || 'session'}${t.providerOrBusinessName ? ' with ' + t.providerOrBusinessName : ''}`,
         intro: () => `A no-show has been recorded for a booking on Interactive.`,
     },
+    booking_invitation: {
+        subject: (t) => `Booking invitation — ${t.serviceLabel || 'session'}${t.providerOrBusinessName ? ' with ' + t.providerOrBusinessName : ''}`,
+        intro: () => `You have been invited to a booking on Interactive.`,
+    },
 };
 function buildBookingEmailPayload(ctx) {
     const tmpl = TEMPLATES[ctx.eventType];

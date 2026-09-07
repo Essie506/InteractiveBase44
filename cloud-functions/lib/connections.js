@@ -21,7 +21,7 @@
 // Profile access (resolveProfessionalAccess) uses hasAcceptedConnection
 // (this module's helper in shared.ts) — never conversations or messages.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = void 0;
+exports.getFollowState = exports.unfollowIdentity = exports.followIdentity = exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const crypto_1 = require("crypto");
 const shared_1 = require("./shared");
@@ -412,4 +412,53 @@ async function computeStatusMap(callerId, targetIds) {
     }
     return results;
 }
+// ── Follow System (Profile §33) ─────────────────────────────
+// One-way follow relationship. No acceptance needed (unlike Connection).
+// Follow doc ID: {followerId}__{followedId} (deterministic, like blockRecords)
+const FOLLOWS = 'follows';
+exports.followIdentity = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    const followerId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const { target_id } = request.data || {};
+    if (!target_id)
+        throw new https_1.HttpsError('invalid-argument', 'target_id is required');
+    if (target_id === followerId)
+        throw new https_1.HttpsError('invalid-argument', 'Cannot follow yourself');
+    const blocked = await (0, shared_1.isBlocked)(followerId, target_id);
+    if (blocked)
+        throw new https_1.HttpsError('permission-denied', 'Cannot follow — blocking relationship exists');
+    const followId = `${followerId}__${target_id}`;
+    const now = new Date().toISOString();
+    await shared_1.db.collection(FOLLOWS).doc(followId).set({
+        follower_id: followerId, followed_id: target_id, status: 'active',
+        _created_date: now, _updated_date: now,
+    });
+    return { status: 'following' };
+});
+exports.unfollowIdentity = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    const followerId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const { target_id } = request.data || {};
+    if (!target_id)
+        throw new https_1.HttpsError('invalid-argument', 'target_id is required');
+    const followId = `${followerId}__${target_id}`;
+    await shared_1.db.collection(FOLLOWS).doc(followId).delete();
+    return { status: 'not_following' };
+});
+exports.getFollowState = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    const callerId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const { target_id } = request.data || {};
+    if (!target_id)
+        throw new https_1.HttpsError('invalid-argument', 'target_id is required');
+    const followId = `${callerId}__${target_id}`;
+    const followDoc = await shared_1.db.collection(FOLLOWS).doc(followId).get();
+    const isFollowing = followDoc.exists && followDoc.data().status === 'active';
+    const followersSnap = await shared_1.db.collection(FOLLOWS).where('followed_id', '==', target_id).where('status', '==', 'active').get();
+    const followingSnap = await shared_1.db.collection(FOLLOWS).where('follower_id', '==', target_id).where('status', '==', 'active').get();
+    return { is_following: isFollowing, follower_count: followersSnap.size, following_count: followingSnap.size };
+});
 //# sourceMappingURL=connections.js.map
