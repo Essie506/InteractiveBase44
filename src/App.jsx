@@ -97,10 +97,6 @@ const AuthenticatedApp = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/p/:screenName" element={<PublicProfile />} />
-      <Route path="/u/:screenName" element={<PublicPersonalProfile />} />
-      <Route path="/b/:businessId" element={<PublicBusinessProfile />} />
-      <Route path="/e/:eventId" element={<PublicEventPage />} />
       {/* Public booking entry point — guest checkout (Spec 00 §1.5) */}
       <Route path="/book/:screenName" element={<BookingPage />} />
       {/* Guest booking management — email + booking reference (Booking §3.10–§3.11) */}
@@ -109,6 +105,12 @@ const AuthenticatedApp = () => {
           between /directory and AppLayout routes. Signed-out visitors get
           a plain Outlet (Directory renders its own public drawer). */}
       <Route element={<AuthenticatedShell />}>
+        {/* Public profile pages — inside the shell so authenticated users
+            see the sidebar/topnav; unauthenticated users get plain Outlet. */}
+        <Route path="/p/:screenName" element={<PublicProfile />} />
+        <Route path="/u/:screenName" element={<PublicPersonalProfile />} />
+        <Route path="/b/:businessId" element={<PublicBusinessProfile />} />
+        <Route path="/e/:eventId" element={<PublicEventPage />} />
         <Route path="/directory" element={<Directory />} />
         {/* §3.2/§7.14 Public browse routes — viewable without authentication */}
         <Route element={<AppLayout />}>

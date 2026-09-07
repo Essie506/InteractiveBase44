@@ -10,6 +10,7 @@ import ImageEditDialog from '@/components/profile/ImageEditDialog';
 import TagListEditDialog from '@/components/profile/TagListEditDialog';
 import LocationEditDialog from '@/components/profile/LocationEditDialog';
 import PersonalDetailsSheet from '@/components/profile/PersonalDetailsSheet';
+import ProfilePosts from '@/components/profile/ProfilePosts';
 
 const FIELD_CONFIG = {
   display_name: { label: 'Display name', multiline: false },
@@ -112,6 +113,9 @@ export default function ProfilePage() {
         onEditLocation={() => setDialog('location')}
         onOpenPrivateDetails={() => setDialog('private')}
       />
+
+      {/* Posts — same authoritative data as the Feed */}
+      <ProfilePosts identityId={user.id} />
 
       {saving && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full text-sm shadow-lg z-50">

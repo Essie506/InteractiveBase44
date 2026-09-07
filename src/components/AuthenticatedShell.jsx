@@ -8,6 +8,7 @@ import AuthenticatedTopNav from '@/components/nav/AuthenticatedTopNav';
 import NavCollapseControl from '@/components/nav/NavCollapseControl';
 import AuthenticatedMobileHeader from '@/components/nav/AuthenticatedMobileHeader';
 import { getPageIdentity } from '@/lib/pageIdentity';
+import FloatingMessageDrawer from '@/components/messaging/FloatingMessageDrawer';
 
 // Persistent authenticated navigation shell.
 // ───────────────────────────────────────────────────────────
@@ -103,6 +104,9 @@ export default function AuthenticatedShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* Floating message drawer — persistent messaging access (Spec 13) */}
+      <FloatingMessageDrawer />
     </div>
   );
 }

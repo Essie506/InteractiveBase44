@@ -3,10 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { resolveProfessionalAccess } from '@/services/profileService';
 import { createConnectionRequest, resolveConnectionStatus } from '@/services/connectionService';
-import { CalendarPlus, Pencil, Loader2, AlertCircle } from 'lucide-react';
+import { CalendarPlus, Pencil, Loader2, AlertCircle, MessageSquare, Share2 } from 'lucide-react';
 import ProfessionalProfileView from '@/components/professional/ProfessionalProfileView';
 import ProfessionalAdvertView from '@/components/professional/ProfessionalAdvertView';
 import ConnectionActions from '@/components/directory/ConnectionActions';
+import { createOrGetConversation } from '@/lib/messaging';
+import { useToast } from '@/components/ui/use-toast';
+import ProfilePosts from '@/components/profile/ProfilePosts';
 
 // Public Professional profile page — /p/:screenName
 // ───────────────────────────────────────────────────────────
@@ -33,6 +36,7 @@ export default function PublicProfile() {
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setLoading(true);
@@ -90,6 +94,33 @@ export default function PublicProfile() {
     navigate(`/book/${screenName}`);
   };
 
+  const handleMessage = async () => {
+    if (!user) {
+      navigate(`/login?returnTo=${encodeURIComponent(`/p/${screenName}`)}`);
+      return;
+    }
+    if (!profile?.identity_id) return;
+    try {
+      const { conversation } = await createOrGetConversation(
+        [user.id, profile.identity_id],
+        user.id,
+        user.active_context || 'personal',
+        {},
+      );
+      if (conversation?.id) navigate(`/messages/${conversation.id}`);
+    } catch (err) {
+      console.error('Failed to start conversation:', err);
+    }
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      toast({ title: 'Profile link copied' });
+    }).catch(() => {
+      toast({ title: 'Could not copy link', variant: 'destructive' });
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-stone-50">
@@ -137,17 +168,32 @@ export default function PublicProfile() {
         connecting={connecting}
       />
       <button
+        onClick={handleMessage}
+        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-800 rounded-lg text-sm font-medium hover:bg-stone-50"
+      >
+        <MessageSquare className="w-4 h-4" /> Message
+      </button>
+      <button
         onClick={handleBook}
         className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700"
       >
         <CalendarPlus className="w-4 h-4" /> Book
       </button>
+      <button
+        onClick={handleShare}
+        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50"
+        title="Share profile"
+      >
+        <Share2 className="w-4 h-4" />
+      </button>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="bg-stone-50">
       <ProfessionalProfileView profile={profile} editable={false} actions={actions} />
+      <ProfilePosts identityId={profile.identity_id} canView={access === 'public' || access === 'connection' || isOwner} />
+      <div className="h-12" />
     </div>
   );
 }
