@@ -99,6 +99,7 @@ export function canSetPersonalLifecycle(event, user) {
   return true;
 }
 
+
 // ── Delete vs Cancel (§52) ───────────────────────────────────
 // Delete is a destructive removal of a Calendar-owned object, distinct
 // from Cancel (which preserves the historical relationship). Permitted
@@ -136,6 +137,20 @@ export function isParticipant(event, user) {
 // the event's source system — imported/read-only/source-controlled events
 // keep canonical fields read-only, but personal timeline actions remain
 // available to participants wherever technically appropriate.
+
+
 export function canSetPersonalTimelineState(event, user) {
-  return isParticipant(event, user);
+  if (!event || !user) return false;
+
+  // Received/assigned events: personal timeline controls.
+  if (isParticipant(event, user)) return true;
+
+  // Owned Booking events: personal timeline controls without
+  // changing the Booking-owned canonical lifecycle.
+  return (
+    canEditEvent(event, user) &&
+    event.source_system === 'booking' &&
+    !['held', 'cancelled', 'removed'].includes(event.lifecycle_state)
+  );
 }
+

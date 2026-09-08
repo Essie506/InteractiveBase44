@@ -66,7 +66,7 @@ export default function Notifications() {
       if (err.message?.includes('payment') || err.code === 'functions/failed-precondition') {
         toast({ title: 'Payment required', description: 'Complete payment to confirm your booking.' });
         // Navigate to booking management — the customer pays there
-        window.location.href = `/booking/manage?booking=${bookingId}`;
+        window.location.href = `/bookings/${bookingId}`;
       } else {
         toast({ title: 'Could not accept', description: err.message, variant: 'destructive' });
       }

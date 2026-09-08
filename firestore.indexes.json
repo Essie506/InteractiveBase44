@@ -98,6 +98,20 @@
       ]
     },
     {
+  "collectionGroup": "slotHolds",
+  "queryScope": "COLLECTION",
+  "fields": [
+    {
+      "fieldPath": "provider_identity_id",
+      "order": "ASCENDING"
+    },
+    {
+      "fieldPath": "start_time",
+      "order": "DESCENDING"
+    }
+  ]
+},
+    {
       "collectionGroup": "slotHolds",
       "queryScope": "COLLECTION",
       "fields": [
@@ -123,6 +137,14 @@
         { "fieldPath": "booking_status", "order": "ASCENDING" }
       ]
     },
+    {
+     "collectionGroup": "bookings",
+      "queryScope": "COLLECTION",
+       "fields": [
+    { "fieldPath": "provider_identity_id","order": "ASCENDING"},
+    { "fieldPath": "start_time","order": "DESCENDING"}
+  ]
+},
     {
       "collectionGroup": "bookings",
       "queryScope": "COLLECTION",

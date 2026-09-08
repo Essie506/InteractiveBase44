@@ -36,6 +36,10 @@ async function createBookingCalendarEvent(bookingId, booking, nowIso) {
     const ownerId = isBusinessBooking ? booking.business_id : booking.provider_identity_id;
     const sourceSystem = 'booking';
     const sourceId = bookingId;
+    const assignedIdentityIds = Array.from(new Set([
+        ...(isBusinessBooking ? [booking.provider_identity_id] : []),
+        booking.customer_identity_id,
+    ].filter(Boolean)));
     const idempKey = (0, calendarEvent_1.idempotencyDocId)(ownerType, ownerId, sourceSystem, sourceId);
     const idempRef = shared_1.db.collection(IDEMPOTENCY).doc(idempKey);
     let existingEventId = null;
@@ -66,7 +70,7 @@ async function createBookingCalendarEvent(bookingId, booking, nowIso) {
             source_id: sourceId,
             business_id: booking.business_id || null,
             created_by_id: booking.provider_identity_id,
-            assigned_identity_ids: isBusinessBooking ? [booking.provider_identity_id] : [],
+            assigned_identity_ids: assignedIdentityIds,
             invited_identity_ids: [],
             invited_guest_emails: [],
             _created_date: nowIso,
@@ -98,11 +102,10 @@ async function createBookingCalendarEvent(bookingId, booking, nowIso) {
             source_system: sourceSystem,
         });
     }
-    // §99: bump the provider's realtime signal so the new booking event appears
-    // on their Calendar without a manual refresh. (Business bookings are
-    // private + assigned only to the provider, so no other member sees them.)
+    // §99: bump Calendar realtime signals for both sides of the confirmed
+    // booking so the same authoritative event appears without manual refresh.
     if (created) {
-        await (0, calendarSignal_1.emitCalendarSignal)([booking.provider_identity_id]);
+        await (0, calendarSignal_1.emitCalendarSignal)([booking.provider_identity_id, booking.customer_identity_id].filter(Boolean));
     }
     return { calendar_event_id: calendarEventId, created };
 }
@@ -124,6 +127,17 @@ async function createHoldCalendarEvent(holdId, hold, nowIso) {
     const sourceId = `hold:${holdId}`;
     const idempKey = (0, calendarEvent_1.idempotencyDocId)(ownerType, ownerId, sourceSystem, sourceId);
     const idempRef = shared_1.db.collection(IDEMPOTENCY).doc(idempKey);
+    // Meaningful hold label — service + customer/guest context from the
+    // authoritative draft booking, while still clearly marking the event as
+    // a held slot. The event is private (visibility 'private'), so guest
+    // contact is visible only to the provider — consistent with privacy
+    // rules. Prefer display_name over raw email when available.
+    const holdServiceLabel = hold.service_id || 'session';
+    const holdCustomerLabel = hold.guest_display_name || hold.guest_email || (hold.customer_identity_id ? 'customer' : null);
+    const holdTitle = holdCustomerLabel
+        ? `Held slot · ${holdServiceLabel} · ${holdCustomerLabel}`
+        : `Held slot · ${holdServiceLabel}`;
+    const holdDescription = `Held for booking — service: ${holdServiceLabel}${holdCustomerLabel ? `, customer: ${holdCustomerLabel}` : ''}. Hold ref ${holdId}`;
     let existingEventId = null;
     let eventDocId = '';
     await shared_1.db.runTransaction(async (tx) => {
@@ -138,8 +152,8 @@ async function createHoldCalendarEvent(holdId, hold, nowIso) {
             owner_id: ownerId,
             owner_type: ownerType,
             operating_context: isBusinessHold ? 'business' : 'professional',
-            title: 'Held slot',
-            description: `Hold ${holdId}`,
+            title: holdTitle,
+            description: holdDescription,
             start_time: hold.start_time,
             end_time: hold.end_time,
             timezone: hold.timezone || 'UTC',

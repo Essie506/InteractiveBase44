@@ -84,6 +84,7 @@ function TodayEventCard({ occ, timezone, onSelectEvent, isFirst, participationMa
       <EventLifecycleActions
         occ={occ}
         user={user}
+        onEdit={onSelectEvent}
         participationMap={participationMap}
         onSetLifecycle={onSetLifecycle}
         onSetPersonalTimelineState={onSetPersonalTimelineState}

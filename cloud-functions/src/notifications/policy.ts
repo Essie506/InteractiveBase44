@@ -46,8 +46,9 @@ export const DELIVERY_POLICY: Record<string, Record<Channel, PolicyValue>> = {
   message_request_received:    { in_app: 'required',     email: 'conditional', push: 'prohibited' },
   message_request_accepted:    { in_app: 'conditional',  email: 'conditional', push: 'prohibited' },
   message_request_declined:    { in_app: 'conditional',  email: 'conditional', push: 'prohibited' },
-  // Booking (existing inline writers — policy defined for the future
+  // Booking
   // dispatcher migration; NOT used in this task)
+  booking_invitation:          { in_app: 'required',     email: 'required',    push: 'prohibited' },
   booking_confirmed:           { in_app: 'required',     email: 'conditional', push: 'prohibited' },
   booking_cancelled:           { in_app: 'required',     email: 'conditional', push: 'prohibited' },
   booking_rescheduled:         { in_app: 'required',     email: 'conditional', push: 'prohibited' },

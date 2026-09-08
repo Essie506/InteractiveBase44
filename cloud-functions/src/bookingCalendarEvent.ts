@@ -38,6 +38,14 @@ export async function createBookingCalendarEvent(
   const ownerId = isBusinessBooking ? booking.business_id : booking.provider_identity_id;
   const sourceSystem = 'booking';
   const sourceId = bookingId;
+  const assignedIdentityIds = Array.from(
+  new Set(
+    [
+      ...(isBusinessBooking ? [booking.provider_identity_id] : []),
+      booking.customer_identity_id,
+    ].filter(Boolean),
+  ),
+);
 
   const idempKey = idempotencyDocId(ownerType, ownerId, sourceSystem, sourceId);
   const idempRef = db.collection(IDEMPOTENCY).doc(idempKey);
@@ -70,7 +78,7 @@ export async function createBookingCalendarEvent(
       source_id: sourceId,
       business_id: booking.business_id || null,
       created_by_id: booking.provider_identity_id,
-      assigned_identity_ids: isBusinessBooking ? [booking.provider_identity_id] : [],
+      assigned_identity_ids: assignedIdentityIds,
       invited_identity_ids: [],
       invited_guest_emails: [],
       _created_date: nowIso,
@@ -105,13 +113,15 @@ export async function createBookingCalendarEvent(
     });
   }
 
-  // §99: bump the provider's realtime signal so the new booking event appears
-  // on their Calendar without a manual refresh. (Business bookings are
-  // private + assigned only to the provider, so no other member sees them.)
-  if (created) {
-    await emitCalendarSignal([booking.provider_identity_id]);
-  }
-  return { calendar_event_id: calendarEventId, created };
+// §99: bump Calendar realtime signals for both sides of the confirmed
+// booking so the same authoritative event appears without manual refresh.
+if (created) {
+  await emitCalendarSignal(
+    [booking.provider_identity_id, booking.customer_identity_id].filter(Boolean),
+  );
+}
+
+return { calendar_event_id: calendarEventId, created };
 }
 
 // ── §118: Hold/availability semantic events ──────────────────
@@ -237,6 +247,12 @@ export async function releaseHoldCalendarEvent(holdId: string, nowIso: string): 
     actor_id: ev.created_by_id,
     source_system: ev.source_system || 'booking',
   });
+
+
   // §99: bump the provider's signal so the released/cancelled hold disappears.
   await emitCalendarSignal([ev.created_by_id, ...(ev.assigned_identity_ids || [])]);
+
+
+
+  
 }

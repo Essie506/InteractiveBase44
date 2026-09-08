@@ -67,6 +67,7 @@ import GrowthHub from '@/pages/GrowthHub';
 import Promotions from '@/pages/Promotions';
 import Articles from '@/pages/Articles';
 import PostDetail from '@/pages/PostDetail';
+import BookingDetail from '@/pages/BookingDetail';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -143,6 +144,7 @@ const AuthenticatedApp = () => {
             <Route path="/business/:id/verify" element={<VerificationPage />} />
             <Route path="/business/:id/staff" element={<BusinessStaff />} />
             <Route path="/business/:id/profile" element={<BusinessProfilePage />} />
+            <Route path="/bookings/:bookingId" element={<BookingDetail />} />
             {/* Professional Workspace — sidebar + pages */}
             <Route path="/professional" element={<ProfessionalWorkspace />}>
               <Route index element={<Navigate to="overview" replace />} />

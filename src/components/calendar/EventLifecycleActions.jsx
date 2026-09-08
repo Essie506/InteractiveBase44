@@ -67,19 +67,24 @@ export default function EventLifecycleActions({
   const unavailable = isSourceUnavailable(event);
   const isOwner = canEditEvent(event, user);
   const isPart = canSetPersonalTimelineState(event, user);
+  const usePersonalOwnerTimeline =
+    isOwner &&
+    canSetPersonalTimelineState(event, user) &&
+    event.source_system !== 'manual';
 
-  // ── Owner: canonical event actions (compact icons, matching the
-  //    participant branch). Edit opens the EventModal; Cancel / Mark
-  //    Completed / Mark Skipped / Archive / Delete operate on the
-  //    canonical event lifecycle_state. The Completed/Skipped/Archive
-  //    icons remain visible even after the event is in a personal state
-  //    (so the owner can switch states or archive a completed event);
-  //    a Revert-to-scheduled recovery icon appears when already in a
-  //    personal state. Terminal cancelled/removed events hide them.
-  //    Authority gates unchanged. ──
+
+
+  // ── Owner / creator / business manager ──
+  // Manual Calendar events use canonical lifecycle controls.
+  // Source-owned events (for example Booking) keep their canonical lifecycle
+  // controlled by the source system, but the owner can still manage their
+  // own personal timeline state.
   if (isOwner) {
+    const personalState = getPersonalTimelineState(event, participationMap);
+    const personalLoading = personalStateLoadingId === event.id;
+
     return (
-      <div className="flex flex-wrap items-center gap-1 mt-2">
+      <div className="flex items-center gap-1 mt-2">
         {!unavailable && (
           <button
             onClick={() => onEdit?.(occ)}
@@ -90,6 +95,7 @@ export default function EventLifecycleActions({
             <Pencil className="w-3.5 h-3.5" />
           </button>
         )}
+
         {canCancelEvent(event, user) && !unavailable && (
           <button
             onClick={() => onCancel?.(occ)}
@@ -103,44 +109,109 @@ export default function EventLifecycleActions({
               : <CalendarX className="w-3.5 h-3.5" />}
           </button>
         )}
-        {canSetPersonalLifecycle(event, user) && event.lifecycle_state !== 'cancelled' && event.lifecycle_state !== 'removed' && !unavailable && (
-          <>
-            <button
-              onClick={() => onSetLifecycle?.(occ, 'completed')}
-              aria-label="Mark as completed"
-              title="Mark as completed"
-              className="p-1 text-stone-600 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-            >
-              <Check className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => onSetLifecycle?.(occ, 'skipped')}
-              aria-label="Mark as skipped"
-              title="Mark as skipped"
-              className="p-1 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => onSetLifecycle?.(occ, 'archived')}
-              aria-label="Archive event"
-              title="Archive event"
-              className="p-1 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            >
-              <Archive className="w-3.5 h-3.5" />
-            </button>
-            {PERSONAL_LIFECYCLE_STATES.includes(event.lifecycle_state) && (
+
+        {canSetPersonalLifecycle(event, user) &&
+          event.lifecycle_state !== 'cancelled' &&
+          event.lifecycle_state !== 'removed' &&
+          !unavailable && (
+            <>
               <button
-                onClick={() => onSetLifecycle?.(occ, 'scheduled')}
-                aria-label="Revert to scheduled"
-                title="Revert to scheduled (recover from completed/skipped/archived)"
-                className="p-1 text-stone-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                onClick={() => onSetLifecycle?.(occ, 'completed')}
+                aria-label="Mark as completed"
+                title="Mark as completed"
+                className="p-1 text-stone-600 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <Check className="w-3.5 h-3.5" />
               </button>
+
+              <button
+                onClick={() => onSetLifecycle?.(occ, 'skipped')}
+                aria-label="Mark as skipped"
+                title="Mark as skipped"
+                className="p-1 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                onClick={() => onSetLifecycle?.(occ, 'archived')}
+                aria-label="Archive event"
+                title="Archive event"
+                className="p-1 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              >
+                <Archive className="w-3.5 h-3.5" />
+              </button>
+
+              {PERSONAL_LIFECYCLE_STATES.includes(event.lifecycle_state) && (
+                <button
+                  onClick={() => onSetLifecycle?.(occ, 'scheduled')}
+                  aria-label="Revert to scheduled"
+                  title="Revert to scheduled (recover from completed/skipped/archived)"
+                  className="p-1 text-stone-600 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </>
+          )}
+
+        {usePersonalOwnerTimeline && !unavailable && (
+          <>
+            {personalState ? (
+              <>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 font-medium">
+                  {PERSONAL_STATE_LABELS[personalState] || personalState}
+                </span>
+                <button
+                  onClick={() => onSetPersonalTimelineState?.(occ, null, false)}
+                  disabled={personalLoading}
+                  aria-label="Clear personal state"
+                  title="Clear personal state"
+                  className="p-1 text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                  {personalLoading
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <RotateCcw className="w-3 h-3" />}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => onSetPersonalTimelineState?.(occ, 'completed', false)}
+                  disabled={personalLoading}
+                  aria-label="Mark as completed (personal)"
+                  title="Mark as completed (your own tracking)"
+                  className="p-1 text-stone-600 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                >
+                  {personalLoading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Check className="w-3.5 h-3.5" />}
+                </button>
+
+                <button
+                  onClick={() => onSetPersonalTimelineState?.(occ, 'skipped', false)}
+                  disabled={personalLoading}
+                  aria-label="Mark as skipped (personal)"
+                  title="Mark as skipped (your own tracking)"
+                  className="p-1 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => onSetPersonalTimelineState?.(occ, 'archived', true)}
+                  disabled={personalLoading}
+                  aria-label="Remove from my timeline"
+                  title="Remove from my timeline (hides this event from your calendar only)"
+                  className="p-1 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                </button>
+              </>
             )}
           </>
         )}
+
         {canDeleteEvent(event, user) && (
           <button
             onClick={() => onDelete?.(occ)}
@@ -154,11 +225,17 @@ export default function EventLifecycleActions({
               : <Trash2 className="w-3.5 h-3.5" />}
           </button>
         )}
-        {isOwner && event.source_system === 'booking' && event.lifecycle_state !== 'cancelled' && event.lifecycle_state !== 'removed' && (
-          <span className="text-[10px] text-stone-400 flex items-center gap-0.5" title="Cancel this booking event from your Bookings">
-            <CalendarOff className="w-3 h-3" /> Cancel via Bookings
-          </span>
-        )}
+
+        {event.source_system === 'booking' &&
+          event.lifecycle_state !== 'cancelled' &&
+          event.lifecycle_state !== 'removed' && (
+            <span
+              className="text-[10px] text-stone-400 flex items-center gap-0.5"
+              title="Cancel this booking event from your Bookings"
+            >
+              <CalendarOff className="w-3 h-3" /> Cancel via Bookings
+            </span>
+          )}
       </div>
     );
   }
