@@ -10,21 +10,28 @@
 //            the drawer is OPEN this side is empty; the drawer's edge
 //            collapse control (NavCollapseControl) handles closing.
 //   - Right: current page identity (icon + label, from getPageIdentity).
+import { useNav } from '@/lib/NavContext';
+
 export default function AuthenticatedTopNav({ pageIcon: PageIcon, pageLabel, onOpenNav }) {
+  const { navOpen } = useNav();
   return (
     <header className="bg-white border-b border-stone-200">
       <div className="flex items-center justify-between px-6 md:px-10 py-4">
-        <button
-          type="button"
-          onClick={onOpenNav}
-          aria-label="Open navigation"
-          className="flex items-center gap-2.5"
-        >
-          <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">I</span>
-          </div>
-          <span className="text-lg font-semibold tracking-tight text-stone-800">Interactive</span>
-        </button>
+        {navOpen ? (
+          <div aria-hidden="true" />
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenNav}
+            aria-label="Open navigation"
+            className="flex items-center gap-2.5"
+          >
+            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">I</span>
+            </div>
+            <span className="text-lg font-semibold tracking-tight text-stone-800">Interactive</span>
+          </button>
+        )}
         <div className="flex items-center gap-2">
           {PageIcon && <PageIcon className="w-6 h-6 text-indigo-600" strokeWidth={2} />}
           <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-stone-800">{pageLabel}</h1>

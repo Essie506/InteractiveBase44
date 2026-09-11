@@ -15,7 +15,7 @@ import { ArrowLeft } from 'lucide-react';
 // back arrow sits before it. The page title is centered. The
 // NotificationBell is on the right.
 export default function AuthenticatedMobileHeader() {
-  const { toggleNav } = useNav();
+  const { toggleNav, navOpen } = useNav();
   const location = useLocation();
   const navigate = useNavigate();
   const identity = getPageIdentity(location.pathname);
@@ -38,17 +38,21 @@ export default function AuthenticatedMobileHeader() {
       >
         <ArrowLeft className="w-5 h-5" />
       </button>
-      <button
-        type="button"
-        onClick={toggleNav}
-        aria-label="Open navigation"
-        className="flex items-center gap-2 shrink-0"
-      >
-        <div className="w-7 h-7 bg-indigo-500 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-xs">I</span>
-        </div>
-        <span className="font-semibold hidden xs:inline">Interactive</span>
-      </button>
+      {navOpen ? (
+        <div aria-hidden="true" className="w-7 h-7 shrink-0" />
+      ) : (
+        <button
+          type="button"
+          onClick={toggleNav}
+          aria-label="Open navigation"
+          className="flex items-center gap-2 shrink-0"
+        >
+          <div className="w-7 h-7 bg-indigo-500 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-xs">I</span>
+          </div>
+          <span className="font-semibold hidden xs:inline">Interactive</span>
+        </button>
+      )}
       <div className="flex-1 min-w-0 text-center">
         <span className="text-sm text-slate-300 truncate">{identity.label}</span>
       </div>

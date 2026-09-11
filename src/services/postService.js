@@ -7,6 +7,16 @@
 import { db } from '@/firebase/firebaseClient';
 import { collection, query, where, limit, getDocs, doc, getDoc } from 'firebase/firestore';
 
+// Spec §11 Feed & Distribution Engine: distribution is determined by
+// visibility, discovery eligibility, and moderation status. Posts
+// with discovery_eligibility === false or reporting_status ===
+// 'actioned' (moderation action taken) are excluded from the Feed.
+function isFeedEligible(p) {
+  return p.visibility === 'public'
+    && p.discovery_eligibility !== false
+    && p.reporting_status !== 'actioned';
+}
+
 // Sort posts client-side by _created_date desc. The composite Firestore
 // index (visibility, lifecycle_state, _created_date) is defined in
 // firestore.indexes.json but not yet deployed — server-side orderBy
@@ -46,7 +56,7 @@ export async function fetchPublicPosts(maxResults = 20, options = {}) {
     );
     const snap = await getDocs(q);
     const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const publicPosts = all.filter(p => p.visibility === 'public');
+    const publicPosts = all.filter(isFeedEligible);
     return sortByCreatedDesc(publicPosts).slice(0, maxResults);
   }
   // Unauthenticated — rules require both filters in the query.
@@ -57,7 +67,8 @@ export async function fetchPublicPosts(maxResults = 20, options = {}) {
     limit(maxResults),
   );
   const snap = await getDocs(q);
-  return sortByCreatedDesc(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return sortByCreatedDesc(all.filter(isFeedEligible)).slice(0, maxResults);
 }
 
 /**

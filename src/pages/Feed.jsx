@@ -48,9 +48,11 @@ export default function Feed() {
         e.visibility === 'public' && e.lifecycle_state !== 'cancelled' && e.lifecycle_state !== 'removed'
       ).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()).slice(0, 6);
 
+      let postsError = null;
       const [postList, shareList, workoutList] = await Promise.all([
         fetchPublicPosts(30, { isAuthenticated: isAuthed }).catch((err) => {
           console.error('[Feed] Failed to load posts:', err);
+          postsError = err;
           return [];
         }),
         fetchPublicCommentaryShares(30, { isAuthenticated: isAuthed }).catch((err) => {
@@ -74,6 +76,9 @@ export default function Feed() {
 
       setFeedItems(merged);
       setDiscoveryItems({ workouts: workoutList, events: eventList });
+      if (postsError && merged.length === 0) {
+        setError(postsError?.message || 'Failed to load posts. Check your connection and try again.');
+      }
     } catch (err) {
       console.error('[Feed] Failed to load feed:', err);
       setError(err?.message || 'Failed to load feed');
