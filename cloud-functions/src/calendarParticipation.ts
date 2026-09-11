@@ -416,8 +416,9 @@ export const setPersonalTimelineState = onCall(
     //   2. Owner/creator/business-manager of an eligible confirmed Booking
     //      event — the Booking owns the canonical lifecycle, but the owner
     //      can still track their own personal completion/skip/archive without
-    //      mutating the Booking. Holds, cancelled, and removed Booking events
-    //      are excluded (no personal state on a hold or a dead booking).
+    //      mutating the Booking. Holds, cancelled, removed, and source-detail-
+    //      redacted (transient §111 unavailable) Booking events are excluded —
+    //      no personal state on a hold, a dead booking, or a redacted source.
     //
     // The canonical event is NEVER modified here — only the caller's own
     // participation record (deterministic doc id {event}__{caller}), so this
@@ -439,7 +440,8 @@ export const setPersonalTimelineState = onCall(
     const isEligibleBookingOwner =
       isOwner &&
       event.source_system === 'booking' &&
-      !['held', 'cancelled', 'removed'].includes(event.lifecycle_state);
+      !['held', 'cancelled', 'removed'].includes(event.lifecycle_state) &&
+      event.source_detail_redacted !== true;
 
     if (!isParticipant && !isEligibleBookingOwner) {
       throw new HttpsError(
