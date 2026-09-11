@@ -123,10 +123,11 @@ export const getCalendarView = onCall(
       })
       .filter((e: any) => {
         if (includeHidden) return true;
-        if (!hiddenEventIds.has(e.id)) return true;
-        // Hidden event — keep only if the caller owns/created it (owners
-        // don't hide their own events via personal state; defensive).
-        return e.owner_id === callerIdentityId || e.created_by_id === callerIdentityId;
+        // Personal "hidden from timeline" hides the event from THIS viewer's
+        // Calendar only — including owners of Booking events, who can hide a
+        // Booking event from their own timeline without cancelling the Booking.
+        // Recoverable via the Calendar "Show hidden" toggle (includeHidden).
+        return !hiddenEventIds.has(e.id);
       })
       .sort((a: any, b: any) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 

@@ -322,7 +322,8 @@ exports.revokeCalendarInvitation = (0, https_1.onCall)({ region: 'europe-west2',
     return { revoked: true };
 });
 // ── setPersonalTimelineState ────────────────────────────────
-// Personal timeline state for PARTICIPANTS (non-owners). A participant
+// Personal timeline state for participants AND eligible booking owners.
+// A participant (or an owner of a confirmed Booking event)
 // can independently record whether they personally completed/skipped an
 // event, or remove it from their own timeline (archive + hide) — WITHOUT
 // rewriting the organiser's canonical lifecycle_state, deleting the
@@ -361,13 +362,35 @@ exports.setPersonalTimelineState = (0, https_1.onCall)({ region: 'europe-west2',
         throw new https_1.HttpsError('not-found', 'Calendar event not found');
     }
     const event = eventSnap.data();
-    // ── Authority: caller must be a PARTICIPANT (invited or assigned),
-    //    NOT the owner/creator. Owners use the canonical lifecycle. ──
+    // ── Authority ──
+    // Two paths can set PERSONAL timeline state (never the canonical lifecycle):
+    //
+    //   1. Participant (invited/assigned) — their own participation record.
+    //   2. Owner/creator/business-manager of an eligible confirmed Booking
+    //      event — the Booking owns the canonical lifecycle, but the owner
+    //      can still track their own personal completion/skip/archive without
+    //      mutating the Booking. Holds, cancelled, and removed Booking events
+    //      are excluded (no personal state on a hold or a dead booking).
+    //
+    // The canonical event is NEVER modified here — only the caller's own
+    // participation record (deterministic doc id {event}__{caller}), so this
+    // can never affect another participant's personal state or the organiser's
+    // canonical lifecycle_state.
     const invitedIds = event.invited_identity_ids || [];
     const assignedIds = event.assigned_identity_ids || [];
     const isParticipant = invitedIds.includes(callerIdentityId) || assignedIds.includes(callerIdentityId);
-    if (!isParticipant) {
-        throw new https_1.HttpsError('permission-denied', 'Only participants can set personal timeline state');
+    const isCreator = event.created_by_id === callerIdentityId;
+    const isIdentityOwner = event.owner_type === 'identity' && event.owner_id === callerIdentityId;
+    let isBizManager = false;
+    if (event.owner_type === 'business' && event.business_id) {
+        isBizManager = await (0, shared_1.hasBusinessCalendarPermission)(event.business_id, callerIdentityId);
+    }
+    const isOwner = isCreator || isIdentityOwner || isBizManager;
+    const isEligibleBookingOwner = isOwner &&
+        event.source_system === 'booking' &&
+        !['held', 'cancelled', 'removed'].includes(event.lifecycle_state);
+    if (!isParticipant && !isEligibleBookingOwner) {
+        throw new https_1.HttpsError('permission-denied', 'Only participants or eligible booking owners can set personal timeline state');
     }
     // ── Update (or create) the caller's participation record ──
     // Assigned staff may not have a participation record yet; create one
@@ -377,10 +400,15 @@ exports.setPersonalTimelineState = (0, https_1.onCall)({ region: 'europe-west2',
     const partSnap = await shared_1.db.collection(PARTICIPATION).doc(partDocId).get();
     const nowIso = new Date().toISOString();
     if (!partSnap.exists) {
+        // For an owner-created record (eligible booking owner, not a participant),
+        // response_state is null — this is a personal-state-only record, not an
+        // invitation response. The invitation UI (getParticipationState) treats
+        // null as "no invitation", so no Accept/Decline is rendered for the owner.
+        const isOwnerRecord = !isParticipant && isEligibleBookingOwner;
         await shared_1.db.collection(PARTICIPATION).doc(partDocId).set({
             event_id,
             identity_id: callerIdentityId,
-            response_state: 'accepted',
+            response_state: isOwnerRecord ? null : 'accepted',
             invited_at: event._created_date || nowIso,
             responded_at: null,
             revoked_at: null,
