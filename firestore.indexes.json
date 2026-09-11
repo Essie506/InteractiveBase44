@@ -353,14 +353,6 @@
       ]
     },
     {
-      "collectionGroup": "posts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "lifecycle_state", "order": "ASCENDING" },
-        { "fieldPath": "_created_date", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "promotions",
       "queryScope": "COLLECTION",
       "fields": [

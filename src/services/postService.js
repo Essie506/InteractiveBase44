@@ -17,11 +17,10 @@ function isFeedEligible(p) {
     && p.reporting_status !== 'actioned';
 }
 
-// Sort posts client-side by _created_date desc. The composite Firestore
-// index (visibility, lifecycle_state, _created_date) is defined in
-// firestore.indexes.json but not yet deployed — server-side orderBy
-// fails with FAILED_PRECONDITION until it is. Client-side sort avoids
-// the hard dependency and works for the small Feed page-set.
+// Sort posts client-side by _created_date desc. The Feed queries use
+// where() + limit() only — no server-side orderBy — so no composite
+// index is required. Client-side sort is sufficient for the small
+// Feed page-set and avoids any index deployment dependency.
 function sortByCreatedDesc(items) {
   return items.sort((a, b) => {
     const aT = a._created_date?.toDate ? a._created_date.toDate().getTime() : new Date(a._created_date || 0).getTime();
