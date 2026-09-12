@@ -27,9 +27,17 @@ export default function ProfilePosts({ identityId, businessId, operatingContext,
         .catch(() => setPosts([]))
         .finally(() => setLoading(false));
     } else if (identityId) {
+      // TEMP DIAG: trace Professional wall query
+      console.log('[ProfilePosts DIAG] fetching:', { identityId, operatingContext, canView });
       fetchPostsByAuthor(identityId, 10, { operatingContext })
-        .then(setPosts)
-        .catch(() => setPosts([]))
+        .then(posts => {
+          console.log('[ProfilePosts DIAG] result:', { identityId, operatingContext, count: posts.length, operating_contexts: posts.map(p => p.operating_context) });
+          setPosts(posts);
+        })
+        .catch((err) => {
+          console.error('[ProfilePosts DIAG] error:', { identityId, operatingContext, error: err?.message || err, code: err?.code });
+          setPosts([]);
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);

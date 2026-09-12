@@ -50,6 +50,16 @@ export default function PublicProfile() {
     setConnectionStatus(null);
     resolveProfessionalAccess(screenName)
       .then((res) => {
+        // TEMP DIAG: capture public profile resolution for auth vs public comparison
+        console.log('[PublicProfile DIAG] resolveProfessionalAccess result:', {
+          screenName,
+          access: res?.access,
+          is_owner: res?.is_owner,
+          has_profile: !!res?.profile,
+          verification_state: res?.profile?.verification_state,
+          identity_id: res?.profile?.identity_id,
+          profile_source: res?.profile ? 'projection_or_buildPublicProjection' : 'null',
+        });
         if (!res || !res.profile || res.access === 'not_found' || res.access === 'denied') {
           setAccess('denied');
           setProfile(null);
@@ -59,7 +69,10 @@ export default function PublicProfile() {
           setIsOwner(!!res.is_owner);
         }
       })
-      .catch(() => setAccess('denied'))
+      .catch((err) => {
+        console.error('[PublicProfile DIAG] resolveProfessionalAccess error:', { screenName, error: err?.message || err, code: err?.code });
+        setAccess('denied');
+      })
       .finally(() => setLoading(false));
   }, [screenName]);
 
