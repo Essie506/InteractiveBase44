@@ -122,8 +122,16 @@ export async function fetchPostsByBusiness(businessId, maxResults = 20) {
   );
   const snap = await getDocs(q);
   const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  // Defensive: enforce the Business invariant (operating_context === 'business'
+  // ⇔ author_type === 'business') client-side. The corrected savePost writer
+  // guarantees this for new posts; this filter defends against any stale/
+  // inconsistent legacy record so a business post can never appear on a staff
+  // member's Personal/Professional wall. Kept client-side to avoid adding a
+  // composite Firestore index (publishing_account_id + operating_context).
   const published = all.filter(p =>
-    p.lifecycle_state === 'published' && p.author_type === 'business'
+    p.lifecycle_state === 'published'
+    && p.author_type === 'business'
+    && p.operating_context === 'business'
   );
   return sortByCreatedDesc(published).slice(0, maxResults);
 }
