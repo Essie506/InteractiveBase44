@@ -45,11 +45,20 @@ export const saveWorkout = onCall(
         throw new HttpsError('permission-denied', 'You need manage_workouts permission to create business workouts');
       }
     } else {
-      // Identity workout — caller must have professional_activated status
+      // Identity workout — caller must be in Professional context AND have
+      // a valid Professional activation state (Spec 12 §9). The canonical
+      // activation rule mirrors the client: active_context === 'professional'
+      // AND (professional_activated || professional_onboarding_status === 'active').
       const userDoc = await db.collection('users').doc(identityId).get();
       const userData = userDoc.exists ? userDoc.data() : null;
-      if (!userData?.professional_activated) {
-        throw new HttpsError('permission-denied', 'Only professional profiles can create workouts');
+      const isProfessionallyActivated =
+        !!userData?.professional_activated ||
+        userData?.professional_onboarding_status === 'active';
+      if (userData?.active_context !== 'professional' || !isProfessionallyActivated) {
+        throw new HttpsError(
+          'permission-denied',
+          'Only Professional-context identities with an active Professional profile can create workouts',
+        );
       }
     }
 

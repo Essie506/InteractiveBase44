@@ -29,7 +29,7 @@ export function useWorkoutCreateAuthority() {
         } catch {
           if (!cancelled) { setCanCreate(false); setLoading(false); }
         }
-      } else if (user.professional_activated || user.professional_onboarding_status === 'active') {
+      } else if (user.active_context === 'professional' && (user.professional_activated || user.professional_onboarding_status === 'active')) {
         if (!cancelled) { setCanCreate(true); setLoading(false); }
       } else {
         if (!cancelled) { setCanCreate(false); setLoading(false); }

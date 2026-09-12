@@ -86,6 +86,7 @@ export default function Workouts() {
         <div className="text-center py-20">
           <p className="text-stone-400 mb-2">No workouts found.</p>
           {tab === 'mine' && user && canCreate && <Link to="/workouts/new" className="text-indigo-600 text-sm font-medium">Create your first workout</Link>}
+          {tab === 'mine' && user && !canCreate && <p className="text-stone-400 text-sm">Save workouts to build your collection.</p>}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
