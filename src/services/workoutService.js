@@ -82,7 +82,10 @@ export async function listBusinessWorkouts(businessId) {
 export async function listBusinessMyWorkouts(businessId) {
   const [businessWorkouts, memberships] = await Promise.all([
     listBusinessWorkouts(businessId),
-    getActiveMemberships(businessId).catch(() => []),
+    getActiveMemberships(businessId).catch((err) => {
+      console.error('[listBusinessMyWorkouts] membership query failed:', err);
+      return [];
+    }),
   ]);
 
   const staffIdentityIds = Array.from(

@@ -1,7 +1,7 @@
 // useWorkoutCreateAuthority — resolves whether the current user can
 // create/manage workouts in their active context (Spec 12 §9 + Business §8).
 // ───────────────────────────────────────────────────────────
-// - Professional context: professional_activated
+// - Professional context: professional_activated || professional_onboarding_status === 'active'
 // - Business context: manage_workouts permission (owner/admin by default,
 //   or staff/member with an explicit grant via the permissions array)
 // - Personal context: not permitted
@@ -29,7 +29,7 @@ export function useWorkoutCreateAuthority() {
         } catch {
           if (!cancelled) { setCanCreate(false); setLoading(false); }
         }
-      } else if (user.professional_activated) {
+      } else if (user.professional_activated || user.professional_onboarding_status === 'active') {
         if (!cancelled) { setCanCreate(true); setLoading(false); }
       } else {
         if (!cancelled) { setCanCreate(false); setLoading(false); }

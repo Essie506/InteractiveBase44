@@ -92,7 +92,15 @@ export async function fetchPostsByAuthor(identityId, maxResults = 20, options = 
   let all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   all = all.filter(p => p.lifecycle_state === 'published');
   if (options.operatingContext) {
-    all = all.filter(p => p.operating_context === options.operatingContext);
+    const ctx = options.operatingContext;
+    // Professional wall includes legacy identity-authored posts where
+    // operating_context was never set (null/undefined). Explicitly-
+    // personal posts remain excluded so Personal and Professional walls
+    // do not mix. No data migration is performed.
+    all = all.filter(p =>
+      p.operating_context === ctx
+      || (ctx === 'professional' && (p.operating_context === null || p.operating_context === undefined))
+    );
   }
   return sortByCreatedDesc(all).slice(0, maxResults);
 }

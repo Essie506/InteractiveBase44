@@ -51,11 +51,17 @@ export default function PostCard({ post, onDeleted }) {
         .catch(() => setBusinessAuthor(null));
     } else if (post?.author_identity_id) {
       const isPersonal = post?.operating_context === 'personal';
-      const lookup = isPersonal
+      const primary = isPersonal
         ? getPublicPersonalProfileByIdentity(post.author_identity_id)
         : getPublicProfessionalProfileByIdentity(post.author_identity_id);
-      lookup
-        .then(p => setAuthor(p || {}))
+      const fallback = isPersonal
+        ? getPublicProfessionalProfileByIdentity(post.author_identity_id)
+        : getPublicPersonalProfileByIdentity(post.author_identity_id);
+      primary
+        .then(p => {
+          if (p) { setAuthor(p); return; }
+          fallback.then(fb => setAuthor(fb || {})).catch(() => setAuthor({}));
+        })
         .catch(() => setAuthor({}));
     }
   }, [isBusinessPost, post?.author_identity_id, post?.business_id, post?.operating_context]);
