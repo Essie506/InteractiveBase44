@@ -90,14 +90,6 @@ export async function fetchPostsByAuthor(identityId, maxResults = 20, options = 
   );
   const snap = await getDocs(q);
   let all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  // TEMP DIAG: capture raw query results for Professional wall trace
-  console.log('[fetchPostsByAuthor DIAG]', {
-    identityId,
-    raw_count: all.length,
-    lifecycle_states: all.map(p => p.lifecycle_state),
-    operating_contexts: all.map(p => p.operating_context),
-    visibilities: all.map(p => p.visibility),
-  });
   all = all.filter(p => p.lifecycle_state === 'published');
   if (options.operatingContext) {
     const ctx = options.operatingContext;

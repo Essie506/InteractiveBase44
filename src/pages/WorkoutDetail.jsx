@@ -1,7 +1,7 @@
 // WorkoutDetail — full workout view with community interaction (Spec 12 + Spec 20).
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Clock, Dumbbell, ArrowLeft, Pencil, Loader2 } from 'lucide-react';
+import { Clock, Dumbbell, ArrowLeft, Pencil, Loader2, Send } from 'lucide-react';
 import { getWorkout } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
 import { checkPermission } from '@/lib/businessPermissions';
@@ -9,6 +9,7 @@ import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
 import WorkoutCreatorBadge from '@/components/workout/WorkoutCreatorBadge';
+import WorkoutShareDialog from '@/components/workout/WorkoutShareDialog';
 
 const TYPE_LABELS = {
   individual: 'Individual', programme: 'Programme', training_plan: 'Training Plan',
@@ -23,6 +24,7 @@ export default function WorkoutDetail() {
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
   const [canEdit, setCanEdit] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -89,11 +91,21 @@ export default function WorkoutDetail() {
           </div>
           <h1 className="text-2xl font-bold text-stone-800">{workout.title}</h1>
         </div>
-        {canEdit && (
-          <Link to={`/workouts/${workout.id}/edit`} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg flex-shrink-0">
-            <Pencil className="w-4 h-4" /> Edit
-          </Link>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {user && (
+            <button
+              onClick={() => setShowShareDialog(true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg"
+            >
+              <Send className="w-4 h-4" /> Share
+            </button>
+          )}
+          {canEdit && (
+            <Link to={`/workouts/${workout.id}/edit`} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg">
+              <Pencil className="w-4 h-4" /> Edit
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4 text-sm text-stone-500 mb-6">
@@ -151,6 +163,14 @@ export default function WorkoutDetail() {
           <CommentSection targetSystem="workout" targetType="workout" targetId={workout.id} />
         </div>
       </div>
+
+      {showShareDialog && (
+        <WorkoutShareDialog
+          workoutId={workout.id}
+          workoutTitle={workout.title}
+          onClose={() => setShowShareDialog(false)}
+        />
+      )}
     </div>
   );
 }

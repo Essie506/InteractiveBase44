@@ -13,6 +13,11 @@ export default function TrustBadge({ targetType, targetId, size = 'sm' }) {
     getTrustRecord(targetType, targetId).then(r => {
       setRecord(r);
       setLoading(false);
+    }).catch(() => {
+      // Public/unauthenticated reads may be denied by Firestore rules —
+      // fail safe (no badge) instead of hanging on the spinner forever.
+      setRecord(null);
+      setLoading(false);
     });
   }, [targetType, targetId]);
 

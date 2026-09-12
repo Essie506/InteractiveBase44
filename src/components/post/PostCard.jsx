@@ -57,32 +57,12 @@ export default function PostCard({ post, onDeleted }) {
       const fallback = isPersonal
         ? getPublicProfessionalProfileByIdentity(post.author_identity_id)
         : getPublicPersonalProfileByIdentity(post.author_identity_id);
-      // TEMP DIAG: capture author resolution evidence for auth vs public comparison
-      console.log('[PostCard DIAG]', {
-        post_id: post.id,
-        author_identity_id: post.author_identity_id,
-        author_type: post.author_type,
-        operating_context: post.operating_context,
-        business_id: post.business_id,
-        isPersonal,
-        primaryTarget: isPersonal ? 'personalProfilesPublic' : 'professionalProfilesPublic',
-      });
       primary
         .then(p => {
-          console.log('[PostCard DIAG] primary result:', { post_id: post.id, found: !!p, data: p ? { display_name: p.display_name, screen_name: p.screen_name, identity_id: p.identity_id } : null });
           if (p) { setAuthor(p); return; }
-          fallback.then(fb => {
-            console.log('[PostCard DIAG] fallback result:', { post_id: post.id, found: !!fb, data: fb ? { display_name: fb.display_name, screen_name: fb.screen_name } : null });
-            setAuthor(fb || {});
-          }).catch((err) => {
-            console.error('[PostCard DIAG] fallback error:', { post_id: post.id, error: err?.message || err });
-            setAuthor({});
-          });
+          fallback.then(fb => setAuthor(fb || {})).catch(() => setAuthor({}));
         })
-        .catch((err) => {
-          console.error('[PostCard DIAG] primary error:', { post_id: post.id, error: err?.message || err, code: err?.code });
-          setAuthor({});
-        });
+        .catch(() => setAuthor({}));
     }
   }, [isBusinessPost, post?.author_identity_id, post?.business_id, post?.operating_context]);
 
