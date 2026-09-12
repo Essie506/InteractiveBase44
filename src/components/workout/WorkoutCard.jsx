@@ -1,6 +1,7 @@
 // WorkoutCard — card for the workout list/grid (Spec 12).
 import { Link } from 'react-router-dom';
 import { Clock, Dumbbell } from 'lucide-react';
+import WorkoutCreatorAttribution from '@/components/workout/WorkoutCreatorAttribution';
 
 const TYPE_LABELS = {
   individual: 'Individual', programme: 'Programme', training_plan: 'Training Plan',
@@ -16,7 +17,7 @@ const DIFFICULTY_COLORS = {
   all_levels: 'text-stone-600 bg-stone-100',
 };
 
-export default function WorkoutCard({ workout }) {
+export default function WorkoutCard({ workout, showCreator = false }) {
   return (
     <Link to={`/workouts/${workout.id}`} className="block bg-white rounded-xl border border-stone-200 overflow-hidden hover:border-indigo-300 hover:shadow-sm transition-all">
       {workout.cover_url ? (
@@ -46,6 +47,11 @@ export default function WorkoutCard({ workout }) {
             </span>
           )}
         </div>
+        {showCreator && workout.creator_identity_id && (
+          <div className="mt-2 pt-2 border-t border-stone-100">
+            <WorkoutCreatorAttribution creatorIdentityId={workout.creator_identity_id} />
+          </div>
+        )}
       </div>
     </Link>
   );

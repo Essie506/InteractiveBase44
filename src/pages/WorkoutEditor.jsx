@@ -5,6 +5,7 @@ import { Plus, Trash2, Loader2, Save, ArrowLeft, ImagePlus, Film, Globe, Users, 
 import { getWorkout, saveWorkout, deleteWorkout } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
+import { useWorkoutCreateAuthority } from '@/hooks/useWorkoutCreateAuthority';
 import MediaUploadButton from '@/components/MediaUploadButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,7 @@ export default function WorkoutEditor() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
+  const { canCreate, loading: authLoading } = useWorkoutCreateAuthority();
   const [form, setForm] = useState({
     title: '', description: '', workout_type: 'individual', difficulty: 'all_levels',
     duration_minutes: 30, exercises: [], media_url: '', cover_url: '',
@@ -88,19 +90,17 @@ export default function WorkoutEditor() {
     }
   };
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-stone-300 animate-spin" /></div>;
+  if (loading || authLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-stone-300 animate-spin" /></div>;
 
-  // Creation authority: only professional (professional_activated) or business
-  // context users may create/edit workouts. Personal profiles are denied at
-  // both the UI and cloud-function layers.
-  const canCreateWorkouts = user?.professional_activated === true ||
-    (user?.active_context === 'business' && !!user?.active_business_id);
-
-  if (!canCreateWorkouts) {
+  // Creation authority: only Professional profiles, or Business members
+  // with the manage_workouts permission, may create workouts. Personal
+  // profiles are denied at both the UI and cloud-function layers; the
+  // server re-validates authoritatively.
+  if (!canCreate) {
     return (
       <div className="p-6 md:p-10 max-w-3xl mx-auto text-center">
         <h1 className="text-xl font-bold text-stone-800 mb-2">Workout creation unavailable</h1>
-        <p className="text-stone-500 mb-4">Only Professional and Business profiles can create workouts. Switch to a Professional or Business context to get started.</p>
+        <p className="text-stone-500 mb-4">Only Professional profiles, or Business members with the manage_workouts permission, can create workouts. Switch to a Professional context or ask a Business owner/admin to grant you manage_workouts.</p>
         <Link to="/workouts" className="text-indigo-600 font-medium">Browse workouts</Link>
       </div>
     );

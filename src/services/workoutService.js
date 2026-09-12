@@ -8,6 +8,7 @@
 import { collection, getDocs, getDoc, doc, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/firebase/firebaseClient';
 import { callSaveWorkout, callDeleteWorkout } from '@/services/firebaseFunctions';
+import { getActiveMemberships } from '@/services/businessService';
 
 /**
  * @param {number} [maxResults]
@@ -58,6 +59,54 @@ export async function listBusinessWorkouts(businessId) {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }));
+}
+
+/**
+ * Business "My Workouts" aggregation (Spec 12 + Business §1).
+ * Returns Business-owned workouts PLUS Professional-owned workouts
+ * belonging to ACTIVE staff members of the business — aggregated as
+ * references (ownership is never rewritten).
+ *
+ * - Business-owned: owner_id == businessId (any owner_type).
+ * - Staff Professional: owner_type == 'identity', resolved via active
+ *   BusinessMembership. When the staff relationship ceases to be active,
+ *   that Professional's workouts cease appearing here without being
+ *   modified or deleted.
+ * - Deduplicated by workout id (a workout could be encountered through
+ *   more than one path only if ownership were ambiguous; the dedup guard
+ *   is defense-in-depth).
+ *
+ * @param {string} businessId
+ * @returns {Promise<import('@/types/domain').Workout[]>}
+ */
+export async function listBusinessMyWorkouts(businessId) {
+  const [businessWorkouts, memberships] = await Promise.all([
+    listBusinessWorkouts(businessId),
+    getActiveMemberships(businessId).catch(() => []),
+  ]);
+
+  const staffIdentityIds = Array.from(
+    new Set(memberships.map((m) => m.identity_id).filter(Boolean)),
+  );
+
+  const staffWorkoutLists = await Promise.all(
+    staffIdentityIds.map((id) => listMyWorkouts(id).catch(() => [])),
+  );
+  // Staff Professional workouts only — exclude any business-owned workouts
+  // a staff member may have created (those are already in businessWorkouts).
+  const staffWorkouts = staffWorkoutLists
+    .flat()
+    .filter((w) => w.owner_type === 'identity');
+
+  // Merge + dedupe by id, sort by updated_date desc.
+  const seen = new Set();
+  const merged = [...businessWorkouts, ...staffWorkouts].filter((w) => {
+    if (!w || !w.id || seen.has(w.id)) return false;
+    seen.add(w.id);
+    return true;
+  });
+  merged.sort((a, b) => (b._updated_date || '').localeCompare(a._updated_date || ''));
+  return merged;
 }
 
 /**

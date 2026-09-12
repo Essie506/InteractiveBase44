@@ -6,7 +6,7 @@
 // SDK (public for published workouts, owner-filtered for drafts).
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId, getBusinessMembership } from './shared';
+import { db, allowedOrigins, getIdentityId, hasBusinessWorkoutPermission } from './shared';
 import { indexContentInline, unindexContentInline } from './searchIndex';
 
 const VALID_TYPES = [
@@ -38,10 +38,11 @@ export const saveWorkout = onCall(
     // Personal profiles must NOT create workouts. Only professional
     // identities (professional_activated) or business members may create.
     if (business_id) {
-      // Business workout — caller must be an active business member
-      const membership = await getBusinessMembership(business_id, identityId);
-      if (!membership || membership.lifecycle_state !== 'active') {
-        throw new HttpsError('permission-denied', 'You must be an active member of this business to create business workouts');
+      // Business workout — caller must have manage_workouts permission
+      // (owner/admin by default, or staff/member with explicit grant).
+      const allowed = await hasBusinessWorkoutPermission(business_id, identityId);
+      if (!allowed) {
+        throw new HttpsError('permission-denied', 'You need manage_workouts permission to create business workouts');
       }
     } else {
       // Identity workout — caller must have professional_activated status
@@ -97,9 +98,9 @@ export const saveWorkout = onCall(
       // Edit authority: business workouts → any active business member;
       // identity workouts → only the creator.
       if (existing.owner_type === 'business' && existing.business_id) {
-        const membership = await getBusinessMembership(existing.business_id, identityId);
-        if (!membership || membership.lifecycle_state !== 'active') {
-          throw new HttpsError('permission-denied', 'Only business members can edit this workout');
+        const allowed = await hasBusinessWorkoutPermission(existing.business_id, identityId);
+        if (!allowed) {
+          throw new HttpsError('permission-denied', 'You need manage_workouts permission to edit this business workout');
         }
       } else {
         if (existing.creator_identity_id !== identityId) {
@@ -158,9 +159,9 @@ export const deleteWorkout = onCall(
     // Delete authority: business workouts → any active business member;
     // identity workouts → only the creator.
     if (existing.owner_type === 'business' && existing.business_id) {
-      const membership = await getBusinessMembership(existing.business_id, identityId);
-      if (!membership || membership.lifecycle_state !== 'active') {
-        throw new HttpsError('permission-denied', 'Only business members can archive this workout');
+      const allowed = await hasBusinessWorkoutPermission(existing.business_id, identityId);
+      if (!allowed) {
+        throw new HttpsError('permission-denied', 'You need manage_workouts permission to archive this business workout');
       }
     } else {
       if (existing.creator_identity_id !== identityId) {

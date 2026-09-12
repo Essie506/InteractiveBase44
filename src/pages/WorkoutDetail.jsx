@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Clock, Dumbbell, ArrowLeft, Pencil, Loader2 } from 'lucide-react';
 import { getWorkout } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
+import { checkPermission } from '@/lib/businessPermissions';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
@@ -21,6 +22,7 @@ export default function WorkoutDetail() {
   const { user } = useAuth();
   const [workout, setWorkout] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [canEdit, setCanEdit] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -36,18 +38,34 @@ export default function WorkoutDetail() {
     load();
   }, [id]);
 
+  // Edit authority (Spec 12 §9 + Business §8): identity workouts → creator
+  // only; business workouts → manage_workouts permission (owner/admin or
+  // explicitly granted). Visibility in a Business view never grants edit.
+  useEffect(() => {
+    let cancelled = false;
+    const resolve = async () => {
+      if (!user || !workout) { setCanEdit(false); return; }
+      if (workout.owner_type === 'business' && workout.business_id) {
+        try {
+          const { allowed } = await checkPermission(workout.business_id, user.id, 'manage_workouts');
+          if (!cancelled) setCanEdit(allowed);
+        } catch {
+          if (!cancelled) setCanEdit(false);
+        }
+      } else {
+        if (!cancelled) setCanEdit(workout.creator_identity_id === user.id);
+      }
+    };
+    resolve();
+    return () => { cancelled = true; };
+  }, [workout, user]);
+
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-stone-300 animate-spin" /></div>;
   if (!workout) return (
     <div className="text-center py-20">
       <p className="text-stone-400 mb-2">Workout not found.</p>
       <Link to="/workouts" className="text-indigo-600 text-sm font-medium">Back to Workouts</Link>
     </div>
-  );
-
-  const isOwner = user && (
-    workout.creator_identity_id === user.id ||
-    (workout.owner_type === 'business' && workout.business_id &&
-     user.active_context === 'business' && user.active_business_id === workout.business_id)
   );
 
   return (
@@ -71,7 +89,7 @@ export default function WorkoutDetail() {
           </div>
           <h1 className="text-2xl font-bold text-stone-800">{workout.title}</h1>
         </div>
-        {isOwner && (
+        {canEdit && (
           <Link to={`/workouts/${workout.id}/edit`} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg flex-shrink-0">
             <Pencil className="w-4 h-4" /> Edit
           </Link>

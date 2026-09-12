@@ -13,7 +13,7 @@ export const ROLE_PERMISSIONS = {
     'view_inbox', 'manage_inbox',
     'manage_promotions', 'manage_verification', 'manage_subscription',
     'transfer_ownership', 'view_analytics', 'manage_settings',
-    'manage_services', 'manage_payments',
+    'manage_services', 'manage_payments', 'manage_workouts',
   ],
   admin: [
     'view_business', 'manage_profile', 'manage_business_profile', 'manage_staff',
@@ -22,7 +22,7 @@ export const ROLE_PERMISSIONS = {
     'view_calendar', 'manage_calendar',
     'view_financials',
     'view_inbox', 'manage_inbox',
-    'manage_promotions', 'view_analytics', 'manage_services',
+    'manage_promotions', 'view_analytics', 'manage_services', 'manage_workouts',
   ],
   staff: ['view_business', 'view_bookings', 'manage_own_bookings', 'view_calendar'],
   member: ['view_business'],

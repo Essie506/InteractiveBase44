@@ -167,6 +167,29 @@ export async function hasBusinessCalendarCreatePermission(
 }
 
 /**
+ * Business Workout management permission (Spec 12 §9 + Business §8).
+ * Reuses the existing BusinessMembership role + permissions architecture
+ * (businessPermissions taxonomy: 'manage_workouts'). owner/admin roles
+ * have manage_workouts by default; staff/member may be granted it via the
+ * permissions override array.
+ *
+ * This gates creation AND edit/delete of Business-owned workouts. Visibility
+ * of a staff member's Professional workouts in the Business "My Workouts"
+ * aggregation NEVER satisfies this — visibility is not authority.
+ */
+export async function hasBusinessWorkoutPermission(
+  businessId: string,
+  identityId: string
+): Promise<boolean> {
+  const membership = await getBusinessMembership(businessId, identityId);
+  if (!membership) return false;
+  if (membership.lifecycle_state !== 'active') return false;
+  if (['owner', 'admin'].includes(membership.role)) return true;
+  const extraPerms: string[] = Array.isArray(membership.permissions) ? membership.permissions : [];
+  return extraPerms.includes('manage_workouts');
+}
+
+/**
  * Resolve a list of email addresses to stable Interactive identity IDs.
  * Email is a discovery/invitation mechanism, NOT an ownership key.
  *
