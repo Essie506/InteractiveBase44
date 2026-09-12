@@ -116,14 +116,11 @@ export const saveWorkout = onCall(
           throw new HttpsError('permission-denied', 'Only the creator can edit this workout');
         }
       }
-      // Ownership is immutable after creation — strip ownership fields
+      // Ownership is immutable after creation — omit ownership fields
       // from the update payload so a client cannot change owner_type.
-      delete payload.owner_type;
-      delete payload.owner_id;
-      delete payload.operating_context;
-      delete payload.business_id;
+      const { owner_type, owner_id, operating_context, business_id: _biz, ...updatePayload } = payload;
       workoutRef = doc.ref;
-      await workoutRef.update(payload);
+      await workoutRef.update(updatePayload);
     } else {
       workoutRef = db.collection('workouts').doc();
       await workoutRef.set({
