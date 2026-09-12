@@ -526,3 +526,59 @@ export const getFollowState = onCall(
     return { is_following: isFollowing, follower_count: followersSnap.size, following_count: followingSnap.size };
   },
 );
+
+// ── listMyConnections ────────────────────────────────────────
+// Returns the caller's accepted Connections with display info
+// resolved from public projections. Used by the Workout targeted-
+// share recipient picker. Reuses the existing Connections system —
+// does NOT create a new contact system.
+//
+// Returns: { connections: [{ identity_id, display_name, avatar_url,
+//           screen_name, profile_type }] }
+export const listMyConnections = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required');
+    const callerId = await getIdentityId(request.auth.uid);
+
+    const [aSnap, bSnap] = await Promise.all([
+      db.collection(CONNECTIONS).where('identity_a_id', '==', callerId).where('status', '==', 'active').get(),
+      db.collection(CONNECTIONS).where('identity_b_id', '==', callerId).where('status', '==', 'active').get(),
+    ]);
+
+    const otherIds = new Set<string>();
+    for (const doc of [...aSnap.docs, ...bSnap.docs]) {
+      const data = doc.data();
+      const other = data.identity_a_id === callerId ? data.identity_b_id : data.identity_a_id;
+      if (other) otherIds.add(other as string);
+    }
+
+    const connections: any[] = [];
+    for (const otherId of otherIds) {
+      const [profSnap, persSnap] = await Promise.all([
+        db.collection(PUBLIC).where('identity_id', '==', otherId).limit(1).get(),
+        db.collection('personalProfilesPublic').where('identity_id', '==', otherId).limit(1).get(),
+      ]);
+
+      let displayInfo: any = null;
+      if (!profSnap.empty) {
+        const d = profSnap.docs[0].data();
+        displayInfo = { display_name: d.display_name || null, avatar_url: d.avatar_url || null, screen_name: d.screen_name || null, profile_type: 'professional' };
+      } else if (!persSnap.empty) {
+        const d = persSnap.docs[0].data();
+        displayInfo = { display_name: d.display_name || null, avatar_url: d.avatar_url || null, screen_name: d.screen_name || null, profile_type: 'personal' };
+      }
+
+      connections.push({
+        identity_id: otherId,
+        display_name: displayInfo?.display_name || null,
+        avatar_url: displayInfo?.avatar_url || null,
+        screen_name: displayInfo?.screen_name || null,
+        profile_type: displayInfo?.profile_type || null,
+      });
+    }
+
+    connections.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
+    return { connections };
+  },
+);

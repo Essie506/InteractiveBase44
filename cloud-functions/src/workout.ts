@@ -6,7 +6,7 @@
 // SDK (public for published workouts, owner-filtered for drafts).
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId, hasBusinessWorkoutPermission } from './shared';
+import { db, allowedOrigins, getIdentityId, hasBusinessWorkoutPermission, isBlocked, hasAcceptedConnection, resolveEmailsToIdentities } from './shared';
 import { indexContentInline, unindexContentInline } from './searchIndex';
 
 const VALID_TYPES = [
@@ -187,5 +187,117 @@ export const deleteWorkout = onCall(
     }
 
     return { state: 'archived' };
+  },
+);
+
+// ── shareWorkoutWithConnections ──────────────────────────────
+// Targeted Workout share to specific accepted Connections (Spec 12).
+// ───────────────────────────────────────────────────────────
+// An authorised Professional or Business workout owner/manager can
+// share a Workout directly with specific accepted connections. This
+// is DISTINCT from:
+//   - publicly available/published Workout (Feed/Directory discovery)
+//   - saved Workout (Save entity)
+//   - Business "My Workouts" aggregation (staff membership visibility)
+//   - general Feed share/repost (Share Engine commentary shares)
+//
+// Authority mirrors the edit authority:
+//   - identity workout → creator_identity_id === caller
+//   - business workout → hasBusinessWorkoutPermission (manage_workouts)
+//
+// Recipients must have an accepted Connection with the sharer and no
+// active block. Email is a lookup mechanism — emails that do not resolve
+// to an existing identity are skipped (no external-invitation workflow
+// is invented). Recipients receive an in-app notification with a direct
+// link to the Workout.
+export const shareWorkoutWithConnections = onCall(
+  { region: 'europe-west2', cors: allowedOrigins },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Authentication required');
+    const identityId = await getIdentityId(request.auth.uid);
+    const { workout_id, recipient_identity_ids, recipient_emails } = request.data || {};
+
+    if (!workout_id) throw new HttpsError('invalid-argument', 'workout_id required');
+
+    // Load workout
+    const workoutDoc = await db.collection('workouts').doc(workout_id).get();
+    if (!workoutDoc.exists) throw new HttpsError('not-found', 'Workout not found');
+    const workout = workoutDoc.data()!;
+
+    // ── Authority (Spec 12 §9 + Business §8) ──
+    if (workout.owner_type === 'business' && workout.business_id) {
+      const allowed = await hasBusinessWorkoutPermission(workout.business_id, identityId);
+      if (!allowed) {
+        throw new HttpsError('permission-denied', 'You need manage_workouts permission to share this business workout');
+      }
+    } else {
+      if (workout.creator_identity_id !== identityId) {
+        throw new HttpsError('permission-denied', 'You can only share your own workouts');
+      }
+    }
+
+    // Combine recipient identity IDs (pre-selected + email-resolved)
+    const allRecipientIds = new Set<string>();
+    if (Array.isArray(recipient_identity_ids)) {
+      for (const id of recipient_identity_ids) {
+        if (id && typeof id === 'string' && id !== identityId) allRecipientIds.add(id);
+      }
+    }
+    if (Array.isArray(recipient_emails) && recipient_emails.length > 0) {
+      const { resolved } = await resolveEmailsToIdentities(recipient_emails);
+      for (const id of Object.values(resolved)) {
+        if (id && id !== identityId) allRecipientIds.add(id);
+      }
+    }
+
+    if (allRecipientIds.size === 0) {
+      throw new HttpsError('invalid-argument', 'No eligible recipients selected');
+    }
+
+    // For each recipient: verify accepted connection + no block, then notify.
+    const now = new Date().toISOString();
+    let shared = 0;
+    let skipped = 0;
+    const skippedReasons: Array<{ identity_id: string; reason: string }> = [];
+
+    for (const recipientId of allRecipientIds) {
+      const blocked = await isBlocked(identityId, recipientId);
+      if (blocked) {
+        skipped++;
+        skippedReasons.push({ identity_id: recipientId, reason: 'blocked' });
+        continue;
+      }
+      const connected = await hasAcceptedConnection(identityId, recipientId);
+      if (!connected) {
+        skipped++;
+        skippedReasons.push({ identity_id: recipientId, reason: 'not_a_connection' });
+        continue;
+      }
+      try {
+        await db.collection('notificationRecords').doc().set({
+          recipient_id: recipientId,
+          source_system: 'workout',
+          event_type: 'workout_shared',
+          title: 'Shared a workout with you',
+          body: `${workout.title || 'A workout'} has been shared with you.`,
+          category: 'workout',
+          priority: 'normal',
+          delivery_channels: ['in_app'],
+          is_read: false,
+          action_url: `/workouts/${workout_id}`,
+          action_label: 'View Workout',
+          source_id: workout_id,
+          _created_date: now,
+          _updated_date: now,
+        });
+        shared++;
+      } catch (err) {
+        console.error('Failed to create workout share notification:', err);
+        skipped++;
+        skippedReasons.push({ identity_id: recipientId, reason: 'notification_failed' });
+      }
+    }
+
+    return { shared, skipped, skipped_reasons: skippedReasons };
   },
 );

@@ -31,7 +31,7 @@ export { createSubscriptionCheckout, getMySubscription, createCustomerPortal } f
 export { toggleReaction, createComment, deleteComment, toggleSave, getInteractionState } from './communityInteraction';
 
 // Workout System (Spec 12): workout identity, composition, publication
-export { saveWorkout, deleteWorkout } from './workout';
+export { saveWorkout, deleteWorkout, shareWorkoutWithConnections } from './workout';
 
 // Share Engine (Spec 14.1): content sharing
 export { createShare, deleteShare } from './share';
@@ -40,7 +40,7 @@ export { createShare, deleteShare } from './share';
 export { savePost, deletePost } from './post';
 
 // Relationship System — Connections + Professional access
-export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses, followIdentity, unfollowIdentity, getFollowState } from './connections';
+export { createConnectionRequest, respondConnectionRequest, disconnectConnection, resolveProfessionalAccess, resolveConnectionStatus, resolveConnectionStatuses, followIdentity, unfollowIdentity, getFollowState, listMyConnections } from './connections';
 
 // Professional Profile — public projection + screen name uniqueness
 export { saveProfessionalProfile, validateScreenName } from './professionalProfile';

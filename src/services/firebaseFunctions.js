@@ -204,6 +204,11 @@ export async function callDeleteWorkout(data) {
   return /** @type {any} */ (result.data);
 }
 
+export async function callShareWorkoutWithConnections(data) {
+  const result = await callable('shareWorkoutWithConnections')(data);
+  return /** @type {any} */ (result.data);
+}
+
 // ── Share Engine (Spec 14.1) ──
 export async function callCreateShare(data) {
   const result = await callable('createShare')(data);
@@ -422,5 +427,10 @@ export async function callUnfollowIdentity(data) {
 
 export async function callGetFollowState(data) {
   const result = await callable('getFollowState')(data);
+  return /** @type {any} */ (result.data);
+}
+
+export async function callListMyConnections(data) {
+  const result = await callable('listMyConnections')(data);
   return /** @type {any} */ (result.data);
 }

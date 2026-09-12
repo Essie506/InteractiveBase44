@@ -23,6 +23,7 @@ import {
   callFollowIdentity,
   callUnfollowIdentity,
   callGetFollowState,
+  callListMyConnections,
 } from '@/services/firebaseFunctions';
 
 // Create a pending connection request to target_id.
@@ -82,4 +83,14 @@ export async function unfollowIdentity({ target_id } = {}) {
 
 export async function getFollowState({ target_id } = {}) {
   return callGetFollowState({ target_id });
+}
+
+// List the caller's accepted Connections with display info for
+// recipient pickers (e.g. Workout targeted share). Reuses the
+// existing Connections system — no new contact system.
+/**
+ * @returns {Promise<{ connections: Array<{ identity_id: string, display_name: string|null, avatar_url: string|null, screen_name: string|null, profile_type: string|null }> }>}
+ */
+export async function listMyConnections() {
+  return callListMyConnections({});
 }

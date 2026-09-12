@@ -7,7 +7,7 @@
 
 import { collection, getDocs, getDoc, doc, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/firebase/firebaseClient';
-import { callSaveWorkout, callDeleteWorkout } from '@/services/firebaseFunctions';
+import { callSaveWorkout, callDeleteWorkout, callShareWorkoutWithConnections } from '@/services/firebaseFunctions';
 import { getActiveMemberships } from '@/services/businessService';
 
 /**
@@ -178,4 +178,21 @@ export async function saveWorkout(data) {
 
 export async function deleteWorkout(workoutId) {
   return callDeleteWorkout({ workout_id: workoutId });
+}
+
+/**
+ * Targeted Workout share to specific accepted connections (Spec 12).
+ * Sends an in-app notification to each eligible recipient with a
+ * direct link to the Workout. Distinct from Feed/Share Engine shares.
+ * @param {string} workoutId
+ * @param {string[]} recipientIdentityIds
+ * @param {string[]} [recipientEmails]
+ * @returns {Promise<{ shared: number, skipped: number, skipped_reasons: Array }>}
+ */
+export async function shareWorkoutWithConnections(workoutId, recipientIdentityIds, recipientEmails) {
+  return callShareWorkoutWithConnections({
+    workout_id: workoutId,
+    recipient_identity_ids: recipientIdentityIds,
+    recipient_emails: recipientEmails,
+  });
 }
