@@ -4,6 +4,7 @@ import ProfileSection from './ProfileSection';
 import TagList from './TagList';
 import MediaGallerySection from './MediaGallerySection';
 import ProfileContentSection from './ProfileContentSection';
+import ProfilePosts from './ProfilePosts';
 import { mediaStyle } from './mediaStyle';
 
 /**
@@ -225,6 +226,9 @@ export default function BusinessProfileView({
 
         {/* Cross-system: published workouts + upcoming public events */}
         <ProfileContentSection ownerId={profile.business_id} />
+
+        {/* Business-authored posts */}
+        <ProfilePosts businessId={profile.business_id} />
 
         <div className="h-12" />
       </div>

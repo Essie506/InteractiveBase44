@@ -115,7 +115,7 @@ export default function ProfilePage() {
       />
 
       {/* Posts — same authoritative data as the Feed */}
-      <ProfilePosts identityId={user.id} />
+      <ProfilePosts identityId={user.id} operatingContext="personal" />
 
       {saving && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full text-sm shadow-lg z-50">

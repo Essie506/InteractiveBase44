@@ -43,6 +43,10 @@ export default function PostEditor() {
   const [tagInput, setTagInput] = useState('');
   const [linkedRefId, setLinkedRefId] = useState(null);
   const [saving, setSaving] = useState(false);
+  // Preserve original authorship when editing — never collapse to personal
+  const [existingAuthorType, setExistingAuthorType] = useState(null);
+  const [existingBusinessId, setExistingBusinessId] = useState(null);
+  const [existingOperatingContext, setExistingOperatingContext] = useState(null);
 
   const config = getPostTypeConfig(postType);
   const refSystem = config.requiresReference ? REFERENCE_SYSTEM_MAP[config.requiresReference] : null;
@@ -62,6 +66,9 @@ export default function PostEditor() {
         setLinkUrl(post.link_url || '');
         setVisibility(post.visibility || 'public');
         setTags(post.tags || []);
+        setExistingAuthorType(post.author_type || 'identity');
+        setExistingBusinessId(post.business_id || null);
+        setExistingOperatingContext(post.operating_context || 'personal');
         if (post.linked_content_references?.length > 0) setLinkedRefId(post.linked_content_references[0].id);
       })
       .catch(() => { toast({ title: 'Could not load post', variant: 'destructive' }); navigate('/feed'); })
@@ -103,10 +110,28 @@ export default function PostEditor() {
         ? [{ system: refSystem, type: config.requiresReference, id: linkedRefId }]
         : [];
 
+      // Authorship follows the active profile context for new posts.
+      // For edits, preserve the original author_type/business_id — never
+      // collapse a business-authored post to personal on save.
+      const activeContext = user.active_context || 'personal';
+      const activeBusinessId = user.active_business_id;
+      const isBusinessAuthor = editId
+        ? existingAuthorType === 'business'
+        : (activeContext === 'business' && !!activeBusinessId);
+
+      const effectiveAuthorType = isBusinessAuthor ? 'business' : 'identity';
+      const effectiveBusinessId = isBusinessAuthor
+        ? (editId ? existingBusinessId : activeBusinessId)
+        : null;
+      const effectiveOperatingContext = editId
+        ? (existingOperatingContext || activeContext)
+        : activeContext;
+
       await callSavePost({
         id: editId || undefined,
         author_identity_id: user.id,
-        author_type: 'identity',
+        author_type: effectiveAuthorType,
+        business_id: effectiveBusinessId,
         post_type: postType,
         title: config.supportsTitle ? (title.trim() || null) : null,
         summary: config.supportsSummary ? (summary.trim() || null) : null,
@@ -118,7 +143,7 @@ export default function PostEditor() {
         tags,
         hashtags: tags,
         visibility,
-        operating_context: user.active_context || 'personal',
+        operating_context: effectiveOperatingContext,
         lifecycle_state: 'published',
       });
       toast({ title: editId ? 'Post updated' : 'Post published' });
@@ -149,6 +174,24 @@ export default function PostEditor() {
       <div className="mb-6">
         <h1 className="text-xl font-bold text-stone-800">{editId ? 'Edit Post' : 'Create Post'}</h1>
         <p className="text-stone-500 text-sm">{editId ? 'Update your post' : 'Share something with the Interactive community'}</p>
+        {(() => {
+          const ctx = editId
+            ? (existingOperatingContext || user.active_context || 'personal')
+            : (user.active_context || 'personal');
+          const isBiz = editId
+            ? existingAuthorType === 'business'
+            : (ctx === 'business' && !!user.active_business_id);
+          const label = isBiz ? 'Business' : (ctx === 'professional' ? 'Professional' : 'Personal');
+          return (
+            <span className={`inline-block mt-2 px-2.5 py-1 rounded-full text-xs font-medium ${
+              isBiz ? 'bg-indigo-100 text-indigo-700' :
+              ctx === 'professional' ? 'bg-emerald-100 text-emerald-700' :
+              'bg-stone-100 text-stone-600'
+            }`}>
+              Posting as {label}
+            </span>
+          );
+        })()}
       </div>
 
       <div className="bg-white rounded-xl border border-stone-200 p-5">

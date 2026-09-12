@@ -3,21 +3,38 @@
 // Uses the same authoritative Post data as the Feed (fetchPostsByAuthor).
 // No duplicate copies — references the same posts collection.
 import { useState, useEffect } from 'react';
-import { fetchPostsByAuthor } from '@/services/postService';
+import { fetchPostsByAuthor, fetchPostsByBusiness } from '@/services/postService';
 import PostCard from '@/components/post/PostCard';
 import { Loader2 } from 'lucide-react';
 
-export default function ProfilePosts({ identityId, canView = true }) {
+/**
+ * Shows a profile's published posts.
+ * - identityId + operatingContext: personal or professional wall
+ *   (filters by operating_context so the two don't mix)
+ * - businessId: business wall (publishing_account_id == businessId)
+ *
+ * @param {{ identityId?: string, businessId?: string, operatingContext?: string, canView?: boolean }} props
+ */
+export default function ProfilePosts({ identityId, businessId, operatingContext, canView = true }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!identityId || !canView) { setLoading(false); return; }
-    fetchPostsByAuthor(identityId, 10)
-      .then(setPosts)
-      .catch(() => setPosts([]))
-      .finally(() => setLoading(false));
-  }, [identityId, canView]);
+    if (!canView) { setLoading(false); return; }
+    if (businessId) {
+      fetchPostsByBusiness(businessId, 10)
+        .then(setPosts)
+        .catch(() => setPosts([]))
+        .finally(() => setLoading(false));
+    } else if (identityId) {
+      fetchPostsByAuthor(identityId, 10, { operatingContext })
+        .then(setPosts)
+        .catch(() => setPosts([]))
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [identityId, businessId, operatingContext, canView]);
 
   if (loading) {
     return (

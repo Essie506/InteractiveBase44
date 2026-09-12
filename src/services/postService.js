@@ -71,22 +71,52 @@ export async function fetchPublicPosts(maxResults = 20, options = {}) {
 }
 
 /**
- * Fetch posts by a specific author identity.
+ * Fetch posts by a specific author identity, optionally filtered by
+ * operating context so personal and professional posts don't mix on
+ * their respective profile walls.
  * @param {string} identityId
  * @param {number} maxResults
+ * @param {{ operatingContext?: string }} [options]
  * @returns {Promise<Array>}
  */
-export async function fetchPostsByAuthor(identityId, maxResults = 20) {
+export async function fetchPostsByAuthor(identityId, maxResults = 20, options = {}) {
   // Single-field query on author_identity_id — auto-created index.
-  // Filter lifecycle_state client-side to avoid composite-index dependency.
+  // Filter lifecycle_state + operating_context client-side to avoid
+  // composite-index dependency.
   const q = query(
     collection(db, 'posts'),
     where('author_identity_id', '==', identityId),
     limit(maxResults * 3),
   );
   const snap = await getDocs(q);
+  let all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  all = all.filter(p => p.lifecycle_state === 'published');
+  if (options.operatingContext) {
+    all = all.filter(p => p.operating_context === options.operatingContext);
+  }
+  return sortByCreatedDesc(all).slice(0, maxResults);
+}
+
+/**
+ * Fetch posts authored by a business (publishing_account_id == businessId,
+ * author_type == 'business'). Used on the business profile wall.
+ * @param {string} businessId
+ * @param {number} maxResults
+ * @returns {Promise<Array>}
+ */
+export async function fetchPostsByBusiness(businessId, maxResults = 20) {
+  // Single-field query on publishing_account_id — auto-created index.
+  // Filter author_type + lifecycle_state client-side.
+  const q = query(
+    collection(db, 'posts'),
+    where('publishing_account_id', '==', businessId),
+    limit(maxResults * 3),
+  );
+  const snap = await getDocs(q);
   const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const published = all.filter(p => p.lifecycle_state === 'published');
+  const published = all.filter(p =>
+    p.lifecycle_state === 'published' && p.author_type === 'business'
+  );
   return sortByCreatedDesc(published).slice(0, maxResults);
 }
 

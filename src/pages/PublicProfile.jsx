@@ -339,7 +339,7 @@ export default function PublicProfile() {
   return (
     <div className="bg-stone-50">
       <ProfessionalProfileView profile={profile} editable={false} actions={actions} />
-      <ProfilePosts identityId={profile.identity_id} canView={(access === 'public' || access === 'connection' || isOwner) && !isBlocked} />
+      <ProfilePosts identityId={profile.identity_id} operatingContext="professional" canView={(access === 'public' || access === 'connection' || isOwner) && !isBlocked} />
       <div className="h-12" />
 
       {/* Block confirmation */}

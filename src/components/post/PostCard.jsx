@@ -7,8 +7,9 @@ import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
 import PostTypeBadge from '@/components/post/PostTypeBadge';
-import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone, Flag, Ban, PenSquare } from 'lucide-react';
+import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone, Flag, Ban, PenSquare, Building2 } from 'lucide-react';
 import { blockUser, reportUser } from '@/lib/messaging';
+import { getBusiness } from '@/services/businessService';
 
 const REF_ICONS = { workout: Dumbbell, calendar_event: Calendar, promotion: Megaphone };
 const REF_ROUTES = {
@@ -34,20 +35,40 @@ function timeAgo(dateStr) {
 export default function PostCard({ post, onDeleted }) {
   const { user } = useAuth();
   const [author, setAuthor] = useState(null);
+  const [businessAuthor, setBusinessAuthor] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [showReportConfirm, setShowReportConfirm] = useState(false);
 
-  useEffect(() => {
-    if (!post?.author_identity_id) return;
-    callResolveParticipants({ identity_ids: [post.author_identity_id] })
-      .then(res => setAuthor(res.results?.[post.author_identity_id] || {}))
-      .catch(() => setAuthor({}));
-  }, [post?.author_identity_id]);
+  const isBusinessPost = post?.author_type === 'business' && !!post?.business_id;
 
-  const isAuthor = user?.id === post?.author_identity_id;
+  useEffect(() => {
+    if (isBusinessPost) {
+      getBusiness(post.business_id)
+        .then(b => setBusinessAuthor(b))
+        .catch(() => setBusinessAuthor(null));
+    } else if (post?.author_identity_id) {
+      callResolveParticipants({ identity_ids: [post.author_identity_id] })
+        .then(res => setAuthor(res.results?.[post.author_identity_id] || {}))
+        .catch(() => setAuthor({}));
+    }
+  }, [isBusinessPost, post?.author_identity_id, post?.business_id]);
+
+  // Author display — business posts show the business, not the individual
+  const authorLink = isBusinessPost
+    ? `/b/${post.business_id}`
+    : (author?.screen_name ? `/p/${author.screen_name}` : '#');
+  const authorName = isBusinessPost
+    ? (businessAuthor?.name || 'Business')
+    : (author?.display_name || 'Unknown');
+  const authorAvatar = isBusinessPost ? null : author?.avatar_url;
+
+  const isAuthor = isBusinessPost
+    ? (user?.id === post?.author_identity_id ||
+       (user?.active_context === 'business' && user?.active_business_id === post?.business_id))
+    : user?.id === post?.author_identity_id;
 
   const handleDelete = async () => {
     if (!window.confirm('Delete this post? This cannot be undone.')) return;
@@ -95,18 +116,22 @@ export default function PostCard({ post, onDeleted }) {
       {/* Header */}
       <div className="flex items-start justify-between p-4">
         <div className="flex items-center gap-3">
-          <Link to={author?.screen_name ? `/p/${author.screen_name}` : '#'}>
-            {author?.avatar_url ? (
-              <img src={author.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+          <Link to={authorLink}>
+            {isBusinessPost ? (
+              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+              </div>
+            ) : authorAvatar ? (
+              <img src={authorAvatar} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
               <div className="w-10 h-10 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 text-sm font-medium">
-                {(author?.display_name || '?').charAt(0).toUpperCase()}
+                {(authorName || '?').charAt(0).toUpperCase()}
               </div>
             )}
           </Link>
           <div>
-            <Link to={author?.screen_name ? `/p/${author.screen_name}` : '#'} className="text-sm font-medium text-stone-800 hover:text-indigo-600">
-              {author?.display_name || 'Unknown'}
+            <Link to={authorLink} className="text-sm font-medium text-stone-800 hover:text-indigo-600">
+              {authorName}
             </Link>
             <div className="text-xs text-stone-400 flex items-center gap-1">
               <Clock className="w-3 h-3" />
