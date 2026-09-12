@@ -95,6 +95,15 @@ export async function getPublicProfessionalProfileByIdentity(identityId) {
   return snap.empty ? null : fromFirestoreDoc(snap.docs[0]);
 }
 
+// Resolve a personal profile's public projection by identity_id.
+// Used by Post author attribution to link personal-authored posts to /u/:screenName.
+export async function getPublicPersonalProfileByIdentity(identityId) {
+  if (!identityId) return null;
+  const q = query(collection(db, PERSONAL + 'Public'), where('identity_id', '==', identityId), limit(1));
+  const snap = await getDocs(q);
+  return snap.empty ? null : fromFirestoreDoc(snap.docs[0]);
+}
+
 // ── Context Resolution ─────────────────────────────────────
 
 export async function resolveProfileForContext(identityId, context) {

@@ -1,6 +1,6 @@
 // WorkoutEditor — create or edit a workout (Spec 12 §9/§15).
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Plus, Trash2, Loader2, Save, ArrowLeft, ImagePlus, Film, Globe, Users, Lock } from 'lucide-react';
 import { getWorkout, saveWorkout, deleteWorkout } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
@@ -63,7 +63,10 @@ export default function WorkoutEditor() {
     if (!form.title.trim()) { toast({ title: 'Title is required', variant: 'destructive' }); return; }
     setSaving(true);
     try {
-      const data = { ...form, workout_id: id || null, lifecycle_state: publish ? 'published' : form.lifecycle_state };
+      const businessId = user?.active_context === 'business' && user?.active_business_id
+        ? user.active_business_id
+        : null;
+      const data = { ...form, workout_id: id || null, business_id: businessId, lifecycle_state: publish ? 'published' : form.lifecycle_state };
       const result = await saveWorkout(data);
       toast({ title: publish ? 'Workout published' : 'Draft saved' });
       navigate(`/workouts/${result.id}`);
@@ -86,6 +89,22 @@ export default function WorkoutEditor() {
   };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-stone-300 animate-spin" /></div>;
+
+  // Creation authority: only professional (professional_activated) or business
+  // context users may create/edit workouts. Personal profiles are denied at
+  // both the UI and cloud-function layers.
+  const canCreateWorkouts = user?.professional_activated === true ||
+    (user?.active_context === 'business' && !!user?.active_business_id);
+
+  if (!canCreateWorkouts) {
+    return (
+      <div className="p-6 md:p-10 max-w-3xl mx-auto text-center">
+        <h1 className="text-xl font-bold text-stone-800 mb-2">Workout creation unavailable</h1>
+        <p className="text-stone-500 mb-4">Only Professional and Business profiles can create workouts. Switch to a Professional or Business context to get started.</p>
+        <Link to="/workouts" className="text-indigo-600 font-medium">Browse workouts</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-10 max-w-3xl mx-auto">

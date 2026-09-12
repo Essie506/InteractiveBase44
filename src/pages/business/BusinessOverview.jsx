@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getBusiness, getBusinessProfile, getActiveMemberships, getBusinessSubscription } from '@/services/businessService';
 import { listBusinessBookings } from '@/services/bookingService';
-import { ShieldCheck, Users, Briefcase, CalendarCheck, Layers, Loader2 } from 'lucide-react';
+import { ShieldCheck, Users, Briefcase, CalendarCheck, Layers, Loader2, Dumbbell } from 'lucide-react';
 import StatCard from '@/components/workspace/StatCard';
 
 export default function BusinessOverview() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [business, setBusiness] = useState(null);
   const [profile, setProfile] = useState(null);
   const [memberships, setMemberships] = useState([]);
@@ -68,6 +69,16 @@ export default function BusinessOverview() {
         <StatCard icon={Users} label="Staff" value={memberships.length} />
         <StatCard icon={Briefcase} label="Services & Facilities" value={servicesCount + facilitiesCount} />
         <StatCard icon={CalendarCheck} label="Upcoming Bookings" value={upcomingBookings.length} />
+      </div>
+
+      {/* Quick action: Business workouts */}
+      <div className="mb-8">
+        <button
+          onClick={() => navigate('/workouts?tab=mine')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+        >
+          <Dumbbell className="w-4 h-4" /> Manage Workouts
+        </button>
       </div>
 
       {subscription && (

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getProfessionalProfile } from '@/services/profileService';
 import { listProviderBookings } from '@/services/bookingService';
 import { getAvailabilityRules } from '@/lib/calendar';
-import { ShieldCheck, Briefcase, Clock, CalendarCheck, Loader2, Plus } from 'lucide-react';
+import { ShieldCheck, Briefcase, Clock, CalendarCheck, Loader2, Plus, Dumbbell } from 'lucide-react';
 import StatCard from '@/components/workspace/StatCard';
 
 export default function ProfessionalOverview() {
@@ -77,6 +77,12 @@ export default function ProfessionalOverview() {
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors"
         >
           <Clock className="w-4 h-4" /> Set Availability
+        </button>
+        <button
+          onClick={() => navigate('/workouts?tab=mine')}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors"
+        >
+          <Dumbbell className="w-4 h-4" /> My Workouts
         </button>
       </div>
 

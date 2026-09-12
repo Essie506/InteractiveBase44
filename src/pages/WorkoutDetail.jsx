@@ -44,7 +44,11 @@ export default function WorkoutDetail() {
     </div>
   );
 
-  const isOwner = user && workout.creator_identity_id === user.id;
+  const isOwner = user && (
+    workout.creator_identity_id === user.id ||
+    (workout.owner_type === 'business' && workout.business_id &&
+     user.active_context === 'business' && user.active_business_id === workout.business_id)
+  );
 
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto">

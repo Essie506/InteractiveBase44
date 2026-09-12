@@ -7,6 +7,8 @@ import { Link } from 'react-router-dom';
 import { Dumbbell, Calendar, FileText, Loader2, ArrowRight } from 'lucide-react';
 import { fetchPostById } from '@/services/postService';
 import { getWorkout } from '@/services/workoutService';
+import { getPublicPersonalProfileByIdentity, getPublicProfessionalProfileByIdentity } from '@/services/profileService';
+import { getPublicBusinessProfile } from '@/services/businessService';
 import { db } from '@/firebase/firebaseClient';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -27,7 +29,24 @@ export default function SharedContentPreview({ targetSystem, targetType, targetI
       try {
         if (targetSystem === 'post' || targetType === 'post') {
           const post = await fetchPostById(targetId);
-          if (!cancelled) setContent(post ? { title: post.body?.slice(0, 120) || 'Post', system: 'post' } : null);
+          if (cancelled) return;
+          if (!post) { setContent(null); return; }
+          // Resolve the ORIGINAL author — preserves the distinction between
+          // the sharer (ShareCard header) and the original post author (here).
+          let authorName = null;
+          try {
+            if (post.author_type === 'business' && post.business_id) {
+              const biz = await getPublicBusinessProfile(post.business_id);
+              authorName = biz?.name || null;
+            } else if (post.author_identity_id) {
+              const isPersonal = post.operating_context === 'personal';
+              const profile = isPersonal
+                ? await getPublicPersonalProfileByIdentity(post.author_identity_id)
+                : await getPublicProfessionalProfileByIdentity(post.author_identity_id);
+              authorName = profile?.display_name || null;
+            }
+          } catch { /* non-critical */ }
+          if (!cancelled) setContent({ title: post.body?.slice(0, 120) || 'Post', system: 'post', authorName });
         } else if (targetSystem === 'workout' || targetType === 'workout') {
           const workout = await getWorkout(targetId);
           if (!cancelled) setContent(workout ? { title: workout.title, subtitle: workout.workout_type, system: 'workout', image: workout.cover_url } : null);
@@ -89,6 +108,9 @@ export default function SharedContentPreview({ targetSystem, targetType, targetI
             <span className="font-medium uppercase tracking-wide">{meta.label}</span>
           </div>
           <div className="text-sm font-medium text-stone-800 line-clamp-2">{content.title}</div>
+          {content.authorName && (
+            <div className="text-xs text-stone-500 mt-0.5">by {content.authorName}</div>
+          )}
           {content.subtitle && (
             <div className="text-xs text-stone-500 mt-0.5 capitalize">{content.subtitle?.replace(/_/g, ' ')}</div>
           )}

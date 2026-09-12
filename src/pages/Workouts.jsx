@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Plus, Loader2, LogIn } from 'lucide-react';
-import { listPublishedWorkouts, listMyWorkouts } from '@/services/workoutService';
+import { listPublishedWorkouts, listMyWorkouts, listSavedWorkouts, listBusinessWorkouts } from '@/services/workoutService';
 import { useAuth } from '@/lib/AuthContext';
 import WorkoutCard from '@/components/workout/WorkoutCard';
 
@@ -21,9 +21,18 @@ export default function Workouts() {
     const load = async () => {
       setLoading(true);
       try {
-        const list = tab === 'mine' && user
-          ? await listMyWorkouts(user.id)
-          : await listPublishedWorkouts();
+        let list;
+        if (tab === 'mine' && user) {
+          if (user.active_context === 'business' && user.active_business_id) {
+            list = await listBusinessWorkouts(user.active_business_id);
+          } else if (user.active_context === 'personal' || !user.professional_activated) {
+            list = await listSavedWorkouts(user.id);
+          } else {
+            list = await listMyWorkouts(user.id);
+          }
+        } else {
+          list = await listPublishedWorkouts();
+        }
         setWorkouts(list);
       } catch (err) {
         console.error('Failed to load workouts:', err);
@@ -43,11 +52,11 @@ export default function Workouts() {
           <h1 className="text-xl font-bold text-stone-800">Workouts</h1>
           <p className="text-stone-500 text-sm">Discover and manage workout content</p>
         </div>
-        {user ? (
+        {user && (user.professional_activated || (user.active_context === 'business' && user.active_business_id)) ? (
           <Link to="/workouts/new" className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
             <Plus className="w-4 h-4" /> New Workout
           </Link>
-        ) : (
+        ) : user ? null : (
           <Link to={`/login?returnTo=${returnTo}`} className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
             <LogIn className="w-4 h-4" /> Sign in to create
           </Link>
@@ -74,7 +83,7 @@ export default function Workouts() {
       ) : filtered.length === 0 ? (
         <div className="text-center py-20">
           <p className="text-stone-400 mb-2">No workouts found.</p>
-          {tab === 'mine' && <Link to="/workouts/new" className="text-indigo-600 text-sm font-medium">Create your first workout</Link>}
+          {tab === 'mine' && user && (user.professional_activated || (user.active_context === 'business' && user.active_business_id)) && <Link to="/workouts/new" className="text-indigo-600 text-sm font-medium">Create your first workout</Link>}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

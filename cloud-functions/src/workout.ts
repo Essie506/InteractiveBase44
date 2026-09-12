@@ -6,7 +6,7 @@
 // SDK (public for published workouts, owner-filtered for drafts).
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { db, allowedOrigins, getIdentityId } from './shared';
+import { db, allowedOrigins, getIdentityId, getBusinessMembership } from './shared';
 import { indexContentInline, unindexContentInline } from './searchIndex';
 
 const VALID_TYPES = [
@@ -33,6 +33,24 @@ export const saveWorkout = onCall(
 
     if (!title || !title.trim()) throw new HttpsError('invalid-argument', 'Title required');
     if (!VALID_TYPES.includes(workout_type)) throw new HttpsError('invalid-argument', `Invalid workout type: ${workout_type}`);
+
+    // ── Creation authority (Spec 12 §9) ──
+    // Personal profiles must NOT create workouts. Only professional
+    // identities (professional_activated) or business members may create.
+    if (business_id) {
+      // Business workout — caller must be an active business member
+      const membership = await getBusinessMembership(business_id, identityId);
+      if (!membership || membership.lifecycle_state !== 'active') {
+        throw new HttpsError('permission-denied', 'You must be an active member of this business to create business workouts');
+      }
+    } else {
+      // Identity workout — caller must have professional_activated status
+      const userDoc = await db.collection('users').doc(identityId).get();
+      const userData = userDoc.exists ? userDoc.data() : null;
+      if (!userData?.professional_activated) {
+        throw new HttpsError('permission-denied', 'Only professional profiles can create workouts');
+      }
+    }
 
     const now = new Date().toISOString();
     const ownerType = business_id ? 'business' : 'identity';
@@ -75,9 +93,25 @@ export const saveWorkout = onCall(
     if (workout_id) {
       const doc = await db.collection('workouts').doc(workout_id).get();
       if (!doc.exists) throw new HttpsError('not-found', 'Workout not found');
-      if (doc.data()?.creator_identity_id !== identityId) {
-        throw new HttpsError('permission-denied', 'Only the creator can edit this workout');
+      const existing = doc.data()!;
+      // Edit authority: business workouts → any active business member;
+      // identity workouts → only the creator.
+      if (existing.owner_type === 'business' && existing.business_id) {
+        const membership = await getBusinessMembership(existing.business_id, identityId);
+        if (!membership || membership.lifecycle_state !== 'active') {
+          throw new HttpsError('permission-denied', 'Only business members can edit this workout');
+        }
+      } else {
+        if (existing.creator_identity_id !== identityId) {
+          throw new HttpsError('permission-denied', 'Only the creator can edit this workout');
+        }
       }
+      // Ownership is immutable after creation — strip ownership fields
+      // from the update payload so a client cannot change owner_type.
+      delete payload.owner_type;
+      delete payload.owner_id;
+      delete payload.operating_context;
+      delete payload.business_id;
       workoutRef = doc.ref;
       await workoutRef.update(payload);
     } else {
@@ -120,8 +154,18 @@ export const deleteWorkout = onCall(
     if (!workout_id) throw new HttpsError('invalid-argument', 'workout_id required');
     const doc = await db.collection('workouts').doc(workout_id).get();
     if (!doc.exists) throw new HttpsError('not-found', 'Workout not found');
-    if (doc.data()?.creator_identity_id !== identityId) {
-      throw new HttpsError('permission-denied', 'Only the creator can archive this workout');
+    const existing = doc.data()!;
+    // Delete authority: business workouts → any active business member;
+    // identity workouts → only the creator.
+    if (existing.owner_type === 'business' && existing.business_id) {
+      const membership = await getBusinessMembership(existing.business_id, identityId);
+      if (!membership || membership.lifecycle_state !== 'active') {
+        throw new HttpsError('permission-denied', 'Only business members can archive this workout');
+      }
+    } else {
+      if (existing.creator_identity_id !== identityId) {
+        throw new HttpsError('permission-denied', 'Only the creator can archive this workout');
+      }
     }
     await doc.ref.update({
       lifecycle_state: 'archived',

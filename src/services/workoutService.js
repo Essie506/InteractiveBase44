@@ -29,6 +29,7 @@ export async function listPublishedWorkouts(maxResults = 50) {
 }
 
 /**
+ * Workouts created by a specific identity (professional context).
  * @param {string} identityId
  * @returns {Promise<import('@/types/domain').Workout[]>}
  */
@@ -40,6 +41,50 @@ export async function listMyWorkouts(identityId) {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }));
+}
+
+/**
+ * Workouts owned by a business (owner_id == businessId). Includes all
+ * workouts created by staff for that business, regardless of which
+ * staff member authored them.
+ * @param {string} businessId
+ * @returns {Promise<import('@/types/domain').Workout[]>}
+ */
+export async function listBusinessWorkouts(businessId) {
+  const q = query(
+    collection(db, 'workouts'),
+    where('owner_id', '==', businessId),
+    orderBy('_updated_date', 'desc'),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }));
+}
+
+/**
+ * Workouts saved by an identity (personal context "My Workouts" = saved
+ * collection). Queries saves by identity_id (single-field index) and
+ * filters target_system + state client-side, then fetches each workout.
+ * @param {string} identityId
+ * @returns {Promise<import('@/types/domain').Workout[]>}
+ */
+export async function listSavedWorkouts(identityId) {
+  const savesQ = query(
+    collection(db, 'saves'),
+    where('identity_id', '==', identityId),
+  );
+  const savesSnap = await getDocs(savesQ);
+  const saves = savesSnap.docs
+    .map((d) => ({ id: d.id, .../** @type {any} */ (d.data()) }))
+    .filter((s) => s.target_system === 'workout' && s.state === 'active');
+  saves.sort((a, b) => (b._created_date || '').localeCompare(a._created_date || ''));
+  const workouts = [];
+  for (const s of saves) {
+    try {
+      const w = await getWorkout(s.target_id);
+      if (w) workouts.push(w);
+    } catch { /* workout may have been archived */ }
+  }
+  return workouts;
 }
 
 /**

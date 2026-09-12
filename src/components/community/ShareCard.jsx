@@ -6,7 +6,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { callResolveParticipants, callDeleteShare } from '@/services/firebaseFunctions';
+import { callDeleteShare } from '@/services/firebaseFunctions';
+import { getPublicPersonalProfileByIdentity, getPublicProfessionalProfileByIdentity } from '@/services/profileService';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
 import ShareButton from '@/components/community/ShareButton';
@@ -30,18 +31,29 @@ function timeAgo(dateStr) {
 export default function ShareCard({ share, onDeleted }) {
   const { user } = useAuth();
   const [sharer, setSharer] = useState(null);
+  const [sharerIsPersonal, setSharerIsPersonal] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!share?.sharer_identity_id) return;
-    callResolveParticipants({ identity_ids: [share.sharer_identity_id] })
-      .then((res) => setSharer(res.results?.[share.sharer_identity_id] || {}))
+    // Try professional profile first; fall back to personal
+    getPublicProfessionalProfileByIdentity(share.sharer_identity_id)
+      .then((p) => {
+        if (p) { setSharer(p); setSharerIsPersonal(false); }
+        else {
+          return getPublicPersonalProfileByIdentity(share.sharer_identity_id)
+            .then((pp) => { setSharer(pp || {}); setSharerIsPersonal(true); });
+        }
+      })
       .catch(() => setSharer({}));
   }, [share?.sharer_identity_id]);
 
   const isSharer = user?.id === share?.sharer_identity_id;
+  const sharerLink = sharer?.screen_name
+    ? (sharerIsPersonal ? `/u/${sharer.screen_name}` : `/p/${sharer.screen_name}`)
+    : '#';
 
   const handleDelete = async () => {
     if (!window.confirm('Delete this share? This cannot be undone.')) return;
@@ -64,7 +76,7 @@ export default function ShareCard({ share, onDeleted }) {
       {/* Header */}
       <div className="flex items-start justify-between p-4">
         <div className="flex items-center gap-3">
-          <Link to={sharer?.screen_name ? `/p/${sharer.screen_name}` : '#'}>
+          <Link to={sharerLink}>
             {sharer?.avatar_url ? (
               <img src={sharer.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (
@@ -74,7 +86,7 @@ export default function ShareCard({ share, onDeleted }) {
             )}
           </Link>
           <div>
-            <Link to={sharer?.screen_name ? `/p/${sharer.screen_name}` : '#'} className="text-sm font-medium text-stone-800 hover:text-indigo-600">
+            <Link to={sharerLink} className="text-sm font-medium text-stone-800 hover:text-indigo-600">
               {sharer?.display_name || 'Unknown'}
             </Link>
             <div className="text-xs text-stone-400 flex items-center gap-1">

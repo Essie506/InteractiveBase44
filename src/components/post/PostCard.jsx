@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
-import { callResolveParticipants } from '@/services/firebaseFunctions';
+import { getPublicPersonalProfileByIdentity, getPublicProfessionalProfileByIdentity } from '@/services/profileService';
 import { callDeletePost } from '@/services/postService';
 import ReactionBar from '@/components/community/ReactionBar';
 import CommentSection from '@/components/community/CommentSection';
@@ -9,7 +9,7 @@ import ShareButton from '@/components/community/ShareButton';
 import PostTypeBadge from '@/components/post/PostTypeBadge';
 import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone, Flag, Ban, PenSquare, Building2 } from 'lucide-react';
 import { blockUser, reportUser } from '@/lib/messaging';
-import { getBusiness } from '@/services/businessService';
+import { getPublicBusinessProfile } from '@/services/businessService';
 
 const REF_ICONS = { workout: Dumbbell, calendar_event: Calendar, promotion: Megaphone };
 const REF_ROUTES = {
@@ -46,20 +46,26 @@ export default function PostCard({ post, onDeleted }) {
 
   useEffect(() => {
     if (isBusinessPost) {
-      getBusiness(post.business_id)
+      getPublicBusinessProfile(post.business_id)
         .then(b => setBusinessAuthor(b))
         .catch(() => setBusinessAuthor(null));
     } else if (post?.author_identity_id) {
-      callResolveParticipants({ identity_ids: [post.author_identity_id] })
-        .then(res => setAuthor(res.results?.[post.author_identity_id] || {}))
+      const isPersonal = post?.operating_context === 'personal';
+      const lookup = isPersonal
+        ? getPublicPersonalProfileByIdentity(post.author_identity_id)
+        : getPublicProfessionalProfileByIdentity(post.author_identity_id);
+      lookup
+        .then(p => setAuthor(p || {}))
         .catch(() => setAuthor({}));
     }
-  }, [isBusinessPost, post?.author_identity_id, post?.business_id]);
+  }, [isBusinessPost, post?.author_identity_id, post?.business_id, post?.operating_context]);
 
   // Author display — business posts show the business, not the individual
   const authorLink = isBusinessPost
     ? `/b/${post.business_id}`
-    : (author?.screen_name ? `/p/${author.screen_name}` : '#');
+    : (author?.screen_name
+        ? (post?.operating_context === 'personal' ? `/u/${author.screen_name}` : `/p/${author.screen_name}`)
+        : '#');
   const authorName = isBusinessPost
     ? (businessAuthor?.name || 'Business')
     : (author?.display_name || 'Unknown');
@@ -118,9 +124,13 @@ export default function PostCard({ post, onDeleted }) {
         <div className="flex items-center gap-3">
           <Link to={authorLink}>
             {isBusinessPost ? (
-              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
-                <Building2 className="w-5 h-5 text-indigo-600" />
-              </div>
+              businessAuthor?.logo_url ? (
+                <img src={businessAuthor.logo_url} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+              ) : (
+                <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5 text-indigo-600" />
+                </div>
+              )
             ) : authorAvatar ? (
               <img src={authorAvatar} alt="" className="w-10 h-10 rounded-full object-cover" />
             ) : (

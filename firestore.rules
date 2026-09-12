@@ -913,7 +913,9 @@ service cloud.firestore {
     }
 
     match /saves/{saveId} {
-      allow read: if false; // Private — server-only via getInteractionState
+      // Owner can read their own saves (for Saved page + personal "My Workouts"
+      // = saved workout collection). Writes remain server-only (Cloud Functions).
+      allow read: if isOwner(resource.data.identity_id);
       allow write: if false;
     }
 

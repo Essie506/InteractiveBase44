@@ -18,13 +18,16 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { fetchPostById } from '@/services/postService';
-import { ArrowLeft, Clock, ExternalLink, Image as ImageIcon } from 'lucide-react';
+import { getPublicPersonalProfileByIdentity, getPublicProfessionalProfileByIdentity } from '@/services/profileService';
+import { getPublicBusinessProfile } from '@/services/businessService';
+import { ArrowLeft, Clock, ExternalLink, Image as ImageIcon, Building2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 export default function PostDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [post, setPost] = useState(null);
+  const [author, setAuthor] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +37,29 @@ export default function PostDetail() {
       .catch(() => setPost(null))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Resolve author profile for attribution link
+  useEffect(() => {
+    if (!post) return;
+    if (post.author_type === 'business' && post.business_id) {
+      getPublicBusinessProfile(post.business_id)
+        .then(p => setAuthor(p ? { type: 'business', ...p } : null))
+        .catch(() => setAuthor(null));
+    } else if (post.author_identity_id) {
+      const isPersonal = post.operating_context === 'personal';
+      const lookup = isPersonal
+        ? getPublicPersonalProfileByIdentity(post.author_identity_id)
+        : getPublicProfessionalProfileByIdentity(post.author_identity_id);
+      lookup
+        .then(p => setAuthor(p ? { type: isPersonal ? 'personal' : 'professional', ...p } : null))
+        .catch(() => setAuthor(null));
+    }
+  }, [post]);
+
+  const authorLink = author
+    ? (author.type === 'business' ? `/b/${post.business_id}`
+       : author.screen_name ? (author.type === 'personal' ? `/u/${author.screen_name}` : `/p/${author.screen_name}`) : null)
+    : null;
 
   if (loading) {
     return (
@@ -72,6 +98,33 @@ export default function PostDetail() {
           <Clock className="w-3 h-3" />
           <span>{dateStr}</span>
         </div>
+
+        {/* Author attribution — links to the profile that authored the Post */}
+        {author && authorLink && (
+          <Link to={authorLink} className="inline-flex items-center gap-2.5 mb-4 group">
+            {author.type === 'business' ? (
+              author.logo_url ? (
+                <img src={author.logo_url} alt="" className="w-9 h-9 rounded-lg object-cover" />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center">
+                  <Building2 className="w-4 h-4 text-indigo-600" />
+                </div>
+              )
+            ) : author.avatar_url ? (
+              <img src={author.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-stone-200 flex items-center justify-center text-stone-500 text-sm font-medium">
+                {(author.display_name || '?').charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <div className="text-sm font-medium text-stone-800 group-hover:text-indigo-600 transition-colors">
+                {author.display_name || author.name || 'Unknown'}
+              </div>
+              <div className="text-xs text-stone-400 capitalize">{author.type}</div>
+            </div>
+          </Link>
+        )}
 
         {post.media_urls?.length > 0 && (
           <div className="space-y-2 mb-4">

@@ -109,6 +109,13 @@ export async function getPublicProfessionalProfileByIdentity(identityId) {
   return profileRepository.getPublicProfessionalProfileByIdentity(identityId);
 }
 
+// Resolve a personal profile's public projection by identity_id — used by
+// Post author attribution to link personal-authored posts to /u/:screenName.
+export async function getPublicPersonalProfileByIdentity(identityId) {
+  if (useFirebase) return profileRepository.getPublicPersonalProfileByIdentity(identityId);
+  return null;
+}
+
 // Live screen-name validation (format + server-side uniqueness).
 export async function validateScreenName(screenName, currentScreenName) {
   requireFirebase('validateScreenName');
