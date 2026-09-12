@@ -92,7 +92,7 @@ export default function WorkoutDetail() {
           <h1 className="text-2xl font-bold text-stone-800">{workout.title}</h1>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {user && (
+          {canEdit && (
             <button
               onClick={() => setShowShareDialog(true)}
               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100 rounded-lg"
