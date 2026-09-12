@@ -30,14 +30,25 @@ export async function getVerificationRequest(id) {
   return fromFirestoreDoc(snap);
 }
 
-export async function listVerificationRequestsForTarget(targetId) {
+export async function listVerificationRequestsForTarget(targetId, submittedById) {
+  // Firestore rules require isOwner(submitted_by_id) for non-reviewer reads.
+  // Querying by target_id alone cannot satisfy that rule (Firestore cannot
+  // verify submitted_by_id == caller through a target_id filter), so the
+  // owner query must filter on submitted_by_id. Filter target_id client-side
+  // and sort client-side to avoid a composite-index dependency.
+  if (!submittedById) return [];
   const q = query(
     collection(db, 'verificationRequests'),
-    where('target_id', '==', targetId),
-    orderBy('_created_date', 'desc'),
+    where('submitted_by_id', '==', submittedById),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(fromFirestoreDoc);
+  const all = snap.docs.map(fromFirestoreDoc);
+  const filtered = targetId ? all.filter((r) => r.target_id === targetId) : all;
+  return filtered.sort((a, b) => {
+    const aT = a.created_date ? new Date(a.created_date).getTime() : 0;
+    const bT = b.created_date ? new Date(b.created_date).getTime() : 0;
+    return bT - aT;
+  });
 }
 
 export async function listPendingVerificationRequests() {

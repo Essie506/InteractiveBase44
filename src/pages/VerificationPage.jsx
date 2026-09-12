@@ -25,12 +25,23 @@ export default function VerificationPage() {
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (!targetId) return;
-    getVerificationRequest(targetType, targetId).then((req) => {
-      setExisting(req);
+    if (!targetId) {
+      // No target (e.g. unauthenticated viewer reached the page) — resolve
+      // to a safe non-loading state instead of spinning forever.
       setLoading(false);
-    });
-  }, [targetId, targetType]);
+      return;
+    }
+    let cancelled = false;
+    getVerificationRequest(targetType, targetId, user?.id)
+      .then((req) => {
+        if (!cancelled) { setExisting(req); setLoading(false); }
+      })
+      .catch(() => {
+        // Permission/network/error — fail safe to a non-loading state.
+        if (!cancelled) { setExisting(null); setLoading(false); }
+      });
+    return () => { cancelled = true; };
+  }, [targetId, targetType, user?.id]);
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);

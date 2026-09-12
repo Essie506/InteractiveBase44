@@ -213,9 +213,9 @@ export async function getPendingVerifications() {
   return base44.entities.VerificationRequest.filter({ decision: 'pending' }, '-submitted_at', 50);
 }
 
-export async function getVerificationRequest(targetType, targetId) {
+export async function getVerificationRequest(targetType, targetId, submittedById) {
   if (useFirebase) {
-    const requests = await trustRepository.listVerificationRequestsForTarget(targetId);
+    const requests = await trustRepository.listVerificationRequestsForTarget(targetId, submittedById);
     return requests.length > 0 ? requests[0] : null;
   }
   const requests = await base44.entities.VerificationRequest.filter({

@@ -9,7 +9,7 @@ import ShareButton from '@/components/community/ShareButton';
 import PostTypeBadge from '@/components/post/PostTypeBadge';
 import { MoreHorizontal, Trash2, Clock, MessageCircle, Link2, Tag, Dumbbell, Calendar, Megaphone, Flag, Ban, PenSquare, Building2 } from 'lucide-react';
 import { blockUser, reportUser } from '@/lib/messaging';
-import { getPublicBusinessProfile } from '@/services/businessService';
+import { getPublicBusinessProfile, getBusiness } from '@/services/businessService';
 
 const REF_ICONS = { workout: Dumbbell, calendar_event: Calendar, promotion: Megaphone };
 const REF_ROUTES = {
@@ -46,8 +46,17 @@ export default function PostCard({ post, onDeleted }) {
 
   useEffect(() => {
     if (isBusinessPost) {
+      // Resolve the authoritative Business public profile (businessProfilesPublic
+      // projection). When the projection is missing, fall back to the businesses
+      // collection (readable by authenticated users) so the Business's public-
+      // facing name is displayed instead of the literal fallback "Business".
       getPublicBusinessProfile(post.business_id)
-        .then(b => setBusinessAuthor(b))
+        .then(async (b) => {
+          if (b) return b;
+          const biz = await getBusiness(post.business_id).catch(() => null);
+          return biz ? { name: biz.name, logo_url: biz.logo_url } : null;
+        })
+        .then(setBusinessAuthor)
         .catch(() => setBusinessAuthor(null));
     } else if (post?.author_identity_id) {
       const isPersonal = post?.operating_context === 'personal';

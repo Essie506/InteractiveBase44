@@ -12,6 +12,7 @@ import ImageEditDialog from '@/components/profile/ImageEditDialog';
 import TaxonomySelectDialog from '@/components/profile/TaxonomySelectDialog';
 import ContactLocationEditDialog from '@/components/professional/ContactLocationEditDialog';
 import PrivateDetailsSheet from '@/components/professional/PrivateDetailsSheet';
+import ProfilePosts from '@/components/profile/ProfilePosts';
 
 const FIELD_CONFIG = {
   display_name: { label: 'Display name', multiline: false },
@@ -137,6 +138,11 @@ export default function ProfessionalProfilePage() {
         onOpenPrivateDetails={() => setDialog('private')}
         onSaveMedia={(mediaIds) => persist({ gallery_media_ids: mediaIds })}
       />
+
+      {/* Posts — same authoritative data as the Feed, filtered to
+          Professional context so the Professional wall/history is
+          distinct from Personal. Mirrors ProfilePage's personal wall. */}
+      <ProfilePosts identityId={user.id} operatingContext="professional" />
 
       {saving && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 px-4 py-2 bg-stone-900 text-white rounded-full text-sm shadow-lg z-50">
