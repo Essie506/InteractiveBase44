@@ -11,6 +11,7 @@ import FeedDiscoverySection from '@/components/feed/FeedDiscoverySection';
 import FeedLocationControl from '@/components/feed/FeedLocationControl';
 import { Plus, Loader2, PenSquare, LogIn, RefreshCw } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import NavTrigger from '@/components/nav/NavTrigger';
 
 export default function Feed() {
   const { user, isAuthenticated } = useAuth();
@@ -100,9 +101,12 @@ export default function Feed() {
     <div className="p-4 md:p-6 max-w-2xl mx-auto pb-20 md:pb-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-stone-800">Feed</h1>
-          <p className="text-stone-500 text-sm">Public posts and shares from the Interactive community</p>
+        <div className="flex items-center gap-3">
+          {!user && <NavTrigger />}
+          <div>
+            <h1 className="text-xl font-bold text-stone-800">Feed</h1>
+            <p className="text-stone-500 text-sm">Public posts and shares from the Interactive community</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button

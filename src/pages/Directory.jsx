@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
+import { useNav } from '@/lib/NavContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { loadDirectory, filterResults, loadSponsoredTargets, annotateSponsored } from '@/services/discoveryService';
 import { resolveConnectionStatuses } from '@/services/connectionService';
 import { geocodeOrigin } from '@/lib/geo';
-import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal } from 'lucide-react';
+import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, X, Plus } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
-import DirectoryNavDrawer from '@/components/directory/DirectoryNavDrawer';
 import NavTrigger from '@/components/nav/NavTrigger';
+import AddBusinessDialog from '@/components/directory/AddBusinessDialog';
 import ProfessionalResultCard from '@/components/directory/ProfessionalResultCard';
 import BusinessResultCard from '@/components/directory/BusinessResultCard';
 import EventResultCard from '@/components/directory/EventResultCard';
@@ -34,7 +36,9 @@ export default function Directory() {
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [publicNavOpen, setPublicNavOpen] = useState(false);
+  const [addBusinessOpen, setAddBusinessOpen] = useState(false);
+  const { navOpen } = useNav();
+  const isMobile = useIsMobile();
   const [connectionStatuses, setConnectionStatuses] = useState({});
   const [sponsoredMap, setSponsoredMap] = useState({});
 
@@ -331,13 +335,16 @@ export default function Directory() {
         <header className="bg-white border-b border-stone-200 sticky top-0 z-30">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              {!publicNavOpen && <NavTrigger onOpen={() => setPublicNavOpen(true)} />}
+              {!navOpen && <NavTrigger />}
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <Compass className="w-6 h-6 text-indigo-600" />
                 <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
               </div>
+              <button onClick={() => setAddBusinessOpen(true)} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50">
+                <Plus className="w-4 h-4" /> Add your business
+              </button>
               <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
                 Sign In
               </Link>
@@ -371,15 +378,21 @@ export default function Directory() {
               <span className="text-stone-400">within {appliedFilters.distance} miles of {appliedFilters.origin.label}</span>
             )}
           </div>
+          {user && (
+            <Link to="/create-business" className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shrink-0">
+              <Plus className="w-4 h-4" />
+              Add your business
+            </Link>
+          )}
           <button
             onClick={() => setFiltersOpen(true)}
-            className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
+            className={`${user ? '' : 'ml-auto'} inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0`}
           >
             <SlidersHorizontal className="w-4 h-4" />
             Filters
           </button>
         </div>
-        <div className="flex gap-6">
+        <div className="flex gap-6 relative">
           {/* Results — majority width */}
           <div className="flex-1 min-w-0">
             {/* Distance-sort hint */}
@@ -442,6 +455,26 @@ export default function Directory() {
             }
           </div>
 
+          {/* Desktop right filter drawer — reflows content when the left
+              nav is closed; overlays the already-reduced content when the
+              left nav is also open (no double-shrink). Mobile uses the
+              Sheet below. */}
+          {!isMobile && filtersOpen && (
+            <aside className={navOpen
+              ? 'absolute right-0 top-0 bottom-0 w-80 bg-white border-l border-stone-200 shadow-xl z-30 flex flex-col'
+              : 'w-80 shrink-0 flex flex-col border-l border-stone-200'}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 sticky top-0 bg-white z-10">
+                <span className="text-sm font-semibold text-stone-800">Filters</span>
+                <button onClick={() => setFiltersOpen(false)} className="p-1 hover:bg-stone-100 rounded-lg" aria-label="Close filters">
+                  <X className="w-4 h-4 text-stone-500" />
+                </button>
+              </div>
+              <div className="p-4 overflow-y-auto flex-1">
+                <DirectoryFilters {...filterProps} />
+              </div>
+            </aside>
+          )}
+
         </div>
       </div>
 
@@ -450,6 +483,7 @@ export default function Directory() {
           (translateX(100%) → 0) and slides out to the right, matching the
           desktop filter drawer's right-side origin. Never enters from
           the left. */}
+      {isMobile && (
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="right" transparentOverlay className="w-[85%] sm:max-w-md overflow-y-auto">
           <SheetHeader className="mb-4 text-left">
@@ -458,10 +492,10 @@ export default function Directory() {
           <DirectoryFilters {...filterProps} />
         </SheetContent>
       </Sheet>
+      )}
 
-      {/* Public navigation drawer — signed-out only. Authenticated
-          visitors use the shared persistent sidebar (AuthenticatedShell). */}
-      {!user && <DirectoryNavDrawer open={publicNavOpen} onOpenChange={setPublicNavOpen} />}
-    </div>);
+      {/* Public "Add your business" submission dialog (unauthenticated). */}
+      <AddBusinessDialog open={addBusinessOpen} onOpenChange={setAddBusinessOpen} />
+      </div>);
 
 }

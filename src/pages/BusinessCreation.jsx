@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import {
-  createBusiness, createBusinessProfile, createMembership,
+  createBusiness, createBusinessProfile, saveBusinessProfile, createMembership,
   createBusinessSubscription, createInvitation, getActivePlans,
 } from '@/services/businessService';
 import * as userService from '@/services/userService';
@@ -88,9 +88,16 @@ export default function BusinessCreation() {
         lifecycle_state: 'active',
       });
 
-      // 3. Create Business Profile
-      await createBusinessProfile({
-        business_id: business.id,
+      // 3. Create Business Profile (private) + public Directory projection.
+      // createBusinessProfile writes the private businessProfiles doc only;
+      // saveBusinessProfile is the authoritative projection writer that
+      // maintains businessProfilesPublic (the Directory listing source).
+      // Without it, a newly-created business is invisible in the public
+      // Directory even though its private profile is eligible
+      // (visibility=public, lifecycle_state=active). The projection call
+      // is isolated so creation still succeeds if the function is briefly
+      // unavailable — the projection is (re)created on the next profile save.
+      const profileData = {
         name: businessName,
         description,
         category,
@@ -99,7 +106,14 @@ export default function BusinessCreation() {
         contact_phone: contactPhone,
         website,
         lifecycle_state: 'active',
-      });
+        visibility: 'public',
+      };
+      await createBusinessProfile({ business_id: business.id, ...profileData });
+      try {
+        await saveBusinessProfile(business.id, profileData);
+      } catch (projErr) {
+        console.error('saveBusinessProfile projection at creation failed:', projErr);
+      }
 
       // 4. Submit verification through Trust & Reputation
       await submitVerification('business', business.id, user.id, [], `Business verification for ${businessName}`);
