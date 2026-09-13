@@ -16,6 +16,7 @@ import { computeMatchScore, matchScoreValue } from '@/lib/matchScoring';
 import { resolveDateRange, isEventInRange } from '@/lib/eventDateRanges';
 import { compareEventsByPrice } from '@/lib/eventPriceSort';
 import { isPriceSort } from '@/lib/directorySortOptions';
+import { filterVerifiedOnly } from '@/lib/directoryVerifiedFilter';
 import { searchIndex, getSuggestions } from '@/lib/searchIndexAdapter';
 import { listActiveCampaigns } from '@/services/promotionsService';
 
@@ -255,9 +256,10 @@ export function filterResults(data, opts = {}) {
     }
   }
 
-  if (verifiedOnly) {
-    results = results.filter(r => r.verification_state === 'verified');
-  }
+  // "Verified only" — a real filter on the projection's verification_state.
+  // An unverified listing stays eligible for normal discovery; it is
+  // excluded only when the visitor enables Verified only.
+  results = filterVerifiedOnly(results, verifiedOnly);
 
   if (businessTypeIds && businessTypeIds.length > 0) {
     results = results.filter(r =>

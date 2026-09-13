@@ -8,7 +8,6 @@
 
 export const BASE_SORT_OPTIONS = [
   { value: 'distance', label: 'Distance' },
-  { value: 'verified', label: 'Verified' },
   { value: 'recommended', label: 'Recommended' },
   { value: 'date', label: 'Date (soonest)' },
 ];

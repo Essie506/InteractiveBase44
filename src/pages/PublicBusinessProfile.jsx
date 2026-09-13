@@ -150,6 +150,36 @@ export default function PublicBusinessProfile() {
   const isOwner = user && ownerIdentityId && user.id === ownerIdentityId;
   const hasBookableProfessional = (profile.professionals || []).some((p) => p.screen_name);
 
+  // Verification CTA — routes an unverified/unclaimed listing into the
+  // existing Trust & Verification journey (no separate Directory-verification
+  // state). Verification of ownership/identity does NOT grant paid-plan
+  // capabilities. A listing may exist unverified; it only hides when the
+  // visitor enables "Verified only".
+  const isVerified = profile.verification_state === 'verified';
+  const claimed = !!ownerIdentityId; // reliable only when authenticated
+  let verificationCta = null;
+  if (!isVerified) {
+    if (!user) {
+      verificationCta = {
+        message: 'Own this business? Sign in to get verified.',
+        buttonLabel: 'Sign in',
+        to: `/login?returnTo=${encodeURIComponent(`/business/${businessId}/verify`)}`,
+      };
+    } else if (!claimed) {
+      verificationCta = {
+        message: 'Own this business? Verify this listing to manage it.',
+        buttonLabel: 'Verify this listing',
+        to: `/business/${businessId}/verify`,
+      };
+    } else if (isOwner) {
+      verificationCta = {
+        message: 'Get verified to show the Verified badge on your listing.',
+        buttonLabel: 'Get verified',
+        to: `/business/${businessId}/verify`,
+      };
+    }
+  }
+
   const actions = isOwner ? (
     <Link
       to={`/business/${businessId}/profile`}
@@ -189,7 +219,7 @@ export default function PublicBusinessProfile() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <BusinessProfileView profile={profile} business={syntheticBusiness} editable={false} actions={actions} />
+      <BusinessProfileView profile={profile} business={syntheticBusiness} editable={false} actions={actions} verificationCta={verificationCta} />
     </div>
   );
 }
