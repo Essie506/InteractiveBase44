@@ -4,6 +4,7 @@ import ProfileSection from '@/components/profile/ProfileSection';
 import TagList from '@/components/profile/TagList';
 import MediaGallerySection from '@/components/profile/MediaGallerySection';
 import ProfileContentSection from '@/components/profile/ProfileContentSection';
+import PublicVerificationDetail from '@/components/verification/PublicVerificationDetail';
 
 /**
  * Shared Professional profile layout — used by both the public profile
@@ -90,6 +91,11 @@ export default function ProfessionalProfileView({
       />
 
       <div className="max-w-[89%] mx-auto px-4 sm:px-6">
+        {/* Safe public verification detail — derived from corroborated
+            claims. Contains only a safe summary + indicators, never
+            certificate images or private references. */}
+        <PublicVerificationDetail subjectType="professional" subjectId={profile.identity_id} />
+
         {/* About */}
         <ProfileSection title="About" onEdit={editable ? () => onEditField('bio') : null}>
           {profile.bio ? (

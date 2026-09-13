@@ -958,5 +958,32 @@ service cloud.firestore {
       allow write: if false; // Server-only — Cloud Functions (Admin SDK)
     }
 
+    // ═══════════════════════════════════════════════════════════
+    // VERIFICATION ENGINE
+    // ───────────────────────────────────────────────────────────
+    // verificationSources: public read (the verification modal lists
+    //   eligible sources for any visitor). Admin write (config).
+    // verificationClaims: submitter + admin/reviewer read. All writes
+    //   are server-only (Base44 backend functions) — a client can
+    //   never create or modify a claim directly, and can never set a
+    //   claim to verified.
+    // verificationState: public read (safe derived state only —
+    //   summary, indicators, last-reviewed). Server-only write.
+    // ═══════════════════════════════════════════════════════════
+    match /verificationSources/{sourceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /verificationClaims/{claimId} {
+      allow read: if hasIdentityMapping() && (getIdentityId() == resource.data.submitted_by_id || isAdmin() || isReviewer());
+      allow write: if false; // Server-only — SubmitVerificationClaims / DecideVerificationClaim
+    }
+
+    match /verificationState/{stateId} {
+      allow read: if true;
+      allow write: if false; // Server-only — derived by DecideVerificationClaim
+    }
+
   }
 }
