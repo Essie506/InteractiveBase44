@@ -33,6 +33,7 @@ export default function AppLayout() {
       </div>
 
       {/* §16 Mobile bottom nav — spec-standard 5 destinations */}
+      {user && (
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 flex items-center justify-around px-2 py-2 z-50">
         {bottomItems.map(item => {
           const Icon = item.icon;
@@ -45,6 +46,7 @@ export default function AppLayout() {
           );
         })}
       </nav>
+      )}
     </>
   );
 }

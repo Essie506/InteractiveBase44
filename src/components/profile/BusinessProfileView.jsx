@@ -1,4 +1,5 @@
-import { MapPin, Mail, Phone, Globe, Clock, Pencil } from 'lucide-react';
+import { MapPin, Mail, Phone, Globe, Clock, Pencil, ShieldCheck } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import ProfileHeader from './ProfileHeader';
 import ProfileSection from './ProfileSection';
 import TagList from './TagList';
@@ -76,6 +77,7 @@ export default function BusinessProfileView({
   onSaveMedia,
   ownerId,
   actions = null,
+  verificationCta = null,
 }) {
   const logoPos = {
     x: profile.logo_position_x,
@@ -118,6 +120,26 @@ export default function BusinessProfileView({
       />
 
       <div className="max-w-[89%] mx-auto px-4 sm:px-6">
+        {/* Verification CTA — route from an unverified/unclaimed listing
+            into the existing Trust & Verification journey. Verification is
+            separate from paid-plan capabilities. */}
+        {verificationCta && (
+          <div className="mt-4 mb-2 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-900">{verificationCta.message}</p>
+              <p className="text-xs text-amber-700">Verification is separate from paid plans.</p>
+            </div>
+            <Link
+              to={verificationCta.to}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 shrink-0 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              {verificationCta.buttonLabel}
+            </Link>
+          </div>
+        )}
+
         {/* About */}
         <ProfileSection title="About" onEdit={editable ? () => onEditField('description') : null}>
           {profile.description ? (

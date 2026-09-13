@@ -1,0 +1,91 @@
+{
+  "name": "DirectoryListingRequest",
+  "type": "object",
+  "properties": {
+    "business_name": {
+      "type": "string",
+      "title": "Business Name"
+    },
+    "business_type": {
+      "type": "string",
+      "enum": [
+        "gym",
+        "studio",
+        "clinic",
+        "freelancer",
+        "club",
+        "charity",
+        "other"
+      ],
+      "default": "other",
+      "title": "Business Type"
+    },
+    "category": {
+      "type": "string",
+      "title": "Category"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "location": {
+      "type": "string",
+      "title": "Location"
+    },
+    "contact_email": {
+      "type": "string",
+      "title": "Contact Email",
+      "description": "Email used to follow up on the submission and to claim the listing later via a free Interactive account."
+    },
+    "contact_phone": {
+      "type": "string",
+      "title": "Contact Phone"
+    },
+    "website": {
+      "type": "string",
+      "title": "Website"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "title": "Moderation Status",
+      "description": "pending = awaiting review; approved = promoted to a live Business + public projection; rejected = declined by moderation."
+    },
+    "business_id": {
+      "type": "string",
+      "title": "Created Business ID",
+      "description": "Filled when an admin approves the request and creates the Business record. Null while pending."
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Submitted At"
+    }
+  },
+  "required": [
+    "business_name",
+    "contact_email"
+  ],
+  "rls": {
+    "read": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

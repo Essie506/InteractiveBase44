@@ -8,6 +8,7 @@ import AuthenticatedTopNav from '@/components/nav/AuthenticatedTopNav';
 import NavCollapseControl from '@/components/nav/NavCollapseControl';
 import AuthenticatedMobileHeader from '@/components/nav/AuthenticatedMobileHeader';
 import PublicMobileNav from '@/components/public/PublicMobileNav';
+import PublicShell from '@/components/public/PublicShell';
 import { getPageIdentity } from '@/lib/pageIdentity';
 import FloatingMessageDrawer from '@/components/messaging/FloatingMessageDrawer';
 
@@ -50,13 +51,18 @@ export default function AuthenticatedShell() {
   // Directory, or any unresolved/redirecting auth state, render plain
   // content — no sidebar/chrome flash. Unauthenticated mobile visitors
   // get the public bottom navigation (Issue 7).
-  if (isLoadingAuth || !user) {
+  if (isLoadingAuth) {
     return (
       <>
         <Outlet />
         <PublicMobileNav />
       </>
     );
+  }
+  // Signed-out: render the public shell (reflowing left drawer + content).
+  // Signed-in users fall through to the authenticated chrome below.
+  if (!user) {
+    return <PublicShell />;
   }
 
   return (

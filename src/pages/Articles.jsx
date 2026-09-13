@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/firebase/firebaseClient';
 import { FileText, ArrowRight, Clock, ExternalLink } from 'lucide-react';
+import NavTrigger from '@/components/nav/NavTrigger';
 
 function sortByCreatedDesc(items) {
   return items.sort((a, b) => {
@@ -62,9 +63,12 @@ export default function Articles() {
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto pb-20 md:pb-6">
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-stone-800 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-indigo-600" /> Articles
-        </h1>
+        <div className="flex items-center gap-3 mb-1">
+          {!isAuthenticated && <NavTrigger />}
+          <h1 className="text-xl font-bold text-stone-800 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-indigo-600" /> Articles
+          </h1>
+        </div>
         <p className="text-stone-500 text-sm">Blog shares and long-form content from the community</p>
       </div>
 

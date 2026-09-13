@@ -307,10 +307,23 @@ export async function firestoreRunQuery(
 ): Promise<Array<{ id: string; data: Record<string, any> }>> {
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
 
+  // Firestore REST API expects the enum form of the operator, not the
+  // symbolic form (e.g. "EQUAL", not "==").
+  const OP_MAP: Record<string, string> = {
+    '==': 'EQUAL',
+    '!=': 'NOT_EQUAL',
+    '<': 'LESS_THAN',
+    '<=': 'LESS_THAN_OR_EQUAL',
+    '>': 'GREATER_THAN',
+    '>=': 'GREATER_THAN_OR_EQUAL',
+    'array-contains': 'ARRAY_CONTAINS',
+    'in': 'IN',
+  };
+
   const filterObjs = filters.map((f) => ({
     fieldFilter: {
       field: { fieldPath: f.field },
-      op: f.op,
+      op: OP_MAP[f.op] || f.op,
       value: toFirestoreValue(f.value),
     },
   }));
