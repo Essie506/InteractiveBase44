@@ -68,6 +68,7 @@ import Promotions from '@/pages/Promotions';
 import Articles from '@/pages/Articles';
 import PostDetail from '@/pages/PostDetail';
 import BookingDetail from '@/pages/BookingDetail';
+import VerificationSourcesAdmin from '@/pages/VerificationSourcesAdmin';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -184,6 +185,7 @@ const AuthenticatedApp = () => {
         <Route path="/activate-professional" element={<ProfessionalActivation />} />
         <Route path="/create-business" element={<BusinessCreation />} />
         <Route path="/admin/verify" element={<VerificationReview />} />
+        <Route path="/admin/verification-sources" element={<VerificationSourcesAdmin />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>

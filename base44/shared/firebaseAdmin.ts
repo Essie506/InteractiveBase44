@@ -367,3 +367,118 @@ export async function firestoreRunQuery(
 
   return docs;
 }
+
+// ── Auth / Identity helpers (for backend functions) ────────
+
+/**
+ * Verify a Firebase ID token via the identitytoolkit REST API and
+ * return the caller's Firebase user. This is the sole auth proof
+ * for Base44 backend functions in Firebase mode — no Base44 session
+ * is required. Mirrors the pattern in ResolveIdentity.
+ */
+export async function verifyFirebaseIdToken(
+  idToken: string
+): Promise<{ uid: string; email: string; emailVerified: boolean }> {
+  const apiKey = process.env.FIREBASE_WEB_API_KEY;
+  if (!apiKey) throw new Error('FIREBASE_WEB_API_KEY secret not set');
+
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    }
+  );
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    const message = errBody?.error?.message || response.statusText;
+    throw new Error(`Firebase token verification failed: ${message}`);
+  }
+
+  const data = await response.json();
+  if (!data.users || data.users.length === 0) {
+    throw new Error('Invalid Firebase token: no user found');
+  }
+  const u = data.users[0];
+  return {
+    uid: u.localId,
+    email: u.email,
+    emailVerified: u.emailVerified === true,
+  };
+}
+
+/**
+ * Resolve the Interactive Identity ID for a verified Firebase ID
+ * token. Requires an existing identityMappings/{authUid} document.
+ */
+export async function resolveIdentityFromToken(
+  projectId: string,
+  idToken: string,
+  token: string
+): Promise<{ identityId: string; email: string; emailVerified: boolean }> {
+  const fbUser = await verifyFirebaseIdToken(idToken);
+  const mapping = await firestoreGetDoc(
+    projectId,
+    'identityMappings',
+    fbUser.uid,
+    token
+  );
+  if (!mapping) {
+    throw new Error('Identity mapping not found for authenticated user');
+  }
+  return {
+    identityId: mapping.data.identity_id,
+    email: fbUser.email,
+    emailVerified: fbUser.emailVerified,
+  };
+}
+
+/**
+ * Return the caller's role from users/{identityId}, or null if no
+ * user doc exists. Used to gate admin/reviewer actions.
+ */
+export async function getCallerRole(
+  projectId: string,
+  identityId: string,
+  token: string
+): Promise<string | null> {
+  const userDoc = await firestoreGetDoc(projectId, 'users', identityId, token);
+  if (!userDoc) return null;
+  return userDoc.data.role || 'user';
+}
+
+/**
+ * Patch specific fields on a Firestore document (partial update with
+ * an updateMask). Only the masked fields are written; all other
+ * fields are preserved. Used by verification decisions to update
+ * verification_state on profiles/projections without rewriting them.
+ */
+export async function firestorePatchDoc(
+  projectId: string,
+  collection: string,
+  docId: string,
+  fields: Record<string, any>,
+  maskFields: string[],
+  token: string
+): Promise<void> {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collection}/${docId}`;
+  const maskQuery = maskFields
+    .map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`)
+    .join('&');
+  const response = await fetch(`${url}?${maskQuery}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fields: toFirestoreFields(fields) }),
+  });
+  if (!response.ok && response.status !== 404) {
+    const errText = await response.text();
+    throw new Error(
+      `Firestore patch failed for ${collection}/${docId}: ${errText.substring(0, 200)}`
+    );
+  }
+}

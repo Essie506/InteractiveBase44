@@ -1,0 +1,154 @@
+{
+  "name": "VerificationSource",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Authority Name",
+      "description": "Source/authority name (e.g. 'CIMSPA', 'Companies House')."
+    },
+    "authority_type": {
+      "type": "string",
+      "enum": [
+        "regulator",
+        "professional_body",
+        "awarding_organisation",
+        "official_register",
+        "partner",
+        "manual_review"
+      ],
+      "title": "Authority Type"
+    },
+    "country": {
+      "type": "string",
+      "title": "Country / Jurisdiction",
+      "description": "ISO-2 code (e.g. 'GB') or '*' for all jurisdictions."
+    },
+    "professions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Professions / Categories Covered",
+      "description": "Profession type IDs or category labels. ['*'] = all professions."
+    },
+    "claim_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "identity",
+          "qualification",
+          "professional_registration",
+          "business_existence",
+          "business_control"
+        ]
+      },
+      "title": "Supported Claim Types"
+    },
+    "verification_method": {
+      "type": "string",
+      "enum": [
+        "api",
+        "official_dataset",
+        "professional_register_lookup",
+        "partner_verification",
+        "manual_review"
+      ],
+      "title": "Verification Method"
+    },
+    "endpoint_url": {
+      "type": "string",
+      "title": "API Endpoint",
+      "description": "API endpoint, if an automated API integration is configured. Null when manual."
+    },
+    "dataset_ref": {
+      "type": "string",
+      "title": "Dataset Reference",
+      "description": "Official dataset reference, if an official-dataset integration is configured. Null when manual."
+    },
+    "lookup_url": {
+      "type": "string",
+      "title": "Official Lookup URL",
+      "description": "Official website / register lookup URL shown to the reviewer for manual register lookup. Not scraped by the platform."
+    },
+    "required_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Field ID",
+            "description": "e.g. registration_number, membership_number, qualification_title, awarding_organisation"
+          },
+          "label": {
+            "type": "string",
+            "title": "Field Label"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "date",
+              "file"
+            ],
+            "default": "text",
+            "title": "Field Type"
+          },
+          "required": {
+            "type": "boolean",
+            "default": true,
+            "title": "Required"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ]
+      },
+      "title": "Required Input Fields",
+      "description": "Fields the submitter must provide for this source (e.g. registration number, awarding body)."
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "title": "Active"
+    },
+    "automated_enabled": {
+      "type": "boolean",
+      "default": false,
+      "title": "Automated Checking Enabled",
+      "description": "Whether an automated API/dataset check is actually configured and permitted. False = manual review only. Never set true unless credentials/access are configured and authorised."
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    }
+  },
+  "required": [
+    "name",
+    "authority_type",
+    "country",
+    "claim_types",
+    "verification_method"
+  ],
+  "rls": {
+    "read": true,
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -1,0 +1,202 @@
+{
+  "name": "VerificationClaim",
+  "type": "object",
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "title": "Parent Verification Request ID",
+      "description": "Reference to the VerificationRequest this claim belongs to. Multiple claims (one per selected source) share a request."
+    },
+    "subject_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "professional",
+        "business"
+      ],
+      "title": "Subject Type"
+    },
+    "subject_id": {
+      "type": "string",
+      "title": "Subject ID",
+      "description": "Identity ID (identity/professional) or Business ID (business)."
+    },
+    "claim_type": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "qualification",
+        "professional_registration",
+        "business_existence",
+        "business_control"
+      ],
+      "title": "Claim Type"
+    },
+    "country": {
+      "type": "string",
+      "title": "Country"
+    },
+    "profession": {
+      "type": "string",
+      "title": "Profession / Category"
+    },
+    "source_id": {
+      "type": "string",
+      "title": "Verification Source ID",
+      "description": "Reference to the VerificationSource used for this check."
+    },
+    "source_name": {
+      "type": "string",
+      "title": "Source Name (denormalised)"
+    },
+    "source_lookup_url": {
+      "type": "string",
+      "title": "Source Lookup URL (denormalised)",
+      "description": "Official lookup URL shown to the reviewer. Denormalised from the source at submission time so reviewer context is preserved."
+    },
+    "source_reference": {
+      "type": "string",
+      "title": "Source Reference",
+      "description": "Registration / membership / certificate reference number entered by the submitter."
+    },
+    "field_values": {
+      "type": "object",
+      "title": "Field Values",
+      "description": "Values for the source's required_fields (e.g. awarding_organisation, qualification_title). PRIVATE \u2014 never projected to any public collection."
+    },
+    "verification_method": {
+      "type": "string",
+      "enum": [
+        "api",
+        "official_dataset",
+        "professional_register_lookup",
+        "partner_verification",
+        "manual_review"
+      ],
+      "title": "Verification Method"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "verified",
+        "partially_verified",
+        "rejected",
+        "expired",
+        "revoked"
+      ],
+      "default": "pending",
+      "title": "Status"
+    },
+    "submitted_by_id": {
+      "type": "string",
+      "title": "Submitted By Identity ID"
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Submitted At"
+    },
+    "checked_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Checked At"
+    },
+    "verified_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Verified At"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At",
+      "description": "When the claim expires. Null for permanent claims."
+    },
+    "review_due_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Review Due At"
+    },
+    "reviewer_id": {
+      "type": "string",
+      "title": "Reviewer Identity ID"
+    },
+    "review_provenance": {
+      "type": "string",
+      "title": "Review Provenance",
+      "description": "e.g. 'manual:admin:<identityId>' or 'automated:source:<sourceId>'."
+    },
+    "evidence_media_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Media IDs",
+      "description": "PRIVATE \u2014 protected MediaAsset references. Never exposed publicly."
+    },
+    "evidence_hash": {
+      "type": "string",
+      "title": "Evidence Hash",
+      "description": "Checksum of evidence for audit/deduplication."
+    },
+    "public_summary": {
+      "type": "string",
+      "title": "Safe Public Summary",
+      "description": "Safe, public-facing summary of this claim. Contains no private evidence."
+    },
+    "notes": {
+      "type": "string",
+      "title": "Submitter Notes"
+    },
+    "audit_trail": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "submitted | verified | rejected | requested_more | expired | revoked | re-checked"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "by": {
+            "type": "string",
+            "title": "By",
+            "description": "Identity ID of the actor, or 'system' for automated."
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "required": [
+          "action",
+          "at"
+        ]
+      },
+      "title": "Audit Trail",
+      "description": "Append-only audit trail. Verification decisions are never silently overwritten."
+    }
+  },
+  "required": [
+    "request_id",
+    "subject_type",
+    "subject_id",
+    "claim_type",
+    "source_id",
+    "status",
+    "submitted_by_id",
+    "submitted_at"
+  ],
+  "rls": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  }
+}

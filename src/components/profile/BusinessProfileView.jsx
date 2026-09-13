@@ -1,5 +1,6 @@
 import { MapPin, Mail, Phone, Globe, Clock, Pencil, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import PublicVerificationDetail from '@/components/verification/PublicVerificationDetail';
 import ProfileHeader from './ProfileHeader';
 import ProfileSection from './ProfileSection';
 import TagList from './TagList';
@@ -139,6 +140,11 @@ export default function BusinessProfileView({
             </Link>
           </div>
         )}
+
+        {/* Safe public verification detail — derived from corroborated
+            claims. Contains only a safe summary + indicators, never
+            certificate images or private references. */}
+        <PublicVerificationDetail subjectType="business" subjectId={profile.business_id} />
 
         {/* About */}
         <ProfileSection title="About" onEdit={editable ? () => onEditField('description') : null}>
