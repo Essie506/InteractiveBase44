@@ -173,7 +173,8 @@ export async function resendEmailVerification() {
  */
 export async function reloadUser() {
   const auth = getAuthInstance();
-  const user = auth.currentUser;
+  
+   user = auth.currentUser;
   if (user) await reload(user);
   return user;
 }

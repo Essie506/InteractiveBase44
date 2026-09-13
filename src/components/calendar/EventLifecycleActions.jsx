@@ -84,7 +84,7 @@ export default function EventLifecycleActions({
     const personalLoading = personalStateLoadingId === event.id;
 
     return (
-      <div className="flex items-center gap-1 mt-2">
+      <div className="flex flex-wrap items-center gap-1 mt-2">
         {!unavailable && (
           <button
             onClick={() => onEdit?.(occ)}
@@ -175,8 +175,8 @@ export default function EventLifecycleActions({
                 </button>
               </>
             ) : (
-              <>
-                <button
+  <span className="flex items-center gap-1">
+    <button
                   onClick={() => onSetPersonalTimelineState?.(occ, 'completed', false)}
                   disabled={personalLoading}
                   aria-label="Mark as completed (personal)"
@@ -207,7 +207,7 @@ export default function EventLifecycleActions({
                 >
                   <EyeOff className="w-3.5 h-3.5" />
                 </button>
-              </>
+              </span>
             )}
           </>
         )}
@@ -230,7 +230,7 @@ export default function EventLifecycleActions({
           event.lifecycle_state !== 'cancelled' &&
           event.lifecycle_state !== 'removed' && (
             <span
-              className="text-[10px] text-stone-400 flex items-center gap-0.5"
+              className="text-[10px] text-stone-400 flex items-center gap-0.5 whitespace-nowrap shrink-0"
               title="Cancel this booking event from your Bookings"
             >
               <CalendarOff className="w-3 h-3" /> Cancel via Bookings

@@ -6,7 +6,7 @@
 // Engine), and enforces creator ownership. Reads are via the Firebase client
 // SDK (public for published workouts, owner-filtered for drafts).
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteWorkout = exports.saveWorkout = void 0;
+exports.shareWorkoutWithConnections = exports.deleteWorkout = exports.saveWorkout = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const searchIndex_1 = require("./searchIndex");
@@ -29,6 +29,30 @@ exports.saveWorkout = (0, https_1.onCall)({ region: 'europe-west2', cors: shared
         throw new https_1.HttpsError('invalid-argument', 'Title required');
     if (!VALID_TYPES.includes(workout_type))
         throw new https_1.HttpsError('invalid-argument', `Invalid workout type: ${workout_type}`);
+    // ── Creation authority (Spec 12 §9) ──
+    // Personal profiles must NOT create workouts. Only professional
+    // identities (professional_activated) or business members may create.
+    if (business_id) {
+        // Business workout — caller must have manage_workouts permission
+        // (owner/admin by default, or staff/member with explicit grant).
+        const allowed = await (0, shared_1.hasBusinessWorkoutPermission)(business_id, identityId);
+        if (!allowed) {
+            throw new https_1.HttpsError('permission-denied', 'You need manage_workouts permission to create business workouts');
+        }
+    }
+    else {
+        // Identity workout — caller must be in Professional context AND have
+        // a valid Professional activation state (Spec 12 §9). The canonical
+        // activation rule mirrors the client: active_context === 'professional'
+        // AND (professional_activated || professional_onboarding_status === 'active').
+        const userDoc = await shared_1.db.collection('users').doc(identityId).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+        const isProfessionallyActivated = !!userData?.professional_activated ||
+            userData?.professional_onboarding_status === 'active';
+        if (userData?.active_context !== 'professional' || !isProfessionallyActivated) {
+            throw new https_1.HttpsError('permission-denied', 'Only Professional-context identities with an active Professional profile can create workouts');
+        }
+    }
     const now = new Date().toISOString();
     const ownerType = business_id ? 'business' : 'identity';
     const ownerId = business_id || identityId;
@@ -69,11 +93,25 @@ exports.saveWorkout = (0, https_1.onCall)({ region: 'europe-west2', cors: shared
         const doc = await shared_1.db.collection('workouts').doc(workout_id).get();
         if (!doc.exists)
             throw new https_1.HttpsError('not-found', 'Workout not found');
-        if (doc.data()?.creator_identity_id !== identityId) {
-            throw new https_1.HttpsError('permission-denied', 'Only the creator can edit this workout');
+        const existing = doc.data();
+        // Edit authority: business workouts → any active business member;
+        // identity workouts → only the creator.
+        if (existing.owner_type === 'business' && existing.business_id) {
+            const allowed = await (0, shared_1.hasBusinessWorkoutPermission)(existing.business_id, identityId);
+            if (!allowed) {
+                throw new https_1.HttpsError('permission-denied', 'You need manage_workouts permission to edit this business workout');
+            }
         }
+        else {
+            if (existing.creator_identity_id !== identityId) {
+                throw new https_1.HttpsError('permission-denied', 'Only the creator can edit this workout');
+            }
+        }
+        // Ownership is immutable after creation — omit ownership fields
+        // from the update payload so a client cannot change owner_type.
+        const { owner_type, owner_id, operating_context, business_id: _biz, ...updatePayload } = payload;
         workoutRef = doc.ref;
-        await workoutRef.update(payload);
+        await workoutRef.update(updatePayload);
     }
     else {
         workoutRef = shared_1.db.collection('workouts').doc();
@@ -113,8 +151,19 @@ exports.deleteWorkout = (0, https_1.onCall)({ region: 'europe-west2', cors: shar
     const doc = await shared_1.db.collection('workouts').doc(workout_id).get();
     if (!doc.exists)
         throw new https_1.HttpsError('not-found', 'Workout not found');
-    if (doc.data()?.creator_identity_id !== identityId) {
-        throw new https_1.HttpsError('permission-denied', 'Only the creator can archive this workout');
+    const existing = doc.data();
+    // Delete authority: business workouts → any active business member;
+    // identity workouts → only the creator.
+    if (existing.owner_type === 'business' && existing.business_id) {
+        const allowed = await (0, shared_1.hasBusinessWorkoutPermission)(existing.business_id, identityId);
+        if (!allowed) {
+            throw new https_1.HttpsError('permission-denied', 'You need manage_workouts permission to archive this business workout');
+        }
+    }
+    else {
+        if (existing.creator_identity_id !== identityId) {
+            throw new https_1.HttpsError('permission-denied', 'Only the creator can archive this workout');
+        }
     }
     await doc.ref.update({
         lifecycle_state: 'archived',
@@ -128,5 +177,112 @@ exports.deleteWorkout = (0, https_1.onCall)({ region: 'europe-west2', cors: shar
         console.error('search unindex failed for workout', workout_id, err);
     }
     return { state: 'archived' };
+});
+// ── shareWorkoutWithConnections ──────────────────────────────
+// Targeted Workout share to specific accepted Connections (Spec 12).
+// ───────────────────────────────────────────────────────────
+// An authorised Professional or Business workout owner/manager can
+// share a Workout directly with specific accepted connections. This
+// is DISTINCT from:
+//   - publicly available/published Workout (Feed/Directory discovery)
+//   - saved Workout (Save entity)
+//   - Business "My Workouts" aggregation (staff membership visibility)
+//   - general Feed share/repost (Share Engine commentary shares)
+//
+// Authority mirrors the edit authority:
+//   - identity workout → creator_identity_id === caller
+//   - business workout → hasBusinessWorkoutPermission (manage_workouts)
+//
+// Recipients must have an accepted Connection with the sharer and no
+// active block. Email is a lookup mechanism — emails that do not resolve
+// to an existing identity are skipped (no external-invitation workflow
+// is invented). Recipients receive an in-app notification with a direct
+// link to the Workout.
+exports.shareWorkoutWithConnections = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    const identityId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const { workout_id, recipient_identity_ids, recipient_emails } = request.data || {};
+    if (!workout_id)
+        throw new https_1.HttpsError('invalid-argument', 'workout_id required');
+    // Load workout
+    const workoutDoc = await shared_1.db.collection('workouts').doc(workout_id).get();
+    if (!workoutDoc.exists)
+        throw new https_1.HttpsError('not-found', 'Workout not found');
+    const workout = workoutDoc.data();
+    // ── Authority (Spec 12 §9 + Business §8) ──
+    if (workout.owner_type === 'business' && workout.business_id) {
+        const allowed = await (0, shared_1.hasBusinessWorkoutPermission)(workout.business_id, identityId);
+        if (!allowed) {
+            throw new https_1.HttpsError('permission-denied', 'You need manage_workouts permission to share this business workout');
+        }
+    }
+    else {
+        if (workout.creator_identity_id !== identityId) {
+            throw new https_1.HttpsError('permission-denied', 'You can only share your own workouts');
+        }
+    }
+    // Combine recipient identity IDs (pre-selected + email-resolved)
+    const allRecipientIds = new Set();
+    if (Array.isArray(recipient_identity_ids)) {
+        for (const id of recipient_identity_ids) {
+            if (id && typeof id === 'string' && id !== identityId)
+                allRecipientIds.add(id);
+        }
+    }
+    if (Array.isArray(recipient_emails) && recipient_emails.length > 0) {
+        const { resolved } = await (0, shared_1.resolveEmailsToIdentities)(recipient_emails);
+        for (const id of Object.values(resolved)) {
+            if (id && id !== identityId)
+                allRecipientIds.add(id);
+        }
+    }
+    if (allRecipientIds.size === 0) {
+        throw new https_1.HttpsError('invalid-argument', 'No eligible recipients selected');
+    }
+    // For each recipient: verify accepted connection + no block, then notify.
+    const now = new Date().toISOString();
+    let shared = 0;
+    let skipped = 0;
+    const skippedReasons = [];
+    for (const recipientId of allRecipientIds) {
+        const blocked = await (0, shared_1.isBlocked)(identityId, recipientId);
+        if (blocked) {
+            skipped++;
+            skippedReasons.push({ identity_id: recipientId, reason: 'blocked' });
+            continue;
+        }
+        const connected = await (0, shared_1.hasAcceptedConnection)(identityId, recipientId);
+        if (!connected) {
+            skipped++;
+            skippedReasons.push({ identity_id: recipientId, reason: 'not_a_connection' });
+            continue;
+        }
+        try {
+            await shared_1.db.collection('notificationRecords').doc().set({
+                recipient_id: recipientId,
+                source_system: 'workout',
+                event_type: 'workout_shared',
+                title: 'Shared a workout with you',
+                body: `${workout.title || 'A workout'} has been shared with you.`,
+                category: 'workout',
+                priority: 'normal',
+                delivery_channels: ['in_app'],
+                is_read: false,
+                action_url: `/workouts/${workout_id}`,
+                action_label: 'View Workout',
+                source_id: workout_id,
+                _created_date: now,
+                _updated_date: now,
+            });
+            shared++;
+        }
+        catch (err) {
+            console.error('Failed to create workout share notification:', err);
+            skipped++;
+            skippedReasons.push({ identity_id: recipientId, reason: 'notification_failed' });
+        }
+    }
+    return { shared, skipped, skipped_reasons: skippedReasons };
 });
 //# sourceMappingURL=workout.js.map

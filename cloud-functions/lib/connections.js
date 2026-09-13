@@ -21,7 +21,7 @@
 // Profile access (resolveProfessionalAccess) uses hasAcceptedConnection
 // (this module's helper in shared.ts) — never conversations or messages.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getFollowState = exports.unfollowIdentity = exports.followIdentity = exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = void 0;
+exports.listMyConnections = exports.getFollowState = exports.unfollowIdentity = exports.followIdentity = exports.resolveConnectionStatuses = exports.resolveConnectionStatus = exports.resolveProfessionalAccess = exports.disconnectConnection = exports.respondConnectionRequest = exports.createConnectionRequest = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const crypto_1 = require("crypto");
 const shared_1 = require("./shared");
@@ -460,5 +460,54 @@ exports.getFollowState = (0, https_1.onCall)({ region: 'europe-west2', cors: sha
     const followersSnap = await shared_1.db.collection(FOLLOWS).where('followed_id', '==', target_id).where('status', '==', 'active').get();
     const followingSnap = await shared_1.db.collection(FOLLOWS).where('follower_id', '==', target_id).where('status', '==', 'active').get();
     return { is_following: isFollowing, follower_count: followersSnap.size, following_count: followingSnap.size };
+});
+// ── listMyConnections ────────────────────────────────────────
+// Returns the caller's accepted Connections with display info
+// resolved from public projections. Used by the Workout targeted-
+// share recipient picker. Reuses the existing Connections system —
+// does NOT create a new contact system.
+//
+// Returns: { connections: [{ identity_id, display_name, avatar_url,
+//           screen_name, profile_type }] }
+exports.listMyConnections = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
+    if (!request.auth)
+        throw new https_1.HttpsError('unauthenticated', 'Authentication required');
+    const callerId = await (0, shared_1.getIdentityId)(request.auth.uid);
+    const [aSnap, bSnap] = await Promise.all([
+        shared_1.db.collection(CONNECTIONS).where('identity_a_id', '==', callerId).where('status', '==', 'active').get(),
+        shared_1.db.collection(CONNECTIONS).where('identity_b_id', '==', callerId).where('status', '==', 'active').get(),
+    ]);
+    const otherIds = new Set();
+    for (const doc of [...aSnap.docs, ...bSnap.docs]) {
+        const data = doc.data();
+        const other = data.identity_a_id === callerId ? data.identity_b_id : data.identity_a_id;
+        if (other)
+            otherIds.add(other);
+    }
+    const connections = [];
+    for (const otherId of otherIds) {
+        const [profSnap, persSnap] = await Promise.all([
+            shared_1.db.collection(PUBLIC).where('identity_id', '==', otherId).limit(1).get(),
+            shared_1.db.collection('personalProfilesPublic').where('identity_id', '==', otherId).limit(1).get(),
+        ]);
+        let displayInfo = null;
+        if (!profSnap.empty) {
+            const d = profSnap.docs[0].data();
+            displayInfo = { display_name: d.display_name || null, avatar_url: d.avatar_url || null, screen_name: d.screen_name || null, profile_type: 'professional' };
+        }
+        else if (!persSnap.empty) {
+            const d = persSnap.docs[0].data();
+            displayInfo = { display_name: d.display_name || null, avatar_url: d.avatar_url || null, screen_name: d.screen_name || null, profile_type: 'personal' };
+        }
+        connections.push({
+            identity_id: otherId,
+            display_name: displayInfo?.display_name || null,
+            avatar_url: displayInfo?.avatar_url || null,
+            screen_name: displayInfo?.screen_name || null,
+            profile_type: displayInfo?.profile_type || null,
+        });
+    }
+    connections.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || ''));
+    return { connections };
 });
 //# sourceMappingURL=connections.js.map

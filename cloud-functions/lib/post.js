@@ -6,63 +6,132 @@
 // or businesses. Community Interaction (reactions, comments, saves,
 // shares) targets Posts via target_system='post'.
 //
+// ── Context separation (architecture rule) ──
+// Personal, Professional and Business are separate operating
+// accounts/contexts accessible through one login. They may share the
+// same person, email, display name and avatar, but their content
+// ownership, history, walls, permissions and provenance remain
+// separate. The Feed may aggregate all contexts for discovery; it
+// does not alter canonical ownership.
+//
+// savePost enforces this rule:
+//   1. On UPDATE, authorship/provenance fields are immutable — an edit
+//      can never move a Post between Personal/Professional/Business
+//      histories.
+//   2. On CREATE, the operating account is resolved from the caller's
+//      authoritative server-side User record (active_context +
+//      professional activation / business membership), never silently
+//      defaulted from a client field.
+//   3. The Business invariant (operating_context === 'business' ⇔
+//      author_type === 'business' + valid business_id) is structural.
+//   4. Client-supplied context fields that conflict with the
+//      server-resolved account are rejected, not coerced.
+//
 // All functions are onCall with Firebase-verified identity.
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deletePost = exports.savePost = void 0;
+exports.resolvePostOperatingAccount = resolvePostOperatingAccount;
+exports.assertNoContextConflict = assertNoContextConflict;
 const https_1 = require("firebase-functions/v2/https");
 const shared_1 = require("./shared");
 const searchIndex_1 = require("./searchIndex");
+function resolvePostOperatingAccount(callerIdentityId, userData, businessMembership, clientBusinessId) {
+    const activeContext = userData?.active_context || 'personal';
+    if (activeContext === 'business') {
+        // Business-authored — resolve the business from the server-side
+        // active_business_id (authoritative), falling back to the client-
+        // supplied business_id, then validate active membership.
+        const bizId = userData?.active_business_id || clientBusinessId || null;
+        if (!bizId) {
+            throw new https_1.HttpsError('invalid-argument', 'Business context requires a business.');
+        }
+        if (!businessMembership || businessMembership.lifecycle_state !== 'active') {
+            throw new https_1.HttpsError('permission-denied', 'You must be an active member of this business to post as it.');
+        }
+        return {
+            author_type: 'business',
+            operating_context: 'business',
+            business_id: bizId,
+            publishing_account_id: bizId,
+            publishing_account_type: 'business',
+        };
+    }
+    if (activeContext === 'professional') {
+        // Canonical Professional activation rule (mirrors saveWorkout).
+        const isProfessionallyActivated = !!userData?.professional_activated ||
+            userData?.professional_onboarding_status === 'active';
+        if (!isProfessionallyActivated) {
+            throw new https_1.HttpsError('permission-denied', 'Only an activated Professional context can create Professional posts.');
+        }
+        return {
+            author_type: 'identity',
+            operating_context: 'professional',
+            business_id: null,
+            publishing_account_id: callerIdentityId,
+            publishing_account_type: 'identity',
+        };
+    }
+    // personal (default)
+    return {
+        author_type: 'identity',
+        operating_context: 'personal',
+        business_id: null,
+        publishing_account_id: callerIdentityId,
+        publishing_account_type: 'identity',
+    };
+}
+// Rejects a client payload whose authorship/provenance fields conflict
+// with the server-resolved (or, on update, the existing immutable)
+// operating account. Client fields that are absent (undefined) are not
+// conflicts — only explicit mismatches are rejected.
+function assertNoContextConflict(payload, resolved) {
+    if (payload.author_type !== undefined && payload.author_type !== resolved.author_type) {
+        throw new https_1.HttpsError('invalid-argument', 'author_type conflicts with the server-resolved operating account.');
+    }
+    if (payload.operating_context !== undefined && payload.operating_context !== resolved.operating_context) {
+        throw new https_1.HttpsError('invalid-argument', 'operating_context conflicts with the server-resolved operating account.');
+    }
+    if (payload.business_id !== undefined && payload.business_id !== resolved.business_id) {
+        throw new https_1.HttpsError('invalid-argument', 'business_id conflicts with the server-resolved operating account.');
+    }
+    if (payload.publishing_account_id !== undefined && payload.publishing_account_id !== resolved.publishing_account_id) {
+        throw new https_1.HttpsError('invalid-argument', 'publishing_account_id conflicts with the server-resolved operating account.');
+    }
+    if (payload.publishing_account_type !== undefined && payload.publishing_account_type !== resolved.publishing_account_type) {
+        throw new https_1.HttpsError('invalid-argument', 'publishing_account_type conflicts with the server-resolved operating account.');
+    }
+}
+const VALID_POST_TYPES = [
+    'standard', 'achievement', 'educational', 'workout',
+    'business_update', 'promotion', 'event', 'calendar_event',
+    'blog_share', 'progress_update', 'community_question',
+];
 // ── savePost ──────────────────────────────────────────────
-// Creates or updates a Post. Enforces author authority:
-//   - identity-authored: caller must be the author_identity_id
-//   - business-authored: caller must be an active business member
-// Maintains lifecycle, visibility, and denormalised counters.
+// Creates or updates a Post. Authorship/provenance is immutable after
+// creation; on creation the operating account is resolved from the
+// caller's authoritative server-side User record.
 exports.savePost = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.allowedOrigins }, async (request) => {
     if (!request.auth)
         throw new https_1.HttpsError('unauthenticated', 'Authentication required');
     const callerIdentityId = await (0, shared_1.getIdentityId)(request.auth.uid);
-    const { id, author_identity_id, author_type, business_id, body, media_urls, media_asset_ids, link_url, link_preview, visibility, operating_context, lifecycle_state, 
+    const { id, body, media_urls, media_asset_ids, link_url, link_preview, visibility, lifecycle_state, 
     // V2 Post Type Engine + Universal Post Model fields
-    post_type, title, summary, rich_text, linked_content_references, tags, categories, mentions, hashtags, locality_settings, discovery_eligibility, } = request.data || {};
+    post_type, title, summary, rich_text, linked_content_references, tags, categories, mentions, hashtags, locality_settings, discovery_eligibility, 
+    // Client-supplied context (NOT authoritative — validated against
+    // server-resolved / existing-immutable state)
+    author_type, business_id, operating_context, publishing_account_id, publishing_account_type, } = request.data || {};
     if (!body || typeof body !== 'string' || body.trim().length === 0) {
         throw new https_1.HttpsError('invalid-argument', 'Post body is required.');
     }
     if (!visibility || !['public', 'connections', 'private'].includes(visibility)) {
         throw new https_1.HttpsError('invalid-argument', 'Invalid visibility.');
     }
-    const VALID_POST_TYPES = [
-        'standard', 'achievement', 'educational', 'workout',
-        'business_update', 'promotion', 'event', 'calendar_event',
-        'blog_share', 'progress_update', 'community_question',
-    ];
     const effectivePostType = VALID_POST_TYPES.includes(post_type) ? post_type : 'standard';
-    const effectiveAuthorType = author_type || 'identity';
-    // Authority: identity-authored posts must match caller
-    if (effectiveAuthorType === 'identity') {
-        if (author_identity_id && author_identity_id !== callerIdentityId) {
-            throw new https_1.HttpsError('permission-denied', 'You can only create posts as yourself.');
-        }
-    }
-    else if (effectiveAuthorType === 'business') {
-        if (!business_id) {
-            throw new https_1.HttpsError('invalid-argument', 'business_id is required for business-authored posts.');
-        }
-        const membership = await (0, shared_1.getBusinessMembership)(business_id, callerIdentityId);
-        if (!membership || membership.lifecycle_state !== 'active') {
-            throw new https_1.HttpsError('permission-denied', 'You must be an active member of this business to post as it.');
-        }
-    }
-    else {
-        throw new https_1.HttpsError('invalid-argument', 'Invalid author_type.');
-    }
     const now = new Date().toISOString();
-    const postData = {
-        author_identity_id: effectiveAuthorType === 'identity' ? callerIdentityId : (author_identity_id || callerIdentityId),
-        author_type: effectiveAuthorType,
-        publishing_account_id: effectiveAuthorType === 'business' ? business_id : callerIdentityId,
-        publishing_account_type: effectiveAuthorType,
-        business_id: effectiveAuthorType === 'business' ? business_id : null,
-        operating_context: operating_context || (effectiveAuthorType === 'business' ? 'business' : 'personal'),
+    // Mutable content fields shared by create + update.
+    // Authorship/provenance fields are deliberately ABSENT here — they
+    // are resolved on create and preserved on update.
+    const contentFields = {
         post_type: effectivePostType,
         title: title || null,
         summary: summary || null,
@@ -81,52 +150,97 @@ exports.savePost = (0, https_1.onCall)({ region: 'europe-west2', cors: shared_1.
         visibility,
         lifecycle_state: lifecycle_state || 'published',
         discovery_eligibility: typeof discovery_eligibility === 'boolean' ? discovery_eligibility : true,
-        reporting_status: 'clear',
         _updated_date: now,
     };
     let postRef;
+    let indexedOwnerId;
     if (id) {
-        // Update existing post — verify ownership
+        // ── UPDATE — authorship/provenance is immutable ──
         postRef = shared_1.db.collection('posts').doc(id);
         const postDoc = await postRef.get();
         if (!postDoc.exists) {
             throw new https_1.HttpsError('not-found', 'Post not found.');
         }
         const existing = postDoc.data();
-        if (existing.author_type === 'identity' && existing.author_identity_id !== callerIdentityId) {
-            throw new https_1.HttpsError('permission-denied', 'You can only edit your own posts.');
+        // Authority (existing owner)
+        if (existing.author_type === 'identity') {
+            if (existing.author_identity_id !== callerIdentityId) {
+                throw new https_1.HttpsError('permission-denied', 'You can only edit your own posts.');
+            }
         }
-        if (existing.author_type === 'business') {
+        else {
             const membership = await (0, shared_1.getBusinessMembership)(existing.business_id, callerIdentityId);
             if (!membership || membership.lifecycle_state !== 'active') {
                 throw new https_1.HttpsError('permission-denied', 'You must be an active member of this business to edit its posts.');
             }
         }
-        postData.edited_at = now;
-        await postRef.update(postData);
+        // The existing post's account IS the immutable resolved account.
+        // Reject any client attempt to change context fields. A missing
+        // operating_context is never defaulted — the existing value is
+        // preserved because it is absent from the update payload.
+        const existingAccount = {
+            author_type: existing.author_type,
+            operating_context: existing.operating_context,
+            business_id: existing.business_id || null,
+            publishing_account_id: existing.publishing_account_id,
+            publishing_account_type: existing.publishing_account_type,
+        };
+        assertNoContextConflict(request.data || {}, existingAccount);
+        // Update ONLY mutable fields. reporting_status and all
+        // authorship/provenance fields are untouched (Firestore preserves
+        // unmentioned fields on update).
+        await postRef.update({ ...contentFields, edited_at: now });
+        indexedOwnerId = existing.author_identity_id;
     }
     else {
-        // Create new post
-        postData._created_date = now;
-        postData.reaction_count = 0;
-        postData.comment_count = 0;
-        postData.share_count = 0;
-        postData.save_count = 0;
-        postData.view_count = 0;
+        // ── CREATE — resolve operating account from authoritative server state ──
+        const userDoc = await shared_1.db.collection('users').doc(callerIdentityId).get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+        // Pre-fetch business membership for the prospective business (server
+        // active_business_id preferred; client business_id as fallback).
+        const prospectiveBizId = userData?.active_business_id || business_id || null;
+        let businessMembership = null;
+        if (prospectiveBizId) {
+            businessMembership = await (0, shared_1.getBusinessMembership)(prospectiveBizId, callerIdentityId);
+        }
+        const resolved = resolvePostOperatingAccount(callerIdentityId, userData, businessMembership, business_id);
+        // Reject client payload that conflicts with the resolved account.
+        assertNoContextConflict(request.data || {}, resolved);
+        const postData = {
+            ...contentFields,
+            // author_identity_id retains the posting person as audit/creator
+            // provenance. For business posts, canonical ownership/wall still
+            // belongs to the Business (via publishing_account_id + author_type +
+            // operating_context), never to this individual.
+            author_identity_id: callerIdentityId,
+            author_type: resolved.author_type,
+            business_id: resolved.business_id,
+            operating_context: resolved.operating_context,
+            publishing_account_id: resolved.publishing_account_id,
+            publishing_account_type: resolved.publishing_account_type,
+            reporting_status: 'clear',
+            _created_date: now,
+            reaction_count: 0,
+            comment_count: 0,
+            share_count: 0,
+            save_count: 0,
+            view_count: 0,
+        };
         postRef = shared_1.db.collection('posts').doc();
         await postRef.set(postData);
+        indexedOwnerId = postData.author_identity_id;
     }
     // ── Cross-system search indexing (V2 §15.5) ──
     // Index the post for discovery if it is published, public, and eligible.
-    if (postData.lifecycle_state === 'published' && postData.visibility === 'public' && postData.discovery_eligibility !== false) {
+    if (contentFields.lifecycle_state === 'published' && contentFields.visibility === 'public' && contentFields.discovery_eligibility !== false) {
         try {
             await (0, searchIndex_1.indexContentInline)(postRef.id, 'post', {
                 contentType: 'post',
-                title: postData.title || postData.body?.slice(0, 80) || '',
-                description: postData.summary || postData.body || '',
-                tags: [...(postData.tags || []), ...(postData.hashtags || [])],
-                ownerId: postData.author_identity_id,
-                visibility: postData.visibility,
+                title: contentFields.title || contentFields.body?.slice(0, 80) || '',
+                description: contentFields.summary || contentFields.body || '',
+                tags: [...(contentFields.tags || []), ...(contentFields.hashtags || [])],
+                ownerId: indexedOwnerId,
+                visibility: contentFields.visibility,
             });
         }
         catch (err) {
