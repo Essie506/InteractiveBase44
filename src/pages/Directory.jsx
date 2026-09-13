@@ -353,7 +353,7 @@ export default function Directory() {
         </header>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6">
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6 ${filtersOpen && !isMobile ? 'md:pr-80' : ''}`}>
         {isDemoMode && (
           <div className="mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
             <span className="w-2 h-2 bg-amber-400 rounded-full"></span>
@@ -392,7 +392,7 @@ export default function Directory() {
             Filters
           </button>
         </div>
-        <div className="flex gap-6 relative">
+        <div className="flex gap-6">
           {/* Results — majority width */}
           <div className="flex-1 min-w-0">
             {/* Distance-sort hint */}
@@ -455,28 +455,28 @@ export default function Directory() {
             }
           </div>
 
-          {/* Desktop right filter drawer — reflows content when the left
-              nav is closed; overlays the already-reduced content when the
-              left nav is also open (no double-shrink). Mobile uses the
-              Sheet below. */}
-          {!isMobile && filtersOpen && (
-            <aside className={navOpen
-              ? 'absolute right-0 top-0 bottom-0 w-80 bg-white border-l border-stone-200 shadow-xl z-30 flex flex-col'
-              : 'w-80 shrink-0 flex flex-col border-l border-stone-200'}>
-              <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 sticky top-0 bg-white z-10">
-                <span className="text-sm font-semibold text-stone-800">Filters</span>
-                <button onClick={() => setFiltersOpen(false)} className="p-1 hover:bg-stone-100 rounded-lg" aria-label="Close filters">
-                  <X className="w-4 h-4 text-stone-500" />
-                </button>
-              </div>
-              <div className="p-4 overflow-y-auto flex-1">
-                <DirectoryFilters {...filterProps} />
-              </div>
-            </aside>
-          )}
 
         </div>
       </div>
+
+      {/* Desktop filter drawer — viewport-fixed, full height, right-anchored.
+          Rendered as a sibling of the content container so it never
+          inherits the Directory listings' top offset or height. Opening
+          the main nav drawer does not shorten or reposition it. Internal
+          scroll keeps all controls accessible on smaller screens. */}
+      {!isMobile && filtersOpen && (
+        <aside className="fixed top-0 right-0 h-[100dvh] w-80 z-40 flex flex-col bg-white border-l border-stone-200 shadow-xl">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 bg-white shrink-0">
+            <span className="text-sm font-semibold text-stone-800">Filters</span>
+            <button onClick={() => setFiltersOpen(false)} className="p-1 hover:bg-stone-100 rounded-lg" aria-label="Close filters">
+              <X className="w-4 h-4 text-stone-500" />
+            </button>
+          </div>
+          <div className="p-4 overflow-y-auto flex-1">
+            <DirectoryFilters {...filterProps} />
+          </div>
+        </aside>
+      )}
 
       {/* Mobile filter drawer — anchored to the RIGHT edge on every
           viewport. The Sheet's right variant slides in from the right
