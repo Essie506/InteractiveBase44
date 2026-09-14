@@ -135,6 +135,7 @@ export default function BusinessStaff() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-stone-800">Staff & Invitations</h1>
           <p className="text-stone-500">Manage team members and permissions</p>
+          <p className="text-xs text-stone-400 mt-1 max-w-xl">Link your staff across Interactive for free. Upgrade when you want to manage them through Interactive. Listing and linking team members does not activate paid operational seats or grant Business control over a Professional account.</p>
         </div>
         <button onClick={() => setShowInvite(!showInvite)} className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
           <Plus className="w-4 h-4" /> Invite Staff

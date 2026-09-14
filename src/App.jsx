@@ -107,6 +107,8 @@ const AuthenticatedApp = () => {
       <Route path="/book/event/:eventId" element={<EventBookingPage />} />
       {/* Guest booking management — email + booking reference (Booking §3.10–§3.11) */}
       <Route path="/booking/manage" element={<GuestBookingManage />} />
+      {/* Public listing creation — visitors can begin building a listing before account (§5) */}
+      <Route path="/create-business" element={<BusinessCreation />} />
       {/* Persistent authenticated shell — one sidebar survives navigation
           between /directory and AppLayout routes. Signed-out visitors get
           a plain Outlet (Directory renders its own public drawer). */}
@@ -183,7 +185,6 @@ const AuthenticatedApp = () => {
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/activate-professional" element={<ProfessionalActivation />} />
-        <Route path="/create-business" element={<BusinessCreation />} />
         <Route path="/admin/verify" element={<VerificationReview />} />
         <Route path="/admin/verification-sources" element={<VerificationSourcesAdmin />} />
       </Route>

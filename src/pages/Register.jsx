@@ -51,7 +51,10 @@ export default function Register() {
         authService.setToken(result.access_token);
         await userService.updateUserState({ onboarding_intent: intent, onboarding_status: 'not_started' });
       }
-      window.location.href = '/onboarding';
+      // Honor a safe same-origin returnTo (e.g. resume a listing draft after
+      // signup) when present; otherwise the normal post-registration onboarding.
+      const returnDest = safeReturnTo();
+      window.location.href = returnDest !== '/' ? returnDest : '/onboarding';
     } catch (err) {
       setError(err.message || "Invalid verification code");
     } finally {

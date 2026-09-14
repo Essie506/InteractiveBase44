@@ -180,8 +180,8 @@ export default function Dashboard() {
           <Plus className="w-5 h-5 text-indigo-600" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-stone-800 mb-1">Create Another Business</h3>
-          <p className="text-sm text-stone-500">Add another business workspace to your identity</p>
+          <h3 className="font-semibold text-stone-800 mb-1">Create another listing</h3>
+          <p className="text-sm text-stone-500">Add another business or professional listing to your identity</p>
         </div>
       </div>
     </Link>;
@@ -194,8 +194,8 @@ export default function Dashboard() {
           <Building2 className="w-5 h-5 text-indigo-600" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-stone-800 mb-1">Create a Business</h3>
-          <p className="text-sm text-stone-500 mb-2">Set up a business workspace</p>
+          <h3 className="font-semibold text-stone-800 mb-1">Create a listing</h3>
+          <p className="text-sm text-stone-500 mb-2">Set up a public listing for your business or professional practice</p>
           <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600">Get started <ArrowRight className="w-3 h-3" /></span>
         </div>
       </div>

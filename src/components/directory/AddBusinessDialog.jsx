@@ -6,7 +6,7 @@ import { Loader2, Building2, CheckCircle2, ArrowRight, ShieldCheck } from 'lucid
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
 
-// Public "Add your business" submission dialog (Spec: Directory §7).
+// Public "Add your listing" submission dialog (Spec: Directory §7).
 // ───────────────────────────────────────────────────────────
 // Lets an unauthenticated visitor submit a basic Directory presence
 // WITHOUT completing the full Interactive sign-up/onboarding flow first.
@@ -103,7 +103,7 @@ export default function AddBusinessDialog({ open, onOpenChange }) {
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-indigo-600" /> Add your business
+                <Building2 className="w-5 h-5 text-indigo-600" /> Add your listing
               </DialogTitle>
               <DialogDescription>
                 Submit a basic Directory presence. No account needed to submit — your listing goes live after review.

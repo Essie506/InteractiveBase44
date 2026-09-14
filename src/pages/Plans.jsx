@@ -1,26 +1,28 @@
-// Plans & Subscription — plan selection / upgrade page (Plans & Monetisation §17).
+// Plans & Subscription — V2 Public Interactive refinement.
 // ───────────────────────────────────────────────────────────
-// Displays available subscription plans (Professional / Business families),
-// feature comparisons, and subscribe/upgrade CTAs. Shows the current
-// subscription status and a manage-billing entry point (Stripe Customer Portal).
+// Separates IDENTITY / PUBLIC PRESENCE (free) from SUBSCRIPTION CAPABILITY
+// (paid). Being present on Interactive is free; paid plans unlock
+// operational, management and growth tools.
 //
-// Tier 1 (essential) is the permanent free plan — every professional/business
-// has it by default. Higher tiers are paid recurring subscriptions via Stripe.
-// When a paid subscription lapses, the account downgrades to Tier 1 free.
+// The six-plan taxonomy is shown as a single capability ladder — there are
+// no longer user-facing "Professional" vs "Business" subscription families.
+// A Professional identity may subscribe to any tier; a Business identity may
+// remain on the free tier. The underlying tier+family fields remain as
+// internal backwards-compat and are not shown to users.
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { Check, Loader2, Crown, Sparkles, TrendingUp, CreditCard, ArrowRight } from 'lucide-react';
+import { Check, Loader2, Crown, Sparkles, TrendingUp, CreditCard, ArrowRight, User as UserIcon, Briefcase, Building2, Compass, Newspaper, Users } from 'lucide-react';
 import {
   listPlans, getMySubscription, startSubscriptionCheckout, openCustomerPortal,
-  formatPlanPrice, isFreePlan, isHigherTier,
+  formatPlanPrice, isFreePlan, isHigherTier, getPlanDisplayName,
 } from '@/services/plansService';
 import { useToast } from '@/components/ui/use-toast';
 
-const TIER_META = {
-  basic: { label: 'Tier 1', icon: Sparkles, accent: 'text-stone-600', ring: 'ring-stone-200' },
-  plus: { label: 'Tier 2', icon: TrendingUp, accent: 'text-indigo-600', ring: 'ring-indigo-300' },
-  pro: { label: 'Tier 3', icon: Crown, accent: 'text-violet-600', ring: 'ring-violet-300' },
+const TIER_ICON = {
+  basic: Sparkles,
+  plus: TrendingUp,
+  pro: Crown,
 };
 
 export default function Plans() {
@@ -39,11 +41,13 @@ export default function Plans() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const planFamily = isBusinessContext ? 'business' : 'professional';
+      // Show all six plans as one capability ladder — no family filter.
       const [planList, sub] = await Promise.all([
-        listPlans(planFamily),
+        listPlans(),
         getMySubscription(isBusinessContext ? activeBusinessId : null).catch(() => null),
       ]);
+      // Sort by price ascending (Basic → Enterprise).
+      planList.sort((a, b) => (a.price_pence || 0) - (b.price_pence || 0));
       setPlans(planList);
       setSubscription(sub);
     } catch (err) {
@@ -93,8 +97,12 @@ export default function Plans() {
     }
   };
 
-  const currentTier = subscription?.plan_tier || 'basic';
-  const contextLabel = isBusinessContext ? 'Business' : activeContext === 'professional' ? 'Professional' : 'Account';
+  // Current plan detection: by plan_id when a subscription exists, else the
+  // single free tier (Basic, £0) represents free public presence.
+  const currentPlanId = subscription?.plan_id || null;
+  const currentPlan = plans.find(p => p.id === currentPlanId) || null;
+  const currentPrice = currentPlan?.price_pence ?? 0;
+  const hasPaidSubscription = subscription && subscription.status === 'active' && currentPlan && !isFreePlan(currentPlan);
 
   if (loading) {
     return (
@@ -107,24 +115,42 @@ export default function Plans() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 font-heading">Plans &amp; Subscription</h1>
-        <p className="mt-1 text-sm text-stone-500">
-          {isBusinessContext
-            ? 'Choose the plan that fits your organisation. Upgrade as your business grows.'
-            : 'Professional Basic is free forever. Upgrade for growth tools, advanced analytics, and more.'}
+        <p className="mt-1 text-sm text-stone-500">Your public presence is free. Upgrade for tools to operate, manage and grow.</p>
+      </div>
+
+      {/* Free-presence banner */}
+      <div className="mb-8 rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
+        <p className="text-sm text-emerald-900 font-medium mb-1">Your public presence on Interactive is free.</p>
+        <p className="text-sm text-emerald-800">
+          Create and maintain your Directory listing, public profile and participate in the Interactive community at no cost.
+          Upgrade when you want additional tools to operate, manage, promote and grow through Interactive.
         </p>
       </div>
 
+      {/* Identity / public presences */}
+      <div className="mb-6 rounded-xl border border-stone-200 bg-white p-5">
+        <h2 className="text-sm font-semibold text-stone-800 mb-3">Your identity &amp; public presences (free)</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+          <div className="flex items-center gap-2 text-stone-600"><UserIcon className="w-4 h-4 text-stone-400" /> Personal profile</div>
+          <div className="flex items-center gap-2 text-stone-600"><Briefcase className="w-4 h-4 text-stone-400" /> Professional profile</div>
+          <div className="flex items-center gap-2 text-stone-600"><Building2 className="w-4 h-4 text-stone-400" /> Business listing</div>
+          <div className="flex items-center gap-2 text-stone-600"><Compass className="w-4 h-4 text-stone-400" /> Directory presence</div>
+          <div className="flex items-center gap-2 text-stone-600"><Newspaper className="w-4 h-4 text-stone-400" /> Feed participation</div>
+          <div className="flex items-center gap-2 text-stone-600"><Users className="w-4 h-4 text-stone-400" /> Public team relationships</div>
+        </div>
+      </div>
+
       {/* Current subscription summary */}
-      {subscription && subscription.status === 'active' && (
+      {hasPaidSubscription && (
         <div className="mb-8 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-indigo-900">
-                Current plan: {subscription.plan_name || currentTier}
+                Current plan: {getPlanDisplayName(currentPlan)}
               </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 capitalize">{currentTier}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{currentPlan.tier}</span>
             </div>
             {subscription.current_period_end && (
               <p className="text-xs text-indigo-600 mt-0.5">
@@ -143,41 +169,40 @@ export default function Plans() {
         </div>
       )}
 
-      {/* Plan cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+      {/* Plan cards — single capability ladder */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {plans.map((plan) => {
-          const meta = TIER_META[plan.tier] || TIER_META.essential;
-          const Icon = meta.icon;
+          const Icon = TIER_ICON[plan.tier] || Sparkles;
           const free = isFreePlan(plan);
-          const isCurrent = plan.tier === currentTier && (subscription?.status === 'active' || free);
-          const isUpgrade = isHigherTier(currentTier, plan.tier) && !free;
+          const isCurrent = plan.id === currentPlanId || (!currentPlanId && free);
+          const isUpgrade = !free && isHigherTier(currentPrice, plan.price_pence);
           const subscribing = subscribingPlanId === plan.id;
+          const displayName = getPlanDisplayName(plan);
 
           return (
             <div
               key={plan.id}
               className={`relative rounded-2xl border bg-white p-6 flex flex-col ${
-                plan.tier === 'plus' ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-stone-200'
+                plan.tier === 'plus' && plan.family === 'professional' ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-stone-200'
               }`}
             >
-              {plan.tier === 'plus' && (
+              {plan.tier === 'plus' && plan.family === 'professional' && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-semibold px-3 py-1 rounded-full bg-indigo-600 text-white">
                   Most popular
                 </span>
               )}
 
               <div className="flex items-center gap-2 mb-3">
-                <Icon className={`w-5 h-5 ${meta.accent}`} />
-                <h3 className="text-lg font-semibold text-stone-900">{plan.name}</h3>
+                <Icon className="w-5 h-5 text-stone-500" />
+                <h3 className="text-lg font-semibold text-stone-900">{displayName}</h3>
               </div>
 
               <div className="mb-1">
                 <span className="text-3xl font-bold text-stone-900">{formatPlanPrice(plan.price_pence, plan.currency)}</span>
                 {!free && <span className="text-sm text-stone-500">/{plan.billing_interval || 'monthly'}</span>}
               </div>
-              <span className={`text-xs ${meta.accent} font-medium mb-4`}>{meta.label}</span>
 
-              {plan.description && <p className="text-sm text-stone-600 mb-4">{plan.description}</p>}
+              {plan.description && <p className="text-sm text-stone-600 mb-4 mt-2">{plan.description}</p>}
 
               <ul className="space-y-2 mb-6 flex-1">
                 {(plan.features || []).map((feature, i) => (
@@ -193,7 +218,7 @@ export default function Plans() {
                   disabled
                   className="w-full py-2.5 rounded-lg text-sm font-medium bg-stone-100 text-stone-500 cursor-default"
                 >
-                  Current plan
+                  {free ? 'Included by default' : 'Current plan'}
                 </button>
               ) : free ? (
                 <button
@@ -220,9 +245,18 @@ export default function Plans() {
         })}
       </div>
 
+      {/* Need more */}
+      <div className="mt-8 rounded-xl border border-stone-200 bg-stone-50 p-5">
+        <h2 className="text-sm font-semibold text-stone-800 mb-1">Need more?</h2>
+        <p className="text-sm text-stone-600">
+          Higher tiers add operational, management and growth capabilities — promotional campaigns, advanced tools, team infrastructure and reporting.
+          A Professional identity may subscribe to any tier; a Business identity may remain on the free tier. Upgrade is always a separate, deliberate action.
+        </p>
+      </div>
+
       {/* Downgrade note */}
-      <p className="mt-8 text-xs text-stone-400 text-center max-w-2xl mx-auto">
-        {`Cancel anytime. ${isBusinessContext ? 'When a paid subscription ends, your business returns to Business Basic.' : 'When a paid subscription ends, your account returns to Professional Basic (Free) — your profile, bookings, and data are preserved.'}`}
+      <p className="mt-6 text-xs text-stone-400 text-center max-w-2xl mx-auto">
+        Cancel anytime. When a paid subscription ends, your account returns to the free tier — your profile, listing, bookings and data are preserved.
       </p>
     </div>
   );

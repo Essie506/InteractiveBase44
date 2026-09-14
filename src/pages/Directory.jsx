@@ -10,7 +10,7 @@ import { Loader2, SearchX, AlertCircle, Compass, SlidersHorizontal, X, Plus } fr
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import DirectoryFilters from '@/components/directory/DirectoryFilters';
 import NavTrigger from '@/components/nav/NavTrigger';
-import AddBusinessDialog from '@/components/directory/AddBusinessDialog';
+
 import ProfessionalResultCard from '@/components/directory/ProfessionalResultCard';
 import BusinessResultCard from '@/components/directory/BusinessResultCard';
 import EventResultCard from '@/components/directory/EventResultCard';
@@ -36,7 +36,6 @@ export default function Directory() {
   const [loading, setLoading] = useState(true);
   const [reloading, setReloading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [addBusinessOpen, setAddBusinessOpen] = useState(false);
   const { navOpen } = useNav();
   const isMobile = useIsMobile();
   const [connectionStatuses, setConnectionStatuses] = useState({});
@@ -342,9 +341,9 @@ export default function Directory() {
                 <Compass className="w-6 h-6 text-indigo-600" />
                 <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-stone-800">Directory</h1>
               </div>
-              <button onClick={() => setAddBusinessOpen(true)} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50">
-                <Plus className="w-4 h-4" /> Add your business
-              </button>
+              <Link to="/create-business" className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50">
+                <Plus className="w-4 h-4" /> Add your listing
+              </Link>
               <Link to="/login" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">
                 Sign In
               </Link>
@@ -353,7 +352,7 @@ export default function Directory() {
         </header>
       )}
 
-      <div className={`max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6 ${filtersOpen && !isMobile ? 'md:pr-80' : ''}`}>
+      <div className={`max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-6 transition-[padding] duration-300 ease-out ${filtersOpen && !isMobile ? 'md:pr-80' : ''}`}>
         {isDemoMode && (
           <div className="mb-4 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 flex items-center gap-2">
             <span className="w-2 h-2 bg-amber-400 rounded-full"></span>
@@ -381,9 +380,10 @@ export default function Directory() {
           {user && (
             <Link to="/create-business" className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shrink-0">
               <Plus className="w-4 h-4" />
-              Add your business
+              Add your listing
             </Link>
           )}
+          {!filtersOpen && (
           <button
             onClick={() => setFiltersOpen(true)}
             className={`${user ? '' : 'ml-auto'} inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0`}
@@ -391,6 +391,7 @@ export default function Directory() {
             <SlidersHorizontal className="w-4 h-4" />
             Filters
           </button>
+          )}
         </div>
         <div className="flex gap-6">
           {/* Results — majority width */}
@@ -464,9 +465,12 @@ export default function Directory() {
           inherits the Directory listings' top offset or height. Opening
           the main nav drawer does not shorten or reposition it. Internal
           scroll keeps all controls accessible on smaller screens. */}
-      {!isMobile && filtersOpen && (
-        <aside className="fixed top-0 right-0 h-[100dvh] w-80 z-40 flex flex-col bg-white border-l border-stone-200 shadow-xl">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-stone-200 bg-white shrink-0">
+      {!isMobile && (
+        <aside
+          className={`fixed top-0 right-0 h-[100dvh] w-80 z-40 flex flex-col bg-white border-l border-stone-200 shadow-xl transition-transform duration-300 ease-out ${filtersOpen ? 'translate-x-0' : 'translate-x-full'}`}
+          aria-hidden={!filtersOpen}
+        >
+          <div className="flex items-center justify-between px-4 py-4 border-b border-stone-200 bg-white shrink-0">
             <span className="text-sm font-semibold text-stone-800">Filters</span>
             <button onClick={() => setFiltersOpen(false)} className="p-1 hover:bg-stone-100 rounded-lg" aria-label="Close filters">
               <X className="w-4 h-4 text-stone-500" />
@@ -494,8 +498,6 @@ export default function Directory() {
       </Sheet>
       )}
 
-      {/* Public "Add your business" submission dialog (unauthenticated). */}
-      <AddBusinessDialog open={addBusinessOpen} onOpenChange={setAddBusinessOpen} />
       </div>);
 
 }

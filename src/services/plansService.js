@@ -70,17 +70,6 @@ export async function openCustomerPortal(businessId = null, origin = null) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────
-export function formatPlanPrice(pricePence, currency = 'GBP') {
-  if (!pricePence || pricePence === 0) return 'Free';
-  const symbol = currency === 'GBP' ? '£' : '';
-  return `${symbol}${(pricePence / 100).toFixed(2)}`;
-}
-
-export function isFreePlan(plan) {
-  return !plan?.price_pence || plan.price_pence === 0;
-}
-
-export function isHigherTier(currentTier, candidateTier) {
-  const order = { basic: 1, plus: 2, pro: 3 };
-  return (order[candidateTier] || 0) > (order[currentTier] || 0);
-}
+// Pure taxonomy helpers live in @/lib/planTaxonomy (no Firebase imports)
+// so they can be unit-tested directly. Re-exported here for callers.
+export { formatPlanPrice, isFreePlan, isHigherTier, getPlanDisplayName } from '@/lib/planTaxonomy';
