@@ -80,7 +80,9 @@ export default function BusinessCreation() {
       setContactPhone(d.contactPhone || ''); setWebsite(d.website || '');
       setHeadline(d.headline || ''); setBio(d.bio || ''); setScreenName(d.screenName || '');
       setTermsAccepted(!!d.termsAccepted);
-      setStaffEmails(Array.isArray(d.staffEmails) && d.staffEmails.length ? d.staffEmails : ['']);
+      // staffEmails are deliberately NOT restored from the draft —
+      // third-party invitation emails are never persisted to localStorage.
+      // Staff are invited only after authentication, at completion.
       if (typeof d.stepIndex === 'number' && d.stepIndex >= 0) setStepIndex(d.stepIndex);
     } catch { /* ignore malformed draft */ }
   }, []);
@@ -90,13 +92,17 @@ export default function BusinessCreation() {
   // completion.
   useEffect(() => {
     if (user) return;
+    // Deliberately EXCLUDED from the draft: staffEmails (third-party
+    // invitation emails), and any verification evidence/identity documents
+    // (none are collected in the wizard — see Verification stage). Only
+    // ordinary, non-sensitive public listing/profile fields are persisted.
     const draft = {
       listingType, name, businessType, description, category, location,
       contactEmail, contactPhone, website, headline, bio, screenName,
-      termsAccepted, staffEmails, stepIndex,
+      termsAccepted, stepIndex,
     };
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* quota */ }
-  }, [user, listingType, name, businessType, description, category, location, contactEmail, contactPhone, website, headline, bio, screenName, termsAccepted, staffEmails, stepIndex]);
+  }, [user, listingType, name, businessType, description, category, location, contactEmail, contactPhone, website, headline, bio, screenName, termsAccepted, stepIndex]);
 
   const addStaffField = () => setStaffEmails([...staffEmails, '']);
   const updateStaffEmail = (i, val) => setStaffEmails(staffEmails.map((e, idx) => idx === i ? val : e));

@@ -377,16 +377,13 @@ export default function Directory() {
               <span className="text-stone-400">within {appliedFilters.distance} miles of {appliedFilters.origin.label}</span>
             )}
           </div>
-          {user && (
-            <Link to="/create-business" className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shrink-0">
-              <Plus className="w-4 h-4" />
-              Add your listing
-            </Link>
-          )}
+          {/* Authenticated users do NOT see the public acquisition CTA here —
+              listing creation/management is accessed from the Dashboard/account
+              workflow. Only the public (unauthenticated) header shows the CTA. */}
           {!filtersOpen && (
           <button
             onClick={() => setFiltersOpen(true)}
-            className={`${user ? '' : 'ml-auto'} inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0`}
+            className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 shrink-0"
           >
             <SlidersHorizontal className="w-4 h-4" />
             Filters
