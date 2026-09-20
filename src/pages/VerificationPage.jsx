@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { db } from '@/firebase/firebaseClient';
 import { collection, getDocs, query, where, doc, getDoc, limit } from 'firebase/firestore';
-import { uploadMedia } from '@/lib/media';
-import { submitVerificationClaims, getVerificationState, listClaimsForSubject } from '@/services/verificationEngineService';
-import VerificationSourcePicker from '@/components/verification/VerificationSourcePicker';
-import { Loader2, ShieldCheck, Upload, X, ArrowLeft, Check, FileText, ExternalLink } from 'lucide-react';
+import { getVerificationState, listClaimsForSubject } from '@/services/verificationEngineService';
+import VerificationSubmissionForm from '@/components/verification/VerificationSubmissionForm';
+import { Loader2, ShieldCheck, ArrowLeft, Check } from 'lucide-react';
 
 const CLAIM_TYPE_LABELS = {
   identity: 'Identity',
@@ -16,6 +15,10 @@ const CLAIM_TYPE_LABELS = {
   business_control: 'Business control',
 };
 
+// Professional / Business Verification page. Reuses the shared
+// VerificationSubmissionForm (the authoritative V2 Trust & Reputation
+// claims engine) — the same component used by the listing creation
+// wizard, so there is one verification implementation, not two.
 export default function VerificationPage() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -29,12 +32,7 @@ export default function VerificationPage() {
   const [existingState, setExistingState] = useState(null);
   const [existingClaims, setExistingClaims] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [evidence, setEvidence] = useState([]);
-  const [notes, setNotes] = useState('');
-  const [selectedClaims, setSelectedClaims] = useState([]);
 
   useEffect(() => {
     if (!subjectId) { setLoading(false); return; }
@@ -67,48 +65,6 @@ export default function VerificationPage() {
     return () => { cancelled = true; };
   }, [subjectId, subjectType, isBusiness]);
 
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0 || !user) return;
-    setUploading(true);
-    try {
-      const assets = [];
-      for (const file of files) {
-        const asset = await uploadMedia(file, user.id, 'verification', 'protected');
-        assets.push(asset);
-      }
-      setEvidence([...evidence, ...assets]);
-    } finally {
-      setUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  const removeEvidence = (mediaId) => setEvidence(evidence.filter((e) => e.id !== mediaId));
-
-  const handleSubmit = async () => {
-    if (!user || selectedClaims.length === 0) return;
-    setSubmitting(true);
-    try {
-      const evidenceMediaIds = evidence.map((e) => e.id);
-      const claims = selectedClaims.map((c) => ({ ...c, evidence_media_ids: evidenceMediaIds }));
-      await submitVerificationClaims({
-        subject_type: subjectType,
-        subject_id: subjectId,
-        country: 'GB',
-        profession,
-        notes,
-        claims,
-      });
-      setSubmitted(true);
-    } catch (err) {
-      console.error('Verification submission failed:', err);
-      alert(err?.response?.data?.error || err?.message || 'Submission failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -136,8 +92,6 @@ export default function VerificationPage() {
 
   const isVerified = existingState?.public_state === 'verified';
   const hasPending = existingClaims.some((c) => c.status === 'pending');
-
-  const inputClass = 'w-full px-3 py-2.5 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400';
 
   return (
     <div className="p-6 md:p-10 max-w-lg mx-auto">
@@ -184,52 +138,14 @@ export default function VerificationPage() {
       )}
 
       {!isVerified && (
-        <div className="bg-white rounded-xl border border-stone-200 p-6">
-          <h2 className="font-semibold text-stone-800 mb-1">Verification Sources</h2>
-          <p className="text-sm text-stone-500 mb-4">Select one or more verification routes. Each source is checked independently by the backend.</p>
-
-          <VerificationSourcePicker
-            subjectType={subjectType}
-            country="GB"
-            profession={profession}
-            onChange={setSelectedClaims}
-          />
-
-          <h2 className="font-semibold text-stone-800 mt-6 mb-2">Evidence</h2>
-          <p className="text-sm text-stone-500 mb-4">Upload documents that support your claims (e.g. certificate, ID, business registration). Files are stored as protected media.</p>
-
-          {evidence.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {evidence.map((asset) => (
-                <div key={asset.id} className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg">
-                  <FileText className="w-4 h-4 text-stone-400 shrink-0" />
-                  <span className="text-sm text-stone-700 flex-1 truncate">{asset.file_name}</span>
-                  <button onClick={() => removeEvidence(asset.id)} className="text-stone-400 hover:text-red-500"><X className="w-4 h-4" /></button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-stone-200 rounded-xl cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-colors">
-            {uploading ? <Loader2 className="w-6 h-6 text-indigo-600 animate-spin mb-2" /> : <Upload className="w-6 h-6 text-stone-400 mb-2" />}
-            <span className="text-sm text-stone-600">{uploading ? 'Uploading...' : 'Click to upload evidence'}</span>
-            <span className="text-xs text-stone-400 mt-1">Images or documents</span>
-            <input type="file" multiple accept="image/*,.pdf,.doc,.docx" onChange={handleFileUpload} className="hidden" />
-          </label>
-
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">Additional Notes (optional)</label>
-            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Any context about your evidence..." className={inputClass + ' resize-none'} />
-          </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || selectedClaims.length === 0}
-            className="w-full mt-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
-          >
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</> : <><ShieldCheck className="w-4 h-4" /> Submit for Verification</>}
-          </button>
-        </div>
+        <VerificationSubmissionForm
+          subjectType={subjectType}
+          subjectId={subjectId}
+          country="GB"
+          profession={profession}
+          user={user}
+          onSubmitted={() => setSubmitted(true)}
+        />
       )}
 
       <p className="text-xs text-stone-400 mt-4 text-center">Verification is determined by corroborated evidence — not by subscription tier or advertising spend.</p>

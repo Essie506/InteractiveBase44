@@ -33,6 +33,10 @@ export default function Plans() {
   const [loading, setLoading] = useState(true);
   const [subscribingPlanId, setSubscribingPlanId] = useState(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  // selectedPlanId = the plan currently VIEWED in the info panel (browsing).
+  // Separate from the user's actual subscribed plan — browsing another plan
+  // never alters the subscription. Initialised to the current plan on load.
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
 
   const activeContext = user?.active_context || 'personal';
   const activeBusinessId = user?.active_business_id || null;
@@ -50,6 +54,11 @@ export default function Plans() {
       planList.sort((a, b) => (a.price_pence || 0) - (b.price_pence || 0));
       setPlans(planList);
       setSubscription(sub);
+      // Initial selection: the user's current plan, or the free tier for a
+      // Basic user. The current entitlement/subscription state is authoritative
+      // — Basic is not hard-coded where another plan is active.
+      const freePlan = planList.find((p) => !p.price_pence);
+      setSelectedPlanId(sub?.plan_id || freePlan?.id || planList[0]?.id || null);
     } catch (err) {
       console.error('Failed to load plans:', err);
       toast({ title: 'Could not load plans', variant: 'destructive' });
@@ -100,6 +109,9 @@ export default function Plans() {
   // Current plan detection: by plan_id when a subscription exists, else the
   // single free tier (Basic, £0) represents free public presence.
   const currentPlanId = subscription?.plan_id || null;
+  // The plan currently viewed in the info panel (browsing), distinct from
+  // the subscribed plan. Drives the information panel above the cards.
+  const selectedPlan = plans.find(p => p.id === selectedPlanId) || null;
   const currentPlan = plans.find(p => p.id === currentPlanId) || null;
   const currentPrice = currentPlan?.price_pence ?? 0;
   const hasPaidSubscription = subscription && subscription.status === 'active' && currentPlan && !isFreePlan(currentPlan);
@@ -129,17 +141,57 @@ export default function Plans() {
         </p>
       </div>
 
-      {/* Identity / public presences */}
+      {/* Information panel for the selected plan. For Basic (free) this
+          preserves the existing free-public-presence information. For paid
+          plans it shows the plan's authoritative description + features. If
+          customer-facing copy is not yet configured, the missing metadata
+          is identified rather than invented. */}
       <div className="mb-6 rounded-xl border border-stone-200 bg-white p-5">
-        <h2 className="text-sm font-semibold text-stone-800 mb-3">Your identity &amp; public presences (free)</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-          <div className="flex items-center gap-2 text-stone-600"><UserIcon className="w-4 h-4 text-stone-400" /> Personal profile</div>
-          <div className="flex items-center gap-2 text-stone-600"><Briefcase className="w-4 h-4 text-stone-400" /> Professional profile</div>
-          <div className="flex items-center gap-2 text-stone-600"><Building2 className="w-4 h-4 text-stone-400" /> Business listing</div>
-          <div className="flex items-center gap-2 text-stone-600"><Compass className="w-4 h-4 text-stone-400" /> Directory presence</div>
-          <div className="flex items-center gap-2 text-stone-600"><Newspaper className="w-4 h-4 text-stone-400" /> Feed participation</div>
-          <div className="flex items-center gap-2 text-stone-600"><Users className="w-4 h-4 text-stone-400" /> Public team relationships</div>
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+          <h2 className="text-sm font-semibold text-stone-800">
+            {selectedPlan ? getPlanDisplayName(selectedPlan) : 'Plans'} — {selectedPlan ? formatPlanPrice(selectedPlan.price_pence, selectedPlan.currency) : ''}
+          </h2>
+          {selectedPlan && selectedPlan.id === currentPlanId && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">Current plan</span>
+          )}
         </div>
+        {selectedPlan && isFreePlan(selectedPlan) ? (
+          <>
+            <p className="text-sm text-stone-600 mb-3">Your identity &amp; public presences on Interactive are free.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+              <div className="flex items-center gap-2 text-stone-600"><UserIcon className="w-4 h-4 text-stone-400" /> Personal profile</div>
+              <div className="flex items-center gap-2 text-stone-600"><Briefcase className="w-4 h-4 text-stone-400" /> Professional profile</div>
+              <div className="flex items-center gap-2 text-stone-600"><Building2 className="w-4 h-4 text-stone-400" /> Business listing</div>
+              <div className="flex items-center gap-2 text-stone-600"><Compass className="w-4 h-4 text-stone-400" /> Directory presence</div>
+              <div className="flex items-center gap-2 text-stone-600"><Newspaper className="w-4 h-4 text-stone-400" /> Feed participation</div>
+              <div className="flex items-center gap-2 text-stone-600"><Users className="w-4 h-4 text-stone-400" /> Public team relationships</div>
+            </div>
+          </>
+        ) : selectedPlan ? (
+          <>
+            {selectedPlan.description ? (
+              <p className="text-sm text-stone-600 mb-3">{selectedPlan.description}</p>
+            ) : (
+              <p className="text-sm text-stone-500 italic mb-3">Customer-facing description for this plan is not yet configured.</p>
+            )}
+            {selectedPlan.features && selectedPlan.features.length > 0 ? (
+              <ul className="space-y-1.5 text-sm text-stone-700">
+                {selectedPlan.features.map((feature, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <Check className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                Included capabilities for this plan are not yet configured. Customer-facing wording and feature lists will be provided separately.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-stone-500">Select a plan to view its details.</p>
+        )}
       </div>
 
       {/* Current subscription summary */}
@@ -182,8 +234,16 @@ export default function Plans() {
           return (
             <div
               key={plan.id}
-              className={`relative rounded-2xl border bg-white p-6 flex flex-col ${
-                plan.tier === 'plus' && plan.family === 'professional' ? 'border-indigo-300 ring-1 ring-indigo-200' : 'border-stone-200'
+              onClick={() => setSelectedPlanId(plan.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedPlanId(plan.id); } }}
+              className={`relative rounded-2xl border bg-white p-6 flex flex-col cursor-pointer transition-all ${
+                selectedPlanId === plan.id
+                  ? 'border-indigo-500 ring-2 ring-indigo-400'
+                  : plan.tier === 'plus' && plan.family === 'professional'
+                    ? 'border-indigo-300 ring-1 ring-indigo-200 hover:border-indigo-400'
+                    : 'border-stone-200 hover:border-stone-300'
               }`}
             >
               {plan.tier === 'plus' && plan.family === 'professional' && (
@@ -229,7 +289,7 @@ export default function Plans() {
                 </button>
               ) : (
                 <button
-                  onClick={() => handleSubscribe(plan)}
+                  onClick={(e) => { e.stopPropagation(); handleSubscribe(plan); }}
                   disabled={subscribing}
                   className={`w-full py-2.5 rounded-lg text-sm font-medium inline-flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
                     isUpgrade

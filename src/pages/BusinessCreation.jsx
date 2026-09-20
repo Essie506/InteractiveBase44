@@ -7,11 +7,11 @@ import {
 } from '@/services/businessService';
 import { saveProfessionalProfile } from '@/services/profileService';
 import * as userService from '@/services/userService';
-import { submitVerification } from '@/lib/trust';
 import { createNotification } from '@/lib/notifications';
 import { Loader2, Plus, X, Check, ShieldCheck, Users, Briefcase, Building2, ArrowRight } from 'lucide-react';
 import MandatoryLabel from '@/components/MandatoryLabel';
 import FieldError from '@/components/FieldError';
+import VerificationSubmissionForm from '@/components/verification/VerificationSubmissionForm';
 
 // Listing creation wizard (V2 Public Interactive refinement).
 // ───────────────────────────────────────────────────────────
@@ -56,14 +56,25 @@ export default function BusinessCreation() {
   const [headline, setHeadline] = useState('');
   const [bio, setBio] = useState('');
   const [screenName, setScreenName] = useState('');
-  // Verification
+  // Verification — optional during listing creation. The user may submit
+  // evidence via the authoritative V2 Trust engine (when authenticated +
+  // subject exists) or skip and complete verification later. Skipping
+  // never fabricates a request and never marks the listing verified.
+  const [verificationSkipped, setVerificationSkipped] = useState(false);
+  const [verificationSubmitted, setVerificationSubmitted] = useState(false);
+  // Listing-creation consent (collected at Ready to Create).
   const [termsAccepted, setTermsAccepted] = useState(false);
   // Staff
   const [staffEmails, setStaffEmails] = useState(['']);
   const [errors, setErrors] = useState(/** @type {Record<string, any>} */ ({}));
 
   const returnTo = new URLSearchParams(window.location.search).get('returnTo') || '/dashboard';
-  const stepKeys = ['listing', 'profile', 'verification', 'staff', 'complete'];
+  // Professional listings skip the Invite Staff step entirely — staff
+  // linking is a Business capability. The progress indicator reflects
+  // the actual journey for the selected listing type (no misleading step).
+  const stepKeys = listingType === 'professional'
+    ? ['listing', 'profile', 'verification', 'complete']
+    : ['listing', 'profile', 'verification', 'staff', 'complete'];
 
   // Load any saved draft on mount (survives the auth transition). The draft
   // is only written while unauthenticated, so a stale draft cannot overwrite
@@ -80,9 +91,12 @@ export default function BusinessCreation() {
       setContactPhone(d.contactPhone || ''); setWebsite(d.website || '');
       setHeadline(d.headline || ''); setBio(d.bio || ''); setScreenName(d.screenName || '');
       setTermsAccepted(!!d.termsAccepted);
+      setVerificationSkipped(!!d.verificationSkipped);
       // staffEmails are deliberately NOT restored from the draft —
       // third-party invitation emails are never persisted to localStorage.
       // Staff are invited only after authentication, at completion.
+      // verificationSubmitted is runtime state re-derived from the server
+      // (claims are server-authoritative); not persisted to the draft.
       if (typeof d.stepIndex === 'number' && d.stepIndex >= 0) setStepIndex(d.stepIndex);
     } catch { /* ignore malformed draft */ }
   }, []);
@@ -99,10 +113,10 @@ export default function BusinessCreation() {
     const draft = {
       listingType, name, businessType, description, category, location,
       contactEmail, contactPhone, website, headline, bio, screenName,
-      termsAccepted, stepIndex,
+      termsAccepted, verificationSkipped, stepIndex,
     };
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); } catch { /* quota */ }
-  }, [user, listingType, name, businessType, description, category, location, contactEmail, contactPhone, website, headline, bio, screenName, termsAccepted, stepIndex]);
+  }, [user, listingType, name, businessType, description, category, location, contactEmail, contactPhone, website, headline, bio, screenName, termsAccepted, verificationSkipped, stepIndex]);
 
   const addStaffField = () => setStaffEmails([...staffEmails, '']);
   const updateStaffEmail = (i, val) => setStaffEmails(staffEmails.map((e, idx) => idx === i ? val : e));
@@ -110,14 +124,17 @@ export default function BusinessCreation() {
 
   const validateStep = (step) => {
     const e = {};
-    if (step === 'listing' && !name.trim()) e.name = listingType === 'business' ? 'Business name is required' : 'Display name is required';
+    if (step === 'listing') {
+      if (!name.trim()) e.name = listingType === 'business' ? 'Business name is required' : 'Display name is required';
+      // Professional Category is now collected on Step 1 (Your Listing).
+      if (listingType === 'professional' && !category.trim()) e.category = 'Professional category is required';
+    }
     if (step === 'profile' && listingType === 'professional') {
-      if (!category.trim()) e.category = 'Professional category is required';
       const sn = screenName.toLowerCase().trim();
       if (!sn) e.screenName = 'Screen name is required for your public profile';
       else if (!/^[a-z0-9_]{3,20}$/.test(sn)) e.screenName = '3-20 characters: lowercase letters, numbers, underscores';
     }
-    if (step === 'verification' && !termsAccepted) e.terms = 'You must accept the terms to continue';
+    if (step === 'complete' && !termsAccepted) e.terms = 'You must accept the terms to continue';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -157,12 +174,21 @@ export default function BusinessCreation() {
   };
 
   const createBusinessListing = async () => {
-    // 1. Create Business (lifecycle: pending_verification)
+    // Verification state: 'pending_review' only if evidence was actually
+    // submitted via the authoritative V2 engine; otherwise 'not_verified'.
+    // Skipping NEVER fabricates a verification request and NEVER marks the
+    // listing verified. Business verification evidence cannot be submitted
+    // before the business exists, so a deferred business starts
+    // 'not_verified' and the owner completes verification later from the
+    // business workspace (/business/:id/verify).
+    const verificationState = verificationSubmitted ? 'pending_review' : 'not_verified';
+
+    // 1. Create Business
     const business = await createBusiness({
       name, owner_id: user.id, type: businessType,
       lifecycle_state: 'pending_verification',
       onboarding_status: 'active', onboarding_step: 'complete',
-      verification_state: 'pending_review',
+      verification_state: verificationState,
       website, contact_email: contactEmail, contact_phone: contactPhone,
     });
 
@@ -178,13 +204,16 @@ export default function BusinessCreation() {
     await createBusinessProfile({ business_id: business.id, ...profileData });
     try { await saveBusinessProfile(business.id, profileData); } catch (projErr) { console.error('saveBusinessProfile projection at creation failed:', projErr); }
 
-    // 4. Verification request (Trust & Reputation)
-    await submitVerification('business', business.id, user.id, [], `Business verification for ${name}`);
-    await createNotification({
-      recipient_id: user.id, source_system: 'trust', event_type: 'verification_submitted',
-      title: 'Verification Submitted', body: `Your business verification for ${name} has been submitted for review.`,
-      category: 'verification', action_url: `/business/${business.id}`, action_label: 'View Business', source_id: business.id,
-    }).catch(() => {});
+    // 4. Verification — no fabricated request. If evidence was submitted
+    // in-wizard it is already recorded by the V2 Trust engine; otherwise
+    // the owner completes verification later. Notify only when submitted.
+    if (verificationSubmitted) {
+      await createNotification({
+        recipient_id: user.id, source_system: 'trust', event_type: 'verification_submitted',
+        title: 'Verification Submitted', body: `Your business verification for ${name} has been submitted for review.`,
+        category: 'verification', action_url: `/business/${business.id}/verify`, action_label: 'Complete verification', source_id: business.id,
+      }).catch(() => {});
+    }
 
     // 5. Staff invitations — invitations only (no seat activation, no authority)
     const validEmails = staffEmails.filter(e => e.trim() && e !== user.email);
@@ -202,23 +231,32 @@ export default function BusinessCreation() {
   };
 
   const createProfessionalListing = async () => {
+    // Verification state: 'pending_review' only if evidence was actually
+    // submitted via the authoritative V2 engine; otherwise 'not_verified'.
+    // Skipping NEVER fabricates a request and NEVER marks the profile
+    // verified. The professional can complete verification later via
+    // /verify-professional.
+    const verificationState = verificationSubmitted ? 'pending_review' : 'not_verified';
     const profileData = {
       identity_id: user.id, display_name: name, headline, bio,
       profession: category, professional_category: category,
       services: [], service_area: '', location,
       contact_email: contactEmail, contact_phone: contactPhone,
       screen_name: screenName.toLowerCase().trim() || null,
-      visibility: 'public', onboarding_status: 'awaiting_verification',
-      verification_state: 'pending_review', lifecycle_state: 'active',
+      visibility: 'public', onboarding_status: verificationSubmitted ? 'awaiting_verification' : 'active',
+      verification_state: verificationState, lifecycle_state: 'active',
       activated_at: new Date().toISOString(),
     };
     await saveProfessionalProfile(user.id, profileData);
-    await submitVerification('professional', user.id, user.id, [], `Professional verification for ${category}`);
-    await createNotification({
-      recipient_id: user.id, source_system: 'trust', event_type: 'verification_submitted',
-      title: 'Verification Submitted', body: 'Your professional verification request has been submitted for review.',
-      category: 'verification', action_url: '/professional-profile', action_label: 'View Profile', source_id: user.id,
-    }).catch(() => {});
+    // No fabricated verification request. If evidence was submitted
+    // in-wizard it is already recorded by the V2 Trust engine.
+    if (verificationSubmitted) {
+      await createNotification({
+        recipient_id: user.id, source_system: 'trust', event_type: 'verification_submitted',
+        title: 'Verification Submitted', body: 'Your professional verification request has been submitted for review.',
+        category: 'verification', action_url: '/verify-professional', action_label: 'Complete verification', source_id: user.id,
+      }).catch(() => {});
+    }
     await userService.updateUserState({
       professional_activated: true, professional_onboarding_status: 'active',
       display_name: name, active_context: 'professional',
@@ -275,7 +313,15 @@ export default function BusinessCreation() {
 
               <div className="space-y-4">
                 <div>
-                  <MandatoryLabel htmlFor="lc-name" required>{isProfessional ? 'Display Name' : 'Business Name'}</MandatoryLabel>
+                  <MandatoryLabel
+                    htmlFor="lc-name"
+                    required
+                    tooltip={isProfessional
+                      ? 'The name you want people to see on your professional listing and public profile. This can be your professional or public-facing name.'
+                      : 'The public name of your business or organisation. This is the name people will see on your listing and across Interactive.'}
+                  >
+                    {isProfessional ? 'Display Name' : 'Business Name'}
+                  </MandatoryLabel>
                   <input id="lc-name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder={isProfessional ? 'e.g. Esther Fitness' : 'e.g. Acme Fitness Studio'} className={inputClass} />
                   <FieldError error={errors.name} />
                 </div>
@@ -291,6 +337,23 @@ export default function BusinessCreation() {
                       <option value="charity">Charity</option>
                       <option value="other">Other</option>
                     </select>
+                  </div>
+                )}
+                {isProfessional && (
+                  <div>
+                    <MandatoryLabel htmlFor="lc-pro-category" required>Professional Category</MandatoryLabel>
+                    <select id="lc-pro-category" value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>
+                      <option value="">Select a category</option>
+                      <option value="Personal Trainer">Personal Trainer</option>
+                      <option value="Coach">Coach</option>
+                      <option value="Instructor">Instructor</option>
+                      <option value="Therapist">Therapist</option>
+                      <option value="Practitioner">Practitioner</option>
+                      <option value="Creator">Creator</option>
+                      <option value="Freelancer">Freelancer</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <FieldError error={errors.category} />
                   </div>
                 )}
               </div>
@@ -316,21 +379,6 @@ export default function BusinessCreation() {
                     <div>
                       <label className="block text-sm font-medium text-stone-700 mb-1.5">Bio</label>
                       <textarea value={bio} onChange={e => setBio(e.target.value)} rows={3} placeholder="Describe your professional background" className={inputClass + " resize-none"} />
-                    </div>
-                    <div>
-                      <MandatoryLabel htmlFor="lc-pro-category" required>Professional Category</MandatoryLabel>
-                      <select id="lc-pro-category" value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>
-                        <option value="">Select a category</option>
-                        <option value="Personal Trainer">Personal Trainer</option>
-                        <option value="Coach">Coach</option>
-                        <option value="Instructor">Instructor</option>
-                        <option value="Therapist">Therapist</option>
-                        <option value="Practitioner">Practitioner</option>
-                        <option value="Creator">Creator</option>
-                        <option value="Freelancer">Freelancer</option>
-                        <option value="Other">Other</option>
-                      </select>
-                      <FieldError error={errors.category} />
                     </div>
                   </>
                 ) : (
@@ -384,7 +432,13 @@ export default function BusinessCreation() {
             </div>
           )}
 
-          {/* Verification */}
+          {/* Verification — reuses the existing Professional Verification
+              capability (V2 Trust & Reputation claims engine via the shared
+              VerificationSubmissionForm). Optional: submit evidence now
+              (when authenticated + subject exists) or skip and complete
+              verification later from the existing authenticated Verification
+              area. Skipping never fabricates a request and never marks the
+              listing verified. */}
           {currentStep === 'verification' && (
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <div className="flex items-center gap-3 mb-4">
@@ -393,29 +447,48 @@ export default function BusinessCreation() {
                 </div>
                 <h1 className="text-2xl font-bold text-stone-800">Verification</h1>
               </div>
-              <p className="text-stone-500 mb-6">Verification is managed by Trust & Reputation and is based on corroborated evidence — not subscription tier or advertising spend. A verification request is submitted during creation. Your listing can begin operating while verification is pending.</p>
-              <div className="bg-stone-50 rounded-xl p-5 mb-6 text-sm text-stone-600">
-                <p className="mb-2 font-medium text-stone-700">What happens next:</p>
-                <ul className="space-y-1 list-disc list-inside">
-                  <li>A verification request is submitted to Trust & Reputation</li>
-                  <li>Your listing becomes active immediately</li>
-                  <li>Verification does not block listing creation</li>
-                </ul>
-              </div>
-              <label className="flex items-start gap-3 cursor-pointer mb-2">
-                <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
-                <span className="text-sm text-stone-700">I confirm I am authorised to create this listing and accept the terms <span className="text-indigo-600 font-semibold">*</span></span>
+              <p className="text-stone-500 mb-6">Verification is based on corroborated evidence under Trust &amp; Reputation — independent of subscription tier or advertising spend. It's optional during listing creation: submit evidence now or skip and complete it later from your account.</p>
+
+              <VerificationSubmissionForm
+                subjectType={listingType === 'business' ? 'business' : 'professional'}
+                subjectId={listingType === 'business' ? null : (user?.id || null)}
+                country="GB"
+                profession={listingType === 'professional' ? category : ''}
+                user={user}
+                onSubmitted={() => setVerificationSubmitted(true)}
+                disabledReason={
+                  !user
+                    ? 'Sign in or create an account to submit verification evidence now. You can skip this step and complete verification later from your account.'
+                    : listingType === 'business'
+                      ? 'Business verification is available after your business is created. Skip this step and complete verification later from your business workspace.'
+                      : null
+                }
+              />
+
+              <label className="flex items-start gap-3 cursor-pointer mt-5 mb-2">
+                <input type="checkbox" checked={verificationSkipped} onChange={e => setVerificationSkipped(e.target.checked)} className="mt-1 w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
+                <span className="text-sm text-stone-700">Continue without verification — I'll complete it later. My listing will be unverified until then.</span>
               </label>
-              <FieldError error={errors.terms} />
-              <div className="mb-6" />
-              <div className="flex gap-3">
+
+              <div className="flex gap-3 mt-6">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
+                <button
+                  onClick={handleNext}
+                  disabled={!verificationSkipped && !verificationSubmitted}
+                  className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Continue
+                </button>
               </div>
+              {!verificationSkipped && !verificationSubmitted && (
+                <p className="text-xs text-stone-400 mt-2 text-center">Submit evidence above or tick "Continue without verification" to proceed.</p>
+              )}
             </div>
           )}
 
-          {/* Invite Staff */}
+          {/* Invite Staff — Business only. Professional listings skip this
+              step entirely (it is not in stepKeys), so no fake empty staff
+              invitations are created to satisfy the step sequence. */}
           {currentStep === 'staff' && (
             <div className="bg-white rounded-2xl border border-stone-200 p-8">
               <div className="flex items-center gap-3 mb-4">
@@ -424,35 +497,23 @@ export default function BusinessCreation() {
                 </div>
                 <h1 className="text-2xl font-bold text-stone-800">Invite Staff</h1>
               </div>
-              {isProfessional ? (
-                <>
-                  <p className="text-stone-500 mb-6">Staff linking is available for Business listings. As a Professional, you can link team members later from a Business workspace. You can skip this step now.</p>
-                  <div className="flex gap-3">
-                    <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                    <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
+              <p className="text-stone-500 mb-2">Invite team members to your business. Linking staff is free — invitations do not activate paid operational seats or grant Business control over a Professional account.</p>
+              <p className="text-xs text-stone-400 mb-6">You can skip this and invite staff later.</p>
+              <div className="space-y-2 mb-3">
+                {staffEmails.map((email, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input type="email" value={email} onChange={e => updateStaffEmail(i, e.target.value)} placeholder="colleague@example.com" className={inputClass} />
+                    {staffEmails.length > 1 && (
+                      <button onClick={() => removeStaffField(i)} className="px-3 py-2.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors"><X className="w-4 h-4" /></button>
+                    )}
                   </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-stone-500 mb-2">Invite team members to your business. Linking staff is free — invitations do not activate paid operational seats or grant Business control over a Professional account.</p>
-                  <p className="text-xs text-stone-400 mb-6">You can skip this and invite staff later.</p>
-                  <div className="space-y-2 mb-3">
-                    {staffEmails.map((email, i) => (
-                      <div key={i} className="flex gap-2">
-                        <input type="email" value={email} onChange={e => updateStaffEmail(i, e.target.value)} placeholder="colleague@example.com" className={inputClass} />
-                        {staffEmails.length > 1 && (
-                          <button onClick={() => removeStaffField(i)} className="px-3 py-2.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 transition-colors"><X className="w-4 h-4" /></button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={addStaffField} className="inline-flex items-center gap-1.5 text-sm text-indigo-600 font-medium hover:text-indigo-700"><Plus className="w-4 h-4" /> Add another</button>
-                  <div className="flex gap-3 mt-6">
-                    <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
-                    <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
-                  </div>
-                </>
-              )}
+                ))}
+              </div>
+              <button onClick={addStaffField} className="inline-flex items-center gap-1.5 text-sm text-indigo-600 font-medium hover:text-indigo-700"><Plus className="w-4 h-4" /> Add another</button>
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
+                <button onClick={handleNext} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">Continue</button>
+              </div>
             </div>
           )}
 
@@ -467,19 +528,27 @@ export default function BusinessCreation() {
               <div className="bg-stone-50 rounded-xl p-5 text-left text-sm space-y-2 mb-6">
                 <div><span className="text-stone-500">Type:</span> <span className="font-medium text-stone-800">{isProfessional ? 'Professional' : 'Business'}</span></div>
                 <div><span className="text-stone-500">{isProfessional ? 'Name:' : 'Business:'}</span> <span className="font-medium text-stone-800">{name}</span></div>
-                {!isProfessional && <div><span className="text-stone-500">Type:</span> <span className="font-medium text-stone-800 capitalize">{businessType}</span></div>}
+                {!isProfessional && <div><span className="text-stone-500">Business type:</span> <span className="font-medium text-stone-800 capitalize">{businessType}</span></div>}
+                {isProfessional && category && <div><span className="text-stone-500">Category:</span> <span className="font-medium text-stone-800">{category}</span></div>}
                 {!isProfessional && <div><span className="text-stone-500">Staff invitations:</span> <span className="font-medium text-stone-800">{staffEmails.filter(e => e.trim()).length}</span></div>}
-                <div><span className="text-stone-500">Verification:</span> <span className="font-medium text-stone-800">Will be submitted</span></div>
+                <div><span className="text-stone-500">Verification:</span> <span className="font-medium text-stone-800">{verificationSubmitted ? 'Evidence submitted — pending review' : verificationSkipped ? 'Skipped — complete later' : 'Not submitted'}</span></div>
                 <div><span className="text-stone-500">Plan:</span> <span className="font-medium text-stone-800">Free public presence — no paid plan required</span></div>
               </div>
-              <div className="flex gap-3">
+
+              <label className="flex items-start gap-3 cursor-pointer mb-2 text-left">
+                <input type="checkbox" checked={termsAccepted} onChange={e => setTermsAccepted(e.target.checked)} className="mt-1 w-4 h-4 rounded border-stone-300 text-indigo-600 focus:ring-indigo-500" />
+                <span className="text-sm text-stone-700">I confirm I am authorised to create this listing and accept the terms <span className="text-indigo-600 font-semibold">*</span></span>
+              </label>
+              <FieldError error={errors.terms} />
+
+              <div className="flex gap-3 mt-4">
                 <button onClick={() => setStepIndex(stepIndex - 1)} className="px-5 py-3 text-stone-600 hover:bg-stone-100 rounded-xl font-medium transition-colors">Back</button>
                 {user ? (
-                  <button onClick={runCreation} disabled={loading} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                  <button onClick={() => { if (validateStep('complete')) runCreation(); }} disabled={loading} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
                     {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : <><Check className="w-4 h-4" /> Create listing</>}
                   </button>
                 ) : (
-                  <button onClick={handleComplete} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 flex items-center justify-center gap-2 transition-colors">
+                  <button onClick={() => { if (validateStep('complete')) handleComplete(); }} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 flex items-center justify-center gap-2 transition-colors">
                     Sign up to create <ArrowRight className="w-4 h-4" />
                   </button>
                 )}
