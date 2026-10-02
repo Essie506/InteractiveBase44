@@ -14,6 +14,21 @@ export default function Saved() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Map raw Firebase errors to a friendly, user-safe message. Never
+  // surface the raw Firebase message (which can include a Console URL
+  // for missing-index errors) to end users. The original error is still
+  // logged to the console for developer diagnosis.
+  const friendlyError = (err) => {
+    const msg = String(err?.message || '');
+    if (msg.includes('index') || err?.code === 'failed-precondition') {
+      return 'Saved content is temporarily unavailable while we update our search index. Please try again in a moment.';
+    }
+    if (err?.code === 'permission-denied') {
+      return 'You may need to sign in again to view your saved content.';
+    }
+    return 'We couldn’t load your saved content. Please try again.';
+  };
+
   const loadSaves = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
@@ -29,7 +44,7 @@ export default function Saved() {
       setSaves(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error('[Saved] Failed to load saves:', err);
-      setError(err?.message || 'Failed to load saved content');
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
