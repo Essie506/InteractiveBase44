@@ -70,6 +70,9 @@ export default function ReactionBar({ targetSystem, targetId, targetType }) {
       const result = await toggleSave(targetSystem, targetType, targetId);
       setSaveActive(result.state === 'active');
     } catch (err) {
+      // Log the real Firebase error (code/message/details) for diagnosis
+      // while the user only sees the friendly toast (point 6).
+      console.error('[Save] toggleSave failed:', err?.code || err?.message || err, err?.details || '');
       toast({ title: 'Could not save', variant: 'destructive' });
     } finally {
       setSaveToggling(false);
